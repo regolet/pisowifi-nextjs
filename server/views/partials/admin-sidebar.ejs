@@ -1,50 +1,70 @@
-<!-- Sidebar Navigation -->
-<div class="w-64 bg-white shadow-lg flex flex-col h-screen">
-    <div class="p-6 border-b">
-        <div class="flex items-center">
-            <div class="text-2xl mr-3">📊</div>
-            <h1 class="text-xl font-bold text-gray-800">PISOWifi</h1>
-        </div>
+<!-- Compact Admin Sidebar -->
+<div class="w-52 bg-white border-r border-gray-200 flex flex-col h-screen">
+    <div class="p-4 border-b border-gray-200">
+        <h1 class="text-lg font-semibold text-black">PISOWifi Admin</h1>
     </div>
     
-    <nav class="flex-1 p-4">
-        <div class="space-y-2">
-            <a href="/admin" class="sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg <%= currentPage === 'dashboard' ? 'bg-blue-50 border-r-3 border-blue-500' : 'hover:bg-gray-50' %>">
-                <span class="mr-3">🏠</span>
-                <span>Dashboard</span>
-            </a>
-            <a href="/admin/clients" class="sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg <%= currentPage === 'clients' ? 'bg-blue-50 border-r-3 border-blue-500' : 'hover:bg-gray-50' %>">
-                <span class="mr-3">👥</span>
-                <span>Clients</span>
-            </a>
-            <a href="/admin/rates" class="sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg <%= currentPage === 'rates' ? 'bg-blue-50 border-r-3 border-blue-500' : 'hover:bg-gray-50' %>">
-                <span class="mr-3">🪙</span>
-                <span>Coin Rates</span>
-            </a>
-            <a href="/admin/network" class="sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg <%= currentPage === 'network' ? 'bg-blue-50 border-r-3 border-blue-500' : 'hover:bg-gray-50' %>">
-                <span class="mr-3">🌐</span>
-                <span>Network</span>
-            </a>
-            <a href="/admin/gpio" class="sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg <%= currentPage === 'gpio' ? 'bg-blue-50 border-r-3 border-blue-500' : 'hover:bg-gray-50' %>">
-                <span class="mr-3">⚡</span>
-                <span>GPIO</span>
-            </a>
-            <a href="/admin/reports" class="sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg <%= currentPage === 'reports' ? 'bg-blue-50 border-r-3 border-blue-500' : 'hover:bg-gray-50' %>">
-                <span class="mr-3">📊</span>
-                <span>Reports</span>
-            </a>
-        </div>
+    <nav class="flex-1 py-2">
+        <a href="/admin" class="flex items-center px-4 py-2 text-sm text-black hover:bg-gray-100 <%= currentPage === 'dashboard' ? 'bg-gray-100 border-r-2 border-blue-500' : '' %>">
+            <span class="w-4 h-4 mr-3 flex-shrink-0">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                </svg>
+            </span>
+            Dashboard
+        </a>
+        <a href="/admin/clients" class="flex items-center px-4 py-2 text-sm text-black hover:bg-gray-100 <%= currentPage === 'clients' ? 'bg-gray-100 border-r-2 border-blue-500' : '' %>">
+            <span class="w-4 h-4 mr-3 flex-shrink-0">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"/>
+                </svg>
+            </span>
+            Clients
+        </a>
+        <a href="/admin/rates" class="flex items-center px-4 py-2 text-sm text-black hover:bg-gray-100 <%= currentPage === 'rates' ? 'bg-gray-100 border-r-2 border-blue-500' : '' %>">
+            <span class="w-4 h-4 mr-3 flex-shrink-0">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/>
+                </svg>
+            </span>
+            Rates
+        </a>
+        <a href="/admin/network" class="flex items-center px-4 py-2 text-sm text-black hover:bg-gray-100 <%= currentPage === 'network' ? 'bg-gray-100 border-r-2 border-blue-500' : '' %>">
+            <span class="w-4 h-4 mr-3 flex-shrink-0">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9-9a9 9 0 00-9 9m0 0a9 9 0 019-9"/>
+                </svg>
+            </span>
+            Network
+        </a>
+        <a href="/admin/gpio" class="flex items-center px-4 py-2 text-sm text-black hover:bg-gray-100 <%= currentPage === 'gpio' ? 'bg-gray-100 border-r-2 border-blue-500' : '' %>">
+            <span class="w-4 h-4 mr-3 flex-shrink-0">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+            </span>
+            GPIO
+        </a>
+        <a href="/admin/reports" class="flex items-center px-4 py-2 text-sm text-black hover:bg-gray-100 <%= currentPage === 'reports' ? 'bg-gray-100 border-r-2 border-blue-500' : '' %>">
+            <span class="w-4 h-4 mr-3 flex-shrink-0">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+            </span>
+            Reports
+        </a>
     </nav>
     
-    <div class="p-4 border-t">
+    <div class="p-4 border-t border-gray-200">
         <div class="flex items-center justify-between">
-            <div>
-                <p class="text-xs text-gray-500">Welcome back</p>
-                <p class="text-sm font-medium text-gray-800"><%= typeof user !== 'undefined' ? user.username : 'Admin' %></p>
+            <div class="min-w-0 flex-1">
+                <p class="text-xs font-medium text-black truncate"><%= typeof user !== 'undefined' ? user.username : 'Admin' %></p>
             </div>
-            <form action="/admin/logout" method="POST">
-                <button type="submit" class="text-red-600 hover:text-red-700 p-2 rounded-lg hover:bg-red-50" title="Logout">
-                    <span class="text-lg">🚪</span>
+            <form action="/admin/logout" method="POST" class="ml-2">
+                <button type="submit" class="text-black hover:text-red-600 p-1" title="Logout">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                    </svg>
                 </button>
             </form>
         </div>

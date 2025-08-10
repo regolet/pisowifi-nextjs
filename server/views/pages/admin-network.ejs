@@ -12,55 +12,43 @@
     
     <!-- Main Content -->
     <div class="flex-1 overflow-y-auto">
-        <div class="p-8">
-            <div class="mb-8">
-                <h2 class="text-2xl font-bold text-gray-800">Network Management</h2>
-                <p class="text-gray-600">Configure DHCP, DNS, and monitor network traffic</p>
+        <div class="p-6">
+            <div class="mb-6">
+                <h1 class="text-xl font-bold text-black">Network Management</h1>
+                <p class="text-sm text-gray-600 mt-1">Configure DHCP, DNS, and monitor network traffic</p>
             </div>
 
-            <!-- Network Status Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div class="bg-white rounded-xl shadow-sm border p-6">
-                    <div class="flex items-center">
-                        <div class="text-3xl mr-4">🌐</div>
-                        <div>
-                            <p class="text-2xl font-bold text-gray-800" id="dhcp-leases">0</p>
-                            <p class="text-gray-600">DHCP Leases</p>
-                        </div>
-                    </div>
+            <!-- Network Status Table -->
+            <div class="bg-white border border-gray-200 rounded-lg mb-6">
+                <div class="px-4 py-3 border-b border-gray-200">
+                    <h2 class="text-sm font-semibold text-black">Network Statistics</h2>
                 </div>
-                <div class="bg-white rounded-xl shadow-sm border p-6">
-                    <div class="flex items-center">
-                        <div class="text-3xl mr-4">📶</div>
-                        <div>
-                            <p class="text-2xl font-bold text-gray-800" id="active-interfaces">0</p>
-                            <p class="text-gray-600">Active Interfaces</p>
-                        </div>
+                <div class="divide-y divide-gray-200">
+                    <div class="px-4 py-3 flex justify-between items-center">
+                        <span class="text-sm text-black">DHCP Leases</span>
+                        <span class="text-sm font-semibold text-black" id="dhcp-leases">0</span>
                     </div>
-                </div>
-                <div class="bg-white rounded-xl shadow-sm border p-6">
-                    <div class="flex items-center">
-                        <div class="text-3xl mr-4">📊</div>
-                        <div>
-                            <p class="text-2xl font-bold text-gray-800" id="total-traffic">0 MB</p>
-                            <p class="text-gray-600">Total Traffic</p>
-                        </div>
+                    <div class="px-4 py-3 flex justify-between items-center">
+                        <span class="text-sm text-black">Active Interfaces</span>
+                        <span class="text-sm font-semibold text-black" id="active-interfaces">0</span>
                     </div>
-                </div>
-                <div class="bg-white rounded-xl shadow-sm border p-6">
-                    <div class="flex items-center">
-                        <div class="text-3xl mr-4">⚡</div>
-                        <div>
-                            <p class="text-2xl font-bold text-gray-800" id="bandwidth-users">0</p>
-                            <p class="text-gray-600">Limited Users</p>
-                        </div>
+                    <div class="px-4 py-3 flex justify-between items-center">
+                        <span class="text-sm text-black">Total Traffic</span>
+                        <span class="text-sm font-semibold text-black" id="total-traffic">0 MB</span>
+                    </div>
+                    <div class="px-4 py-3 flex justify-between items-center">
+                        <span class="text-sm text-black">Limited Users</span>
+                        <span class="text-sm font-semibold text-black" id="bandwidth-users">0</span>
                     </div>
                 </div>
             </div>
 
             <!-- DHCP Configuration -->
-            <div class="bg-white rounded-xl shadow-sm border p-6 mb-8">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">DHCP & DNS Configuration</h3>
+            <div class="bg-white border border-gray-200 rounded-lg mb-6">
+                <div class="px-4 py-3 border-b border-gray-200">
+                    <h2 class="text-sm font-semibold text-black">DHCP & DNS Configuration</h2>
+                </div>
+                <div class="p-4">
             
             <form id="network-config-form" class="space-y-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -7,174 +7,98 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        .sidebar-item:hover {
-            background-color: rgba(59, 130, 246, 0.1);
+        .stat-card {
+            border: 1px solid #e5e7eb;
+            background: white;
         }
-        .sidebar-item.active {
-            background-color: rgba(59, 130, 246, 0.2);
-            border-right: 3px solid #3b82f6;
+        .stat-card:hover {
+            border-color: #d1d5db;
         }
     </style>
 </head>
 <body class="bg-gray-50 flex h-screen">
-    <!-- Sidebar -->
-    <div class="w-64 bg-white shadow-lg">
-        <div class="p-6">
-            <div class="flex items-center mb-8">
-                <div class="text-2xl mr-3">📊</div>
-                <h1 class="text-xl font-bold text-gray-800">PISOWifi</h1>
-            </div>
-            
-            <nav class="space-y-2">
-                <a href="/admin" class="sidebar-item active flex items-center px-4 py-3 text-gray-700 rounded-lg">
-                    <span class="mr-3">🏠</span>
-                    <span>Dashboard</span>
-                </a>
-                <a href="/admin/clients" class="sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg hover:bg-blue-50">
-                    <span class="mr-3">👥</span>
-                    <span>Clients</span>
-                </a>
-                <a href="/admin/rates" class="sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg hover:bg-blue-50">
-                    <span class="mr-3">🪙</span>
-                    <span>Coin Rates</span>
-                </a>
-                <a href="/admin/network" class="sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg hover:bg-blue-50">
-                    <span class="mr-3">🌐</span>
-                    <span>Network</span>
-                </a>
-                <a href="/admin/gpio" class="sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg hover:bg-blue-50">
-                    <span class="mr-3">⚡</span>
-                    <span>GPIO</span>
-                </a>
-                <a href="/admin/reports" class="sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg hover:bg-blue-50">
-                    <span class="mr-3">📊</span>
-                    <span>Reports</span>
-                </a>
-            </nav>
-        </div>
-        
-        <div class="absolute bottom-0 w-64 p-6 border-t">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-600">Welcome back</p>
-                    <p class="text-sm font-medium text-gray-800"><%= user.username %></p>
-                </div>
-                <form action="/admin/logout" method="POST">
-                    <button type="submit" class="text-red-600 hover:text-red-700">
-                        <span class="text-lg">🚪</span>
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
+    <%- include('../partials/admin-sidebar') %>
     
     <!-- Main Content -->
     <div class="flex-1 overflow-y-auto">
-        <div class="p-8">
+        <div class="p-6">
             <!-- Header -->
-            <div class="mb-8">
-                <h2 class="text-2xl font-bold text-gray-800">Dashboard</h2>
-                <p class="text-gray-600">Overview of your PISOWifi system</p>
+            <div class="mb-6">
+                <h1 class="text-xl font-bold text-black">Dashboard</h1>
+                <p class="text-sm text-gray-600 mt-1">System overview and statistics</p>
             </div>
 
-            <!-- Stats Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div class="bg-white rounded-xl shadow-sm border p-6">
-                    <div class="flex items-center">
-                        <div class="text-3xl mr-4">👥</div>
-                        <div>
-                            <p class="text-2xl font-bold text-gray-800"><%= stats.totalClients %></p>
-                            <p class="text-gray-600">Total Clients</p>
-                        </div>
-                    </div>
+            <!-- Stats Table -->
+            <div class="bg-white border border-gray-200 rounded-lg mb-6">
+                <div class="px-4 py-3 border-b border-gray-200">
+                    <h2 class="text-sm font-semibold text-black">System Statistics</h2>
                 </div>
-                
-                <div class="bg-white rounded-xl shadow-sm border p-6">
-                    <div class="flex items-center">
-                        <div class="text-3xl mr-4">🔄</div>
-                        <div>
-                            <p class="text-2xl font-bold text-gray-800"><%= stats.activeSessions %></p>
-                            <p class="text-gray-600">Active Sessions</p>
-                        </div>
+                <div class="divide-y divide-gray-200">
+                    <div class="px-4 py-3 flex justify-between items-center">
+                        <span class="text-sm text-black">Total Clients</span>
+                        <span class="text-sm font-semibold text-black"><%= stats.totalClients %></span>
                     </div>
-                </div>
-                
-                <div class="bg-white rounded-xl shadow-sm border p-6">
-                    <div class="flex items-center">
-                        <div class="text-3xl mr-4">💰</div>
-                        <div>
-                            <p class="text-2xl font-bold text-gray-800">₱<%= stats.todayRevenue %></p>
-                            <p class="text-gray-600">Today's Revenue</p>
-                        </div>
+                    <div class="px-4 py-3 flex justify-between items-center">
+                        <span class="text-sm text-black">Active Sessions</span>
+                        <span class="text-sm font-semibold text-black"><%= stats.activeSessions %></span>
+                    </div>
+                    <div class="px-4 py-3 flex justify-between items-center">
+                        <span class="text-sm text-black">Today's Revenue</span>
+                        <span class="text-sm font-semibold text-black">₱<%= stats.todayRevenue %></span>
                     </div>
                 </div>
             </div>
 
             <!-- Quick Actions -->
-            <div class="bg-white rounded-xl shadow-sm border p-6 mb-8">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h3>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <a href="/admin/clients" class="flex flex-col items-center p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
-                        <span class="text-2xl mb-2">👥</span>
-                        <span class="text-sm text-gray-700">View Clients</span>
-                    </a>
-                    
-                    <a href="/admin/rates" class="flex flex-col items-center p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
-                        <span class="text-2xl mb-2">🪙</span>
-                        <span class="text-sm text-gray-700">Coin Rates</span>
-                    </a>
-                    
-                    <a href="/admin/network" class="flex flex-col items-center p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
-                        <span class="text-2xl mb-2">🌐</span>
-                        <span class="text-sm text-gray-700">Network</span>
-                    </a>
-                    
-                    <a href="/admin/reports" class="flex flex-col items-center p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
-                        <span class="text-2xl mb-2">📊</span>
-                        <span class="text-sm text-gray-700">Reports</span>
-                    </a>
+            <div class="bg-white border border-gray-200 rounded-lg mb-6">
+                <div class="px-4 py-3 border-b border-gray-200">
+                    <h2 class="text-sm font-semibold text-black">Quick Actions</h2>
+                </div>
+                <div class="p-4 space-y-2">
+                    <a href="/admin/clients" class="block px-3 py-2 text-sm text-black hover:bg-gray-50 rounded border border-gray-200">View Client Management</a>
+                    <a href="/admin/rates" class="block px-3 py-2 text-sm text-black hover:bg-gray-50 rounded border border-gray-200">Configure Coin Rates</a>
+                    <a href="/admin/network" class="block px-3 py-2 text-sm text-black hover:bg-gray-50 rounded border border-gray-200">Network Settings</a>
+                    <a href="/admin/gpio" class="block px-3 py-2 text-sm text-black hover:bg-gray-50 rounded border border-gray-200">GPIO Configuration</a>
                 </div>
             </div>
 
             <!-- System Status -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- System Services -->
-                <div class="bg-white rounded-xl shadow-sm border p-6">
-                    <h3 class="text-lg font-semibold text-gray-800 mb-4">System Services</h3>
-                    <div class="space-y-3">
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-700">PISOWifi App</span>
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                ● Online
-                            </span>
+                <div class="bg-white border border-gray-200 rounded-lg">
+                    <div class="px-4 py-3 border-b border-gray-200">
+                        <h3 class="text-sm font-semibold text-black">System Services</h3>
+                    </div>
+                    <div class="divide-y divide-gray-200">
+                        <div class="px-4 py-3 flex justify-between items-center">
+                            <span class="text-sm text-black">PISOWifi App</span>
+                            <span class="text-xs text-green-600 font-medium">Online</span>
                         </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-700">GPIO Service</span>
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                ● Online
-                            </span>
+                        <div class="px-4 py-3 flex justify-between items-center">
+                            <span class="text-sm text-black">GPIO Service</span>
+                            <span class="text-xs text-green-600 font-medium">Online</span>
                         </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-700">Database</span>
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                ● Connected
-                            </span>
+                        <div class="px-4 py-3 flex justify-between items-center">
+                            <span class="text-sm text-black">Database</span>
+                            <span class="text-xs text-green-600 font-medium">Connected</span>
                         </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-700">WiFi AP</span>
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                ● Broadcasting
-                            </span>
+                        <div class="px-4 py-3 flex justify-between items-center">
+                            <span class="text-sm text-black">WiFi AP</span>
+                            <span class="text-xs text-green-600 font-medium">Broadcasting</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Live Activity -->
-                <div class="bg-white rounded-xl shadow-sm border p-6">
-                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Recent Activity</h3>
-                    <div id="live-activity" class="space-y-2 max-h-64 overflow-y-auto">
-                        <div class="text-sm text-gray-600 p-2 bg-gray-50 rounded">
-                            System initialized and ready
+                <div class="bg-white border border-gray-200 rounded-lg">
+                    <div class="px-4 py-3 border-b border-gray-200">
+                        <h3 class="text-sm font-semibold text-black">Recent Activity</h3>
+                    </div>
+                    <div class="p-4">
+                        <div id="live-activity" class="space-y-2 max-h-40 overflow-y-auto">
+                            <div class="text-xs text-gray-600 py-1 px-2 bg-gray-50 rounded border">
+                                System initialized and ready
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -187,39 +111,39 @@
         
         // Real-time activity updates
         socket.on('coin-detected', function(data) {
-            addActivity('💰 Coin detected - Client payment in progress');
+            addActivity('Coin detected - Payment in progress');
         });
         
         socket.on('client-connected', function(data) {
-            addActivity('🔗 New client connected: ' + (data.macAddress || 'Unknown'));
+            addActivity('New client connected: ' + (data.macAddress || 'Unknown'));
         });
         
         socket.on('client-disconnected', function(data) {
-            addActivity('❌ Client disconnected: ' + (data.macAddress || 'Unknown'));
+            addActivity('Client disconnected: ' + (data.macAddress || 'Unknown'));
         });
         
         function addActivity(message) {
             const container = document.getElementById('live-activity');
             const div = document.createElement('div');
-            div.className = 'text-sm text-gray-600 p-2 bg-gray-50 rounded';
+            div.className = 'text-xs text-gray-600 py-1 px-2 bg-gray-50 rounded border';
             div.innerHTML = `
                 <div class="flex justify-between items-center">
                     <span>${message}</span>
-                    <span class="text-gray-400 text-xs">${new Date().toLocaleTimeString()}</span>
+                    <span class="text-gray-400">${new Date().toLocaleTimeString()}</span>
                 </div>
             `;
             
             container.insertBefore(div, container.firstChild);
             
-            // Keep only last 8 activities
-            while (container.children.length > 8) {
+            // Keep only last 6 activities
+            while (container.children.length > 6) {
                 container.removeChild(container.lastChild);
             }
         }
         
         // Add initial activity
         setTimeout(() => {
-            addActivity('📊 Dashboard loaded successfully');
+            addActivity('Dashboard loaded successfully');
         }, 1000);
     </script>
 </body>
