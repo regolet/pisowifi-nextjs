@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .glass {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 flex items-center justify-center p-4">
+    <div class="w-full max-w-md">
+        <!-- Logo and Header -->
+        <div class="text-center mb-8">
+            <div class="mx-auto w-20 h-20 glass rounded-full flex items-center justify-center mb-4">
+                <div class="text-4xl">📶</div>
+            </div>
+            <h1 class="text-3xl font-bold text-white mb-2">PISOWifi Admin</h1>
+            <p class="text-white/70">Secure access to system management</p>
+        </div>
+
+        <!-- Login Form -->
+        <div class="glass rounded-2xl p-8 shadow-2xl">
+            <div class="flex items-center justify-center mb-6">
+                <div class="text-2xl mr-2">🛡️</div>
+                <h2 class="text-xl font-semibold text-white">Admin Login</h2>
+            </div>
+
+            <% if (error) { %>
+                <div class="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-center">
+                    <%= error %>
+                </div>
+            <% } %>
+
+            <form action="/admin/login" method="POST" class="space-y-6">
+                <div>
+                    <label for="username" class="block text-white/80 text-sm font-medium mb-2">
+                        Username or Email
+                    </label>
+                    <div class="relative">
+                        <div class="absolute left-3 top-3 text-white/50">👤</div>
+                        <input
+                            id="username"
+                            name="username"
+                            type="text"
+                            required
+                            class="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg 
+                                   text-white placeholder-white/50 focus:outline-none focus:ring-2 
+                                   focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Enter your username or email"
+                        />
+                    </div>
+                </div>
+
+                <div>
+                    <label for="password" class="block text-white/80 text-sm font-medium mb-2">
+                        Password
+                    </label>
+                    <div class="relative">
+                        <div class="absolute left-3 top-3 text-white/50">🔒</div>
+                        <input
+                            id="password"
+                            name="password"
+                            type="password"
+                            required
+                            class="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg 
+                                   text-white placeholder-white/50 focus:outline-none focus:ring-2 
+                                   focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Enter your password"
+                        />
+                    </div>
+                </div>
+
+                <button
+                    type="submit"
+                    class="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-purple-600 
+                           hover:from-blue-700 hover:to-purple-700 text-white font-medium 
+                           rounded-lg transition-all duration-200 flex items-center justify-center"
+                >
+                    Sign In
+                </button>
+            </form>
+
+            <!-- Development Note -->
+            <div class="mt-6 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                <p class="text-yellow-200 text-sm text-center">
+                    <strong>Default Login:</strong> admin / admin123
+                </p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-6">
+            <p class="text-white/50 text-sm">
+                © 2024 PISOWifi System. All rights reserved.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

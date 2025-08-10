@@ -1,0 +1,33 @@
+{
+  "name": "pisowifi-express",
+  "version": "1.0.0",
+  "description": "PISOWifi Coin-operated WiFi Hotspot System with Express.js",
+  "main": "server/app.js",
+  "scripts": {
+    "start": "node server/app.js",
+    "dev": "nodemon server/app.js",
+    "gpio": "node services/gpio-bridge.js",
+    "dev:all": "concurrently \"npm run dev\" \"npm run gpio\"",
+    "create-admin": "node scripts/create-admin-express.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ejs": "^3.1.9",
+    "socket.io": "^4.7.2",
+    "pg": "^8.11.3",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "cookie-parser": "^1.4.6",
+    "cors": "^2.8.5",
+    "helmet": "^7.0.0",
+    "compression": "^1.7.4",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "concurrently": "^8.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

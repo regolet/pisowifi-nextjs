@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        .glass {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .coin-animation {
+            animation: coinBounce 0.6s ease-in-out;
+        }
+        
+        @keyframes coinBounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <div class="glass rounded-full w-24 h-24 mx-auto mb-4 flex items-center justify-center">
+                <div class="text-4xl">📶</div>
+            </div>
+            <h1 class="text-4xl font-bold text-white mb-2">PISOWifi Portal</h1>
+            <p class="text-white/70">Select your internet package</p>
+        </div>
+
+        <!-- Rate Packages -->
+        <div class="max-w-4xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <% rates.forEach(rate => { %>
+                    <div class="glass rounded-2xl p-6 text-center cursor-pointer hover:bg-white/20 transition-all duration-300 rate-card" 
+                         data-rate-id="<%= rate.id %>" data-coins="<%= rate.coins_required %>">
+                        <div class="text-3xl mb-4">⏰</div>
+                        <h3 class="text-xl font-semibold text-white mb-2"><%= rate.name %></h3>
+                        <div class="text-3xl font-bold text-yellow-400 mb-2">₱<%= rate.price %></div>
+                        <div class="text-white/80 mb-4"><%= rate.coins_required %> coin(s)</div>
+                        <div class="text-sm text-white/60"><%= Math.floor(rate.duration / 60) %> minutes</div>
+                    </div>
+                <% }); %>
+            </div>
+
+            <!-- Selected Package Display -->
+            <div id="selected-package" class="glass rounded-2xl p-6 text-center mb-6 hidden">
+                <h3 class="text-xl font-semibold text-white mb-4">Selected Package</h3>
+                <div id="package-details" class="text-white"></div>
+            </div>
+
+            <!-- Coin Insertion Area -->
+            <div class="glass rounded-2xl p-8 text-center mb-6">
+                <div class="text-6xl mb-4" id="coin-icon">🪙</div>
+                <h3 class="text-2xl font-semibold text-white mb-4">Insert Coins</h3>
+                <div id="coin-status" class="text-white/80 mb-6">Please select a package above</div>
+                
+                <div class="flex justify-center space-x-4">
+                    <button id="connect-btn" class="px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        Connect to Internet
+                    </button>
+                    <button id="test-coin-btn" class="px-6 py-3 bg-yellow-600 hover:bg-yellow-700 text-white font-semibold rounded-lg">
+                        Test Coin
+                    </button>
+                </div>
+            </div>
+
+            <!-- Status Messages -->
+            <div id="status-messages" class="space-y-2"></div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let selectedRate = null;
+        let coinsInserted = 0;
+        let coinsRequired = 0;
+
+        // Rate selection
+        document.querySelectorAll('.rate-card').forEach(card => {
+            card.addEventListener('click', function() {
+                // Remove previous selection
+                document.querySelectorAll('.rate-card').forEach(c => c.classList.remove('ring-4', 'ring-yellow-400'));
+                
+                // Select this card
+                this.classList.add('ring-4', 'ring-yellow-400');
+                
+                selectedRate = this.dataset.rateId;
+                coinsRequired = parseInt(this.dataset.coins);
+                coinsInserted = 0;
+                
+                // Show selected package
+                const packageDetails = document.getElementById('package-details');
+                packageDetails.innerHTML = `
+                    <div class="text-lg">${this.querySelector('h3').textContent}</div>
+                    <div class="text-yellow-400 text-2xl">${this.querySelector('.text-yellow-400').textContent}</div>
+                    <div>Coins required: ${coinsRequired}</div>
+                `;
+                
+                document.getElementById('selected-package').classList.remove('hidden');
+                updateCoinStatus();
+            });
+        });
+
+        // Socket.io events
+        socket.on('coin-detected', function(data) {
+            if (selectedRate && coinsInserted < coinsRequired) {
+                coinsInserted++;
+                
+                // Coin animation
+                const coinIcon = document.getElementById('coin-icon');
+                coinIcon.classList.add('coin-animation');
+                setTimeout(() => coinIcon.classList.remove('coin-animation'), 600);
+                
+                updateCoinStatus();
+                showMessage('Coin detected! ' + coinsInserted + ' of ' + coinsRequired, 'success');
+            }
+        });
+
+        // Test coin button
+        document.getElementById('test-coin-btn').addEventListener('click', function() {
+            socket.emit('coin-inserted', { test: true });
+        });
+
+        // Connect button
+        document.getElementById('connect-btn').addEventListener('click', async function() {
+            if (!selectedRate || coinsInserted < coinsRequired) return;
+            
+            try {
+                const response = await fetch('/portal/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        rateId: selectedRate,
+                        macAddress: 'auto-detect' 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage('Connected! Enjoy your internet access.', 'success');
+                    
+                    // Redirect or show success page
+                    setTimeout(() => {
+                        window.location.href = 'http://google.com';
+                    }, 2000);
+                } else {
+                    showMessage(data.error || 'Connection failed', 'error');
+                }
+            } catch (error) {
+                showMessage('Connection error', 'error');
+            }
+        });
+
+        function updateCoinStatus() {
+            const status = document.getElementById('coin-status');
+            const connectBtn = document.getElementById('connect-btn');
+            
+            if (!selectedRate) {
+                status.textContent = 'Please select a package above';
+                connectBtn.disabled = true;
+            } else if (coinsInserted < coinsRequired) {
+                status.textContent = `Insert ${coinsRequired - coinsInserted} more coin(s)`;
+                connectBtn.disabled = true;
+            } else {
+                status.textContent = 'Ready to connect!';
+                connectBtn.disabled = false;
+            }
+        }
+
+        function showMessage(message, type) {
+            const container = document.getElementById('status-messages');
+            const div = document.createElement('div');
+            div.className = `p-4 rounded-lg text-center ${type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white`;
+            div.textContent = message;
+            
+            container.appendChild(div);
+            
+            setTimeout(() => {
+                div.remove();
+            }, 5000);
+        }
+
+        // Initialize
+        updateCoinStatus();
+    </script>
+</body>
+</html>

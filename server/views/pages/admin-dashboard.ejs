@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        .glass {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-8">
+            <div class="flex items-center">
+                <div class="text-4xl mr-4">📊</div>
+                <div>
+                    <h1 class="text-3xl font-bold text-white">Admin Dashboard</h1>
+                    <p class="text-white/70">Welcome back, <%= user.username %>!</p>
+                </div>
+            </div>
+            
+            <form action="/admin/logout" method="POST">
+                <button type="submit" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg">
+                    Logout
+                </button>
+            </form>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="glass rounded-2xl p-6 text-center">
+                <div class="text-4xl mb-2">👥</div>
+                <div class="text-2xl font-bold text-white"><%= stats.totalClients %></div>
+                <div class="text-white/70">Total Clients</div>
+            </div>
+            
+            <div class="glass rounded-2xl p-6 text-center">
+                <div class="text-4xl mb-2">🔄</div>
+                <div class="text-2xl font-bold text-white"><%= stats.activeSessions %></div>
+                <div class="text-white/70">Active Sessions</div>
+            </div>
+            
+            <div class="glass rounded-2xl p-6 text-center">
+                <div class="text-4xl mb-2">💰</div>
+                <div class="text-2xl font-bold text-white">₱<%= stats.todayRevenue %></div>
+                <div class="text-white/70">Today's Revenue</div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="glass rounded-2xl p-6 mb-8">
+            <h2 class="text-xl font-semibold text-white mb-4">Quick Actions</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <button class="p-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
+                    <div class="text-2xl mb-2">👁️</div>
+                    <div>View Clients</div>
+                </button>
+                
+                <button class="p-4 bg-green-600 hover:bg-green-700 text-white rounded-lg">
+                    <div class="text-2xl mb-2">📊</div>
+                    <div>Reports</div>
+                </button>
+                
+                <button class="p-4 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg">
+                    <div class="text-2xl mb-2">🎫</div>
+                    <div>Vouchers</div>
+                </button>
+                
+                <button class="p-4 bg-purple-600 hover:bg-purple-700 text-white rounded-lg">
+                    <div class="text-2xl mb-2">⚙️</div>
+                    <div>Settings</div>
+                </button>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="glass rounded-2xl p-6">
+            <h2 class="text-xl font-semibold text-white mb-4">System Status</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- System Services -->
+                <div>
+                    <h3 class="text-lg font-medium text-white mb-3">Services</h3>
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center p-3 bg-white/10 rounded-lg">
+                            <span class="text-white">PISOWifi App</span>
+                            <span class="px-2 py-1 bg-green-500 text-white text-sm rounded">Online</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-white/10 rounded-lg">
+                            <span class="text-white">GPIO Service</span>
+                            <span class="px-2 py-1 bg-green-500 text-white text-sm rounded">Online</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-white/10 rounded-lg">
+                            <span class="text-white">Database</span>
+                            <span class="px-2 py-1 bg-green-500 text-white text-sm rounded">Connected</span>
+                        </div>
+                        <div class="flex justify-between items-center p-3 bg-white/10 rounded-lg">
+                            <span class="text-white">WiFi Access Point</span>
+                            <span class="px-2 py-1 bg-green-500 text-white text-sm rounded">Broadcasting</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Real-time Updates -->
+                <div>
+                    <h3 class="text-lg font-medium text-white mb-3">Live Activity</h3>
+                    <div id="live-activity" class="space-y-2 max-h-64 overflow-y-auto">
+                        <div class="p-3 bg-white/10 rounded-lg text-white text-sm">
+                            System initialized and ready
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        
+        // Real-time activity updates
+        socket.on('coin-detected', function(data) {
+            addActivity('💰 Coin detected - Client payment in progress');
+        });
+        
+        socket.on('client-connected', function(data) {
+            addActivity('🔗 New client connected: ' + (data.macAddress || 'Unknown'));
+        });
+        
+        socket.on('client-disconnected', function(data) {
+            addActivity('❌ Client disconnected: ' + (data.macAddress || 'Unknown'));
+        });
+        
+        function addActivity(message) {
+            const container = document.getElementById('live-activity');
+            const div = document.createElement('div');
+            div.className = 'p-3 bg-white/10 rounded-lg text-white text-sm';
+            div.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <span>${message}</span>
+                    <span class="text-white/50">${new Date().toLocaleTimeString()}</span>
+                </div>
+            `;
+            
+            container.insertBefore(div, container.firstChild);
+            
+            // Keep only last 10 activities
+            while (container.children.length > 10) {
+                container.removeChild(container.lastChild);
+            }
+        }
+        
+        // Add initial activity
+        setTimeout(() => {
+            addActivity('📊 Dashboard loaded successfully');
+        }, 1000);
+    </script>
+</body>
+</html>
