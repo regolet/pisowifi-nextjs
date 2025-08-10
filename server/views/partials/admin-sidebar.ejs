@@ -1,11 +1,11 @@
 <!-- Compact Admin Sidebar -->
-<div class="w-52 bg-white border-r border-gray-200 flex flex-col h-screen">
-    <div class="p-4 border-b border-gray-200">
+<div class="w-52 bg-gray-100 border-r border-gray-300 flex flex-col h-screen">
+    <div class="p-4 border-b border-gray-300">
         <h1 class="text-lg font-semibold text-black">PISOWifi Admin</h1>
     </div>
     
     <nav class="flex-1 py-2">
-        <a href="/admin" class="flex items-center px-4 py-2 text-sm text-black hover:bg-gray-100 <%= currentPage === 'dashboard' ? 'bg-gray-100 border-r-2 border-blue-500' : '' %>">
+        <a href="/admin" class="flex items-center px-4 py-2 text-sm text-black hover:bg-gray-200 <%= currentPage === 'dashboard' ? 'bg-gray-200 border-r-2 border-blue-500' : '' %>">
             <span class="w-4 h-4 mr-3 flex-shrink-0">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
@@ -55,7 +55,7 @@
         </a>
     </nav>
     
-    <div class="p-4 border-t border-gray-200">
+    <div class="p-4 border-t border-gray-300">
         <div class="flex items-center justify-between">
             <div class="min-w-0 flex-1">
                 <p class="text-xs font-medium text-black truncate"><%= typeof user !== 'undefined' ? user.username : 'Admin' %></p>

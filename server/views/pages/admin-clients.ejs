@@ -7,7 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="/socket.io/socket.io.js"></script>
 </head>
-<body class="bg-gray-50 flex h-screen">
+<body class="bg-gray-200 flex h-screen">
     <%- include('../partials/admin-sidebar') %>
     
     <!-- Main Content -->
@@ -20,23 +20,23 @@
 
             <!-- Stats Cards -->
             <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-                <div class="bg-white rounded-xl shadow-sm border p-4">
+                <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
                     <div class="text-2xl font-bold text-gray-800" id="total-clients">0</div>
                     <div class="text-gray-600 text-sm">Total Clients</div>
                 </div>
-                <div class="bg-white rounded-xl shadow-sm border p-4">
+                <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
                     <div class="text-2xl font-bold text-green-600" id="connected-clients">0</div>
                     <div class="text-gray-600 text-sm">Connected</div>
                 </div>
-                <div class="bg-white rounded-xl shadow-sm border p-4">
+                <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
                     <div class="text-2xl font-bold text-yellow-600" id="paused-clients">0</div>
                     <div class="text-gray-600 text-sm">Paused</div>
                 </div>
-                <div class="bg-white rounded-xl shadow-sm border p-4">
+                <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
                     <div class="text-2xl font-bold text-red-600" id="disconnected-clients">0</div>
                     <div class="text-gray-600 text-sm">Disconnected</div>
                 </div>
-                <div class="bg-white rounded-xl shadow-sm border p-4">
+                <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
                     <div class="text-2xl font-bold text-orange-600" id="unauthenticated-clients">0</div>
                     <div class="text-gray-600 text-sm">Unauthenticated</div>
                 </div>
@@ -57,21 +57,21 @@
         <!-- Authenticated Clients Tab -->
         <div id="authenticated-tab" class="glass rounded-b-2xl p-6 mb-8">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-semibold text-white">Authenticated Clients</h2>
+                <h2 class="text-xl font-semibold text-black">Authenticated Clients</h2>
                 <div class="flex gap-2">
-                    <button onclick="cleanupInactiveClients()" class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg">
+                    <button onclick="cleanupInactiveClients()" class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-black rounded-lg">
                         🗑️ Cleanup
                     </button>
-                    <button onclick="refreshClients()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
+                    <button onclick="refreshClients()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-black rounded-lg">
                         🔄 Refresh
                     </button>
                 </div>
             </div>
             
             <div class="overflow-x-auto">
-                <table class="w-full text-white">
+                <table class="w-full text-black">
                     <thead>
-                        <tr class="border-b border-white/20">
+                        <tr class="border-b border-gray-300">
                             <th class="text-left py-3 px-4">Device</th>
                             <th class="text-left py-3 px-4">MAC/IP Address</th>
                             <th class="text-left py-3 px-4">Status</th>
@@ -82,7 +82,7 @@
                     </thead>
                     <tbody id="clients-tbody">
                         <tr>
-                            <td colspan="6" class="text-center py-8 text-white/50">Loading clients...</td>
+                            <td colspan="6" class="text-center py-8 text-gray-600">Loading clients...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -92,16 +92,16 @@
         <!-- Unauthenticated Devices Tab -->
         <div id="unauthenticated-tab" class="glass rounded-b-2xl p-6 mb-8 hidden">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-semibold text-white">Unauthenticated Devices</h2>
-                <button onclick="refreshUnauthenticatedDevices()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
+                <h2 class="text-xl font-semibold text-black">Unauthenticated Devices</h2>
+                <button onclick="refreshUnauthenticatedDevices()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-black rounded-lg">
                     🔄 Scan Network
                 </button>
             </div>
             
             <div class="overflow-x-auto">
-                <table class="w-full text-white">
+                <table class="w-full text-black">
                     <thead>
-                        <tr class="border-b border-white/20">
+                        <tr class="border-b border-gray-300">
                             <th class="text-left py-3 px-4">Device Info</th>
                             <th class="text-left py-3 px-4">MAC Address</th>
                             <th class="text-left py-3 px-4">IP Address</th>
@@ -112,7 +112,7 @@
                     </thead>
                     <tbody id="unauthenticated-tbody">
                         <tr>
-                            <td colspan="6" class="text-center py-8 text-white/50">Click 'Scan Network' to detect devices</td>
+                            <td colspan="6" class="text-center py-8 text-gray-600">Click 'Scan Network' to detect devices</td>
                         </tr>
                     </tbody>
                 </table>
@@ -121,38 +121,38 @@
 
         <!-- Quick Actions -->
         <div class="glass rounded-2xl p-6">
-            <h2 class="text-xl font-semibold text-white mb-4">Quick Actions</h2>
+            <h2 class="text-xl font-semibold text-black mb-4">Quick Actions</h2>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                    <h3 class="text-white/80 mb-2">Grant Free Access</h3>
+                    <h3 class="text-gray-800 mb-2">Grant Free Access</h3>
                     <div class="flex gap-2">
                         <input type="text" id="free-mac" placeholder="MAC Address" 
-                               class="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white">
+                               class="flex-1 px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black">
                         <input type="number" id="free-duration" placeholder="Minutes" value="60"
-                               class="w-24 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white">
+                               class="w-24 px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black">
                         <button onclick="grantFreeAccess()" 
-                                class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg">
+                                class="px-4 py-2 bg-green-600 hover:bg-green-700 text-black rounded-lg">
                             Grant
                         </button>
                     </div>
                 </div>
                 
                 <div>
-                    <h3 class="text-white/80 mb-2">Block Device</h3>
+                    <h3 class="text-gray-800 mb-2">Block Device</h3>
                     <div class="flex gap-2">
                         <input type="text" id="block-mac" placeholder="MAC Address" 
-                               class="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white">
+                               class="flex-1 px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black">
                         <button onclick="blockDevice()" 
-                                class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg">
+                                class="px-4 py-2 bg-red-600 hover:bg-red-700 text-black rounded-lg">
                             Block
                         </button>
                     </div>
                 </div>
                 
                 <div>
-                    <h3 class="text-white/80 mb-2">Disconnect All</h3>
+                    <h3 class="text-gray-800 mb-2">Disconnect All</h3>
                     <button onclick="disconnectAll()" 
-                            class="w-full px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg">
+                            class="w-full px-4 py-2 bg-orange-600 hover:bg-orange-700 text-black rounded-lg">
                         ⚠️ Disconnect All Clients
                     </button>
                 </div>
@@ -198,7 +198,7 @@
             if (clients.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="text-center py-8 text-white/50">No clients found</td>
+                        <td colspan="6" class="text-center py-8 text-gray-600">No clients found</td>
                     </tr>
                 `;
                 return;
@@ -208,14 +208,14 @@
                 <tr class="border-b border-white/10 hover:bg-white/5">
                     <td class="py-3 px-4">
                         <div class="flex flex-col">
-                            <div class="font-medium text-white">${client.device_name || 'Unknown Device'}</div>
-                            <div class="text-sm text-white/70">${client.os || 'Unknown OS'}</div>
-                            <div class="text-xs text-white/50">${client.browser || 'Unknown Browser'}</div>
+                            <div class="font-medium text-black">${client.device_name || 'Unknown Device'}</div>
+                            <div class="text-sm text-gray-700">${client.os || 'Unknown OS'}</div>
+                            <div class="text-xs text-gray-600">${client.browser || 'Unknown Browser'}</div>
                         </div>
                     </td>
                     <td class="py-3 px-4">
                         <div class="font-mono text-sm">${client.mac_address}</div>
-                        <div class="text-sm text-white/70">${client.ip_address || '-'}</div>
+                        <div class="text-sm text-gray-700">${client.ip_address || '-'}</div>
                     </td>
                     <td class="py-3 px-4">
                         <span class="px-2 py-1 rounded text-xs ${getStatusClass(client.status)}">
@@ -227,7 +227,7 @@
                     <td class="py-3 px-4">${formatTime(client.time_remaining)}</td>
                     <td class="py-3 px-4">
                         <div class="text-sm">${formatDate(client.last_seen)}</div>
-                        <div class="text-xs text-white/50" title="${client.session_started}">
+                        <div class="text-xs text-gray-600" title="${client.session_started}">
                             ${client.session_started ? 'Session: ' + formatTimeAgo(client.session_started) : '-'}
                         </div>
                     </td>
@@ -235,7 +235,7 @@
                         <div class="flex flex-wrap gap-1">
                             ${getActionButtons(client)}
                             <button onclick="showClientDetails(${client.id})" 
-                                    class="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs">
+                                    class="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-black rounded text-xs">
                                 Info
                             </button>
                         </div>
@@ -260,10 +260,10 @@
 
         function getStatusClass(status) {
             switch(status) {
-                case 'CONNECTED': return 'bg-green-500 text-white';
-                case 'PAUSED': return 'bg-yellow-500 text-white';
-                case 'DISCONNECTED': return 'bg-red-500 text-white';
-                default: return 'bg-gray-500 text-white';
+                case 'CONNECTED': return 'bg-green-500 text-black';
+                case 'PAUSED': return 'bg-yellow-500 text-black';
+                case 'DISCONNECTED': return 'bg-red-500 text-black';
+                default: return 'bg-gray-500 text-black';
             }
         }
 
@@ -273,27 +273,27 @@
             if (client.status === 'CONNECTED') {
                 buttons.push(`
                     <button onclick="pauseClient(${client.id})" 
-                            class="px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-xs">
+                            class="px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-black rounded text-xs">
                         Pause
                     </button>
                 `);
                 buttons.push(`
                     <button onclick="disconnectClient(${client.id})" 
-                            class="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs">
+                            class="px-2 py-1 bg-red-600 hover:bg-red-700 text-black rounded text-xs">
                         Stop
                     </button>
                 `);
             } else if (client.status === 'PAUSED') {
                 buttons.push(`
                     <button onclick="resumeClient(${client.id})" 
-                            class="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs">
+                            class="px-2 py-1 bg-green-600 hover:bg-green-700 text-black rounded text-xs">
                         Resume
                     </button>
                 `);
             } else {
                 buttons.push(`
                     <button onclick="authenticateClient(${client.id})" 
-                            class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs">
+                            class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-black rounded text-xs">
                         Auth
                     </button>
                 `);
@@ -302,7 +302,7 @@
             if (!client.is_whitelisted) {
                 buttons.push(`
                     <button onclick="whitelistClient(${client.id})" 
-                            class="px-2 py-1 bg-green-500 hover:bg-green-600 text-white rounded text-xs">
+                            class="px-2 py-1 bg-green-500 hover:bg-green-600 text-black rounded text-xs">
                         Whitelist
                     </button>
                 `);
@@ -311,7 +311,7 @@
             if (!client.is_blocked) {
                 buttons.push(`
                     <button onclick="blockClient(${client.id})" 
-                            class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs">
+                            class="px-2 py-1 bg-red-500 hover:bg-red-600 text-black rounded text-xs">
                         Block
                     </button>
                 `);
@@ -431,15 +431,15 @@
             document.getElementById('unauthenticated-tab').classList.add('hidden');
             
             // Remove active styles from all tab buttons
-            document.getElementById('tab-authenticated').classList.remove('border-b-2', 'border-blue-500', 'text-white');
-            document.getElementById('tab-authenticated').classList.add('text-white/70');
-            document.getElementById('tab-unauthenticated').classList.remove('border-b-2', 'border-blue-500', 'text-white');
-            document.getElementById('tab-unauthenticated').classList.add('text-white/70');
+            document.getElementById('tab-authenticated').classList.remove('border-b-2', 'border-blue-500', 'text-black');
+            document.getElementById('tab-authenticated').classList.add('text-gray-700');
+            document.getElementById('tab-unauthenticated').classList.remove('border-b-2', 'border-blue-500', 'text-black');
+            document.getElementById('tab-unauthenticated').classList.add('text-gray-700');
             
             // Show selected tab
             document.getElementById(tabName + '-tab').classList.remove('hidden');
-            document.getElementById('tab-' + tabName).classList.add('border-b-2', 'border-blue-500', 'text-white');
-            document.getElementById('tab-' + tabName).classList.remove('text-white/70');
+            document.getElementById('tab-' + tabName).classList.add('border-b-2', 'border-blue-500', 'text-black');
+            document.getElementById('tab-' + tabName).classList.remove('text-gray-700');
             
             currentTab = tabName;
             
@@ -471,7 +471,7 @@
             if (unauthenticatedDevices.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="6" class="text-center py-8 text-white/50">No unauthenticated devices found</td>
+                        <td colspan="6" class="text-center py-8 text-gray-600">No unauthenticated devices found</td>
                     </tr>
                 `;
                 return;
@@ -480,21 +480,21 @@
             tbody.innerHTML = unauthenticatedDevices.map(device => `
                 <tr class="border-b border-white/10 hover:bg-white/5">
                     <td class="py-3 px-4">
-                        <div class="text-sm text-white/70">Unknown Device</div>
-                        <div class="text-xs text-white/50">Not registered</div>
+                        <div class="text-sm text-gray-700">Unknown Device</div>
+                        <div class="text-xs text-gray-600">Not registered</div>
                     </td>
                     <td class="py-3 px-4 font-mono text-sm">${device.mac_address}</td>
                     <td class="py-3 px-4 text-sm">${device.ip_address}</td>
-                    <td class="py-3 px-4 text-sm text-white/70">${device.vendor || 'Unknown'}</td>
+                    <td class="py-3 px-4 text-sm text-gray-700">${device.vendor || 'Unknown'}</td>
                     <td class="py-3 px-4 text-sm">${formatDate(device.first_seen)}</td>
                     <td class="py-3 px-4">
                         <div class="flex gap-1">
                             <button onclick="authenticateUnauthenticatedDevice('${device.mac_address}', '${device.ip_address}')" 
-                                    class="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs">
+                                    class="px-2 py-1 bg-green-600 hover:bg-green-700 text-black rounded text-xs">
                                 Allow
                             </button>
                             <button onclick="blockUnauthenticatedDevice('${device.mac_address}')" 
-                                    class="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs">
+                                    class="px-2 py-1 bg-red-600 hover:bg-red-700 text-black rounded text-xs">
                                 Block
                             </button>
                         </div>

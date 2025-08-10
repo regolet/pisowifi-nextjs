@@ -16,7 +16,7 @@
         }
     </style>
 </head>
-<body class="bg-gray-50 flex h-screen">
+<body class="bg-gray-200 flex h-screen">
     <%- include('../partials/admin-sidebar') %>
     
     <!-- Main Content -->
@@ -29,11 +29,11 @@
             </div>
 
             <!-- Stats Table -->
-            <div class="bg-white border border-gray-200 rounded-lg mb-6">
-                <div class="px-4 py-3 border-b border-gray-200">
+            <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
+                <div class="px-4 py-3 border-b border-gray-300">
                     <h2 class="text-sm font-semibold text-black">System Statistics</h2>
                 </div>
-                <div class="divide-y divide-gray-200">
+                <div class="divide-y divide-gray-300">
                     <div class="px-4 py-3 flex justify-between items-center">
                         <span class="text-sm text-black">Total Clients</span>
                         <span class="text-sm font-semibold text-black"><%= stats.totalClients %></span>
@@ -50,26 +50,26 @@
             </div>
 
             <!-- Quick Actions -->
-            <div class="bg-white border border-gray-200 rounded-lg mb-6">
-                <div class="px-4 py-3 border-b border-gray-200">
+            <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
+                <div class="px-4 py-3 border-b border-gray-300">
                     <h2 class="text-sm font-semibold text-black">Quick Actions</h2>
                 </div>
                 <div class="p-4 space-y-2">
-                    <a href="/admin/clients" class="block px-3 py-2 text-sm text-black hover:bg-gray-50 rounded border border-gray-200">View Client Management</a>
-                    <a href="/admin/rates" class="block px-3 py-2 text-sm text-black hover:bg-gray-50 rounded border border-gray-200">Configure Coin Rates</a>
-                    <a href="/admin/network" class="block px-3 py-2 text-sm text-black hover:bg-gray-50 rounded border border-gray-200">Network Settings</a>
-                    <a href="/admin/gpio" class="block px-3 py-2 text-sm text-black hover:bg-gray-50 rounded border border-gray-200">GPIO Configuration</a>
+                    <a href="/admin/clients" class="block px-3 py-2 text-sm text-black hover:bg-gray-100 rounded border border-gray-300">View Client Management</a>
+                    <a href="/admin/rates" class="block px-3 py-2 text-sm text-black hover:bg-gray-100 rounded border border-gray-300">Configure Coin Rates</a>
+                    <a href="/admin/network" class="block px-3 py-2 text-sm text-black hover:bg-gray-100 rounded border border-gray-300">Network Settings</a>
+                    <a href="/admin/gpio" class="block px-3 py-2 text-sm text-black hover:bg-gray-100 rounded border border-gray-300">GPIO Configuration</a>
                 </div>
             </div>
 
             <!-- System Status -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- System Services -->
-                <div class="bg-white border border-gray-200 rounded-lg">
-                    <div class="px-4 py-3 border-b border-gray-200">
+                <div class="bg-gray-50 border border-gray-300 rounded-lg">
+                    <div class="px-4 py-3 border-b border-gray-300">
                         <h3 class="text-sm font-semibold text-black">System Services</h3>
                     </div>
-                    <div class="divide-y divide-gray-200">
+                    <div class="divide-y divide-gray-300">
                         <div class="px-4 py-3 flex justify-between items-center">
                             <span class="text-sm text-black">PISOWifi App</span>
                             <span class="text-xs text-green-600 font-medium">Online</span>
@@ -90,13 +90,13 @@
                 </div>
 
                 <!-- Live Activity -->
-                <div class="bg-white border border-gray-200 rounded-lg">
-                    <div class="px-4 py-3 border-b border-gray-200">
+                <div class="bg-gray-50 border border-gray-300 rounded-lg">
+                    <div class="px-4 py-3 border-b border-gray-300">
                         <h3 class="text-sm font-semibold text-black">Recent Activity</h3>
                     </div>
                     <div class="p-4">
                         <div id="live-activity" class="space-y-2 max-h-40 overflow-y-auto">
-                            <div class="text-xs text-gray-600 py-1 px-2 bg-gray-50 rounded border">
+                            <div class="text-xs text-gray-600 py-1 px-2 bg-gray-100 rounded border">
                                 System initialized and ready
                             </div>
                         </div>
@@ -125,7 +125,7 @@
         function addActivity(message) {
             const container = document.getElementById('live-activity');
             const div = document.createElement('div');
-            div.className = 'text-xs text-gray-600 py-1 px-2 bg-gray-50 rounded border';
+            div.className = 'text-xs text-gray-600 py-1 px-2 bg-gray-100 rounded border';
             div.innerHTML = `
                 <div class="flex justify-between items-center">
                     <span>${message}</span>
