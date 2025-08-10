@@ -101,4 +101,44 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
+// Client Management
+router.get('/clients', authenticateToken, (req, res) => {
+  res.render('admin-clients', { 
+    title: 'Client Management',
+    user: req.user
+  });
+});
+
+// Network Settings
+router.get('/network', authenticateToken, (req, res) => {
+  res.render('admin-network', { 
+    title: 'Network Settings',
+    user: req.user
+  });
+});
+
+// GPIO Settings
+router.get('/gpio', authenticateToken, (req, res) => {
+  res.render('admin-gpio', { 
+    title: 'GPIO Settings',
+    user: req.user
+  });
+});
+
+// Portal Settings
+router.get('/portal', authenticateToken, (req, res) => {
+  res.render('admin-portal', { 
+    title: 'Portal Settings',
+    user: req.user
+  });
+});
+
+// Reports
+router.get('/reports', authenticateToken, (req, res) => {
+  res.render('admin-reports', { 
+    title: 'Reports & Analytics',
+    user: req.user
+  });
+});
+
 module.exports = router;

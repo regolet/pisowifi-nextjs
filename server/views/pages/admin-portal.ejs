@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal Settings - PISOWifi Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .glass {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .color-picker {
+            width: 50px;
+            height: 30px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
+    <%- include('../partials/admin-nav') %>
+    
+    <div class="container mx-auto px-4 py-8">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-white mb-2">Portal Settings</h1>
+            <p class="text-white/70">Customize the customer portal appearance and behavior</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Portal Configuration -->
+            <div class="lg:col-span-2">
+                <div class="glass rounded-2xl p-6 mb-8">
+                    <h2 class="text-xl font-semibold text-white mb-4">Portal Appearance</h2>
+                    <form id="portal-form" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-white/80 text-sm font-medium mb-2">
+                                    Portal Title
+                                </label>
+                                <input type="text" id="title" name="title" 
+                                       class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                       placeholder="PISOWifi Portal">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-white/80 text-sm font-medium mb-2">
+                                    Subtitle
+                                </label>
+                                <input type="text" id="subtitle" name="subtitle" 
+                                       class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                       placeholder="Insert coins for internet access">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-white/80 text-sm font-medium mb-2">
+                                Welcome Message
+                            </label>
+                            <textarea id="welcome_message" name="welcome_message" rows="3"
+                                      class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                      placeholder="Welcome to our WiFi service! Select your package and insert coins to get started."></textarea>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-white/80 text-sm font-medium mb-2">
+                                    Logo URL
+                                </label>
+                                <input type="url" id="logo_url" name="logo_url" 
+                                       class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                       placeholder="/images/logo.png">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-white/80 text-sm font-medium mb-2">
+                                    Background Theme
+                                </label>
+                                <select id="background" name="background" 
+                                        class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white">
+                                    <option value="gradient">Gradient (Default)</option>
+                                    <option value="solid">Solid Color</option>
+                                    <option value="image">Background Image</option>
+                                    <option value="video">Video Background</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <label class="block text-white/80 text-sm font-medium mb-2">
+                                    Primary Color
+                                </label>
+                                <input type="color" id="primary_color" name="primary_color" 
+                                       class="color-picker bg-white/10 border border-white/20"
+                                       value="#3B82F6">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-white/80 text-sm font-medium mb-2">
+                                    Secondary Color
+                                </label>
+                                <input type="color" id="secondary_color" name="secondary_color" 
+                                       class="color-picker bg-white/10 border border-white/20"
+                                       value="#8B5CF6">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-white/80 text-sm font-medium mb-2">
+                                    Accent Color
+                                </label>
+                                <input type="color" id="accent_color" name="accent_color" 
+                                       class="color-picker bg-white/10 border border-white/20"
+                                       value="#F59E0B">
+                            </div>
+                            
+                            <div>
+                                <label class="block text-white/80 text-sm font-medium mb-2">
+                                    Text Color
+                                </label>
+                                <input type="color" id="text_color" name="text_color" 
+                                       class="color-picker bg-white/10 border border-white/20"
+                                       value="#FFFFFF">
+                            </div>
+                        </div>
+                        
+                        <div class="border-t border-white/10 pt-6">
+                            <h3 class="text-white font-medium mb-4">Coin Insertion Settings</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-white/80 text-sm font-medium mb-2">
+                                        Coin Animation
+                                    </label>
+                                    <select id="coin_animation" name="coin_animation" 
+                                            class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white">
+                                        <option value="bounce">Bounce</option>
+                                        <option value="spin">Spin</option>
+                                        <option value="pulse">Pulse</option>
+                                        <option value="none">No Animation</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-white/80 text-sm font-medium mb-2">
+                                        Coin Sound
+                                    </label>
+                                    <select id="coin_sound" name="coin_sound" 
+                                            class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white">
+                                        <option value="classic">Classic Coin</option>
+                                        <option value="digital">Digital Beep</option>
+                                        <option value="chime">Chime</option>
+                                        <option value="none">No Sound</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-4 space-y-3">
+                                <label class="flex items-center text-white/80">
+                                    <input type="checkbox" id="coin_slot_enabled" name="coin_slot_enabled" 
+                                           class="mr-2 rounded bg-white/10 border-white/20" checked>
+                                    Enable Physical Coin Slot
+                                </label>
+                                <label class="flex items-center text-white/80">
+                                    <input type="checkbox" id="test_mode" name="test_mode" 
+                                           class="mr-2 rounded bg-white/10 border-white/20" checked>
+                                    Enable Test Mode (Show test coin button)
+                                </label>
+                                <label class="flex items-center text-white/80">
+                                    <input type="checkbox" id="show_timer" name="show_timer" 
+                                           class="mr-2 rounded bg-white/10 border-white/20">
+                                    Show Session Timer
+                                </label>
+                                <label class="flex items-center text-white/80">
+                                    <input type="checkbox" id="auto_connect" name="auto_connect" 
+                                           class="mr-2 rounded bg-white/10 border-white/20">
+                                    Auto-connect after payment
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" 
+                                class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+                            Save Portal Settings
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Rate Management -->
+                <div class="glass rounded-2xl p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold text-white">Rate Packages</h2>
+                        <button onclick="addRate()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded">
+                            + Add Rate
+                        </button>
+                    </div>
+                    
+                    <div id="rates-container" class="space-y-4">
+                        <!-- Rates will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview -->
+            <div class="glass rounded-2xl p-6">
+                <h2 class="text-xl font-semibold text-white mb-4">Live Preview</h2>
+                
+                <div class="bg-black/20 rounded-lg p-4 mb-4">
+                    <div class="text-center">
+                        <div class="w-16 h-16 bg-white/10 rounded-full mx-auto mb-4 flex items-center justify-center">
+                            <span class="text-2xl">📶</span>
+                        </div>
+                        <h3 id="preview-title" class="text-xl font-bold text-white mb-2">PISOWifi Portal</h3>
+                        <p id="preview-subtitle" class="text-white/70 text-sm mb-4">Insert coins for internet access</p>
+                        
+                        <div class="space-y-2 mb-4">
+                            <div class="bg-white/10 rounded-lg p-3">
+                                <div class="text-white font-medium">15 Minutes</div>
+                                <div class="text-yellow-400">₱5.00 - 1 coin</div>
+                            </div>
+                            <div class="bg-white/10 rounded-lg p-3">
+                                <div class="text-white font-medium">30 Minutes</div>
+                                <div class="text-yellow-400">₱10.00 - 2 coins</div>
+                            </div>
+                        </div>
+                        
+                        <div class="text-4xl mb-2">🪙</div>
+                        <div class="text-white/80 text-sm mb-4">Insert coins here</div>
+                        
+                        <button class="w-full py-2 bg-green-600 text-white rounded disabled:opacity-50" disabled>
+                            Connect to Internet
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="space-y-3">
+                    <button onclick="previewPortal()" 
+                            class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm">
+                        🔍 Full Preview
+                    </button>
+                    <button onclick="testPortal()" 
+                            class="w-full px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm">
+                        🧪 Test Portal Flow
+                    </button>
+                    <button onclick="exportTheme()" 
+                            class="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded text-sm">
+                        📥 Export Theme
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentRates = [];
+
+        // Load portal settings on page load
+        loadPortalSettings();
+        loadRates();
+
+        async function loadPortalSettings() {
+            try {
+                const response = await fetch('/api/settings', {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const settings = await response.json();
+                    const portal = settings.portal || {};
+                    
+                    document.getElementById('title').value = portal.title || 'PISOWifi Portal';
+                    document.getElementById('subtitle').value = portal.subtitle || 'Insert coins for internet access';
+                    document.getElementById('welcome_message').value = portal.welcome_message || '';
+                    document.getElementById('logo_url').value = portal.logo_url || '';
+                    document.getElementById('background').value = portal.background || 'gradient';
+                    document.getElementById('primary_color').value = portal.primary_color || '#3B82F6';
+                    document.getElementById('secondary_color').value = portal.secondary_color || '#8B5CF6';
+                    document.getElementById('accent_color').value = portal.accent_color || '#F59E0B';
+                    document.getElementById('text_color').value = portal.text_color || '#FFFFFF';
+                    document.getElementById('coin_animation').value = portal.coin_animation || 'bounce';
+                    document.getElementById('coin_sound').value = portal.coin_sound || 'classic';
+                    document.getElementById('coin_slot_enabled').checked = portal.coin_slot_enabled !== false;
+                    document.getElementById('test_mode').checked = portal.test_mode !== false;
+                    document.getElementById('show_timer').checked = portal.show_timer || false;
+                    document.getElementById('auto_connect').checked = portal.auto_connect || false;
+                    
+                    updatePreview();
+                }
+            } catch (error) {
+                console.error('Failed to load portal settings:', error);
+            }
+        }
+
+        async function loadRates() {
+            try {
+                const response = await fetch('/api/rates', {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    currentRates = await response.json();
+                    renderRates();
+                }
+            } catch (error) {
+                console.error('Failed to load rates:', error);
+            }
+        }
+
+        function renderRates() {
+            const container = document.getElementById('rates-container');
+            
+            container.innerHTML = currentRates.map((rate, index) => `
+                <div class="border border-white/10 rounded-lg p-4" data-rate-id="${rate.id}">
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                        <div>
+                            <label class="block text-white/80 text-sm mb-1">Name</label>
+                            <input type="text" value="${rate.name}" 
+                                   onchange="updateRate(${index}, 'name', this.value)"
+                                   class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-white/80 text-sm mb-1">Duration (min)</label>
+                            <input type="number" value="${Math.floor(rate.duration / 60)}" 
+                                   onchange="updateRate(${index}, 'duration', this.value * 60)"
+                                   class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-white/80 text-sm mb-1">Coins</label>
+                            <input type="number" value="${rate.coins_required}" min="1"
+                                   onchange="updateRate(${index}, 'coins_required', this.value)"
+                                   class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-white/80 text-sm mb-1">Price (₱)</label>
+                            <input type="number" value="${rate.price}" step="0.01" min="0"
+                                   onchange="updateRate(${index}, 'price', this.value)"
+                                   class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white text-sm">
+                        </div>
+                        <div class="flex gap-2">
+                            <label class="flex items-center text-white/80 text-sm">
+                                <input type="checkbox" ${rate.is_active ? 'checked' : ''} 
+                                       onchange="updateRate(${index}, 'is_active', this.checked)"
+                                       class="mr-1 rounded bg-white/10 border-white/20">
+                                Active
+                            </label>
+                            <button onclick="removeRate(${index})" 
+                                    class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm">
+                                Remove
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateRate(index, field, value) {
+            if (currentRates[index]) {
+                currentRates[index][field] = value;
+            }
+        }
+
+        function addRate() {
+            const newRate = {
+                id: null,
+                name: 'New Package',
+                duration: 900,
+                coins_required: 1,
+                price: 5.00,
+                is_active: true
+            };
+            
+            currentRates.push(newRate);
+            renderRates();
+        }
+
+        function removeRate(index) {
+            if (confirm('Remove this rate package?')) {
+                currentRates.splice(index, 1);
+                renderRates();
+            }
+        }
+
+        document.getElementById('portal-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const settings = Object.fromEntries(formData);
+            
+            // Convert checkboxes
+            settings.coin_slot_enabled = formData.has('coin_slot_enabled');
+            settings.test_mode = formData.has('test_mode');
+            settings.show_timer = formData.has('show_timer');
+            settings.auto_connect = formData.has('auto_connect');
+            
+            try {
+                // Save portal settings
+                const portalResponse = await fetch('/api/settings/portal', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(settings)
+                });
+                
+                // Save rates
+                const ratesResponse = await fetch('/api/settings/rates', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ rates: currentRates })
+                });
+                
+                if (portalResponse.ok && ratesResponse.ok) {
+                    alert('Portal settings saved successfully!');
+                } else {
+                    alert('Failed to save settings');
+                }
+            } catch (error) {
+                alert('Save failed: ' + error.message);
+            }
+        });
+
+        function updatePreview() {
+            const title = document.getElementById('title').value;
+            const subtitle = document.getElementById('subtitle').value;
+            
+            document.getElementById('preview-title').textContent = title;
+            document.getElementById('preview-subtitle').textContent = subtitle;
+        }
+
+        function previewPortal() {
+            window.open('/portal', '_blank');
+        }
+
+        function testPortal() {
+            alert('Test mode: This would simulate the complete portal flow including coin insertion and connection.');
+        }
+
+        function exportTheme() {
+            const settings = {
+                title: document.getElementById('title').value,
+                subtitle: document.getElementById('subtitle').value,
+                primary_color: document.getElementById('primary_color').value,
+                secondary_color: document.getElementById('secondary_color').value,
+                accent_color: document.getElementById('accent_color').value,
+                background: document.getElementById('background').value
+            };
+            
+            const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'pisowifi-theme.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Update preview when form fields change
+        document.getElementById('title').addEventListener('input', updatePreview);
+        document.getElementById('subtitle').addEventListener('input', updatePreview);
+        
+        // Color picker updates
+        document.querySelectorAll('input[type="color"]').forEach(input => {
+            input.addEventListener('change', function() {
+                // Apply color changes to preview in real-time
+                updatePreview();
+            });
+        });
+    </script>
+</body>
+</html>

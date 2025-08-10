@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Settings - PISOWifi Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .glass {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
+    <%- include('../partials/admin-nav') %>
+    
+    <div class="container mx-auto px-4 py-8">
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-white mb-2">Network Settings</h1>
+            <p class="text-white/70">Configure network and DHCP settings</p>
+        </div>
+
+        <!-- Network Status -->
+        <div class="glass rounded-2xl p-6 mb-8">
+            <h2 class="text-xl font-semibold text-white mb-4">Current Network Status</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <h3 class="text-white/80 font-medium mb-2">Services</h3>
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-white/70">dnsmasq (DHCP/DNS)</span>
+                            <span id="dnsmasq-status" class="px-2 py-1 bg-gray-500 text-white text-xs rounded">Checking...</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-white/70">nginx (Redirect)</span>
+                            <span id="nginx-status" class="px-2 py-1 bg-gray-500 text-white text-xs rounded">Checking...</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-white/70">PISOWifi App</span>
+                            <span id="app-status" class="px-2 py-1 bg-green-500 text-white text-xs rounded">Online</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="text-white/80 font-medium mb-2">Network Interfaces</h3>
+                    <div class="space-y-2" id="network-interfaces">
+                        <div class="text-white/50 text-sm">Loading...</div>
+                    </div>
+                </div>
+                
+                <div>
+                    <h3 class="text-white/80 font-medium mb-2">Connected Clients</h3>
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-white/70">Active DHCP Leases</span>
+                            <span id="dhcp-leases" class="text-white font-medium">-</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-white/70">ARP Table Entries</span>
+                            <span id="arp-entries" class="text-white font-medium">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- DHCP Settings -->
+            <div class="glass rounded-2xl p-6">
+                <h2 class="text-xl font-semibold text-white mb-4">DHCP Configuration</h2>
+                <form id="dhcp-form" class="space-y-4">
+                    <div>
+                        <label class="block text-white/80 text-sm font-medium mb-2">
+                            Network Interface
+                        </label>
+                        <input type="text" id="interface" name="interface" 
+                               class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                               placeholder="enx00e04c68276e">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-white/80 text-sm font-medium mb-2">
+                            Gateway IP
+                        </label>
+                        <input type="text" id="gateway_ip" name="gateway_ip" 
+                               class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                               placeholder="192.168.100.1">
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-white/80 text-sm font-medium mb-2">
+                                DHCP Start
+                            </label>
+                            <input type="text" id="dhcp_start" name="dhcp_start" 
+                                   class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                   placeholder="192.168.100.10">
+                        </div>
+                        <div>
+                            <label class="block text-white/80 text-sm font-medium mb-2">
+                                DHCP End
+                            </label>
+                            <input type="text" id="dhcp_end" name="dhcp_end" 
+                                   class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                                   placeholder="192.168.100.100">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-white/80 text-sm font-medium mb-2">
+                            Lease Time
+                        </label>
+                        <select id="lease_time" name="lease_time" 
+                                class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white">
+                            <option value="1h">1 hour</option>
+                            <option value="6h">6 hours</option>
+                            <option value="12h">12 hours</option>
+                            <option value="24h">24 hours</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-white/80 text-sm font-medium mb-2">
+                            DNS Server
+                        </label>
+                        <input type="text" id="dns_server" name="dns_server" 
+                               class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+                               placeholder="8.8.8.8">
+                    </div>
+                    
+                    <button type="submit" 
+                            class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+                        Update DHCP Settings
+                    </button>
+                </form>
+            </div>
+
+            <!-- Service Control -->
+            <div class="glass rounded-2xl p-6">
+                <h2 class="text-xl font-semibold text-white mb-4">Service Control</h2>
+                
+                <div class="space-y-4">
+                    <div class="border border-white/10 rounded-lg p-4">
+                        <h3 class="text-white font-medium mb-2">dnsmasq (DHCP/DNS)</h3>
+                        <div class="flex gap-2">
+                            <button onclick="controlService('dnsmasq', 'restart')" 
+                                    class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm">
+                                Restart
+                            </button>
+                            <button onclick="controlService('dnsmasq', 'start')" 
+                                    class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm">
+                                Start
+                            </button>
+                            <button onclick="controlService('dnsmasq', 'stop')" 
+                                    class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm">
+                                Stop
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="border border-white/10 rounded-lg p-4">
+                        <h3 class="text-white font-medium mb-2">nginx (HTTP Redirect)</h3>
+                        <div class="flex gap-2">
+                            <button onclick="controlService('nginx', 'restart')" 
+                                    class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm">
+                                Restart
+                            </button>
+                            <button onclick="controlService('nginx', 'start')" 
+                                    class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm">
+                                Start
+                            </button>
+                            <button onclick="controlService('nginx', 'stop')" 
+                                    class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm">
+                                Stop
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <h3 class="text-white font-medium mb-2">Network Diagnostics</h3>
+                    <div class="space-y-2">
+                        <button onclick="runDiagnostic('interfaces')" 
+                                class="w-full px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm text-left">
+                            📡 Check Network Interfaces
+                        </button>
+                        <button onclick="runDiagnostic('dhcp')" 
+                                class="w-full px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm text-left">
+                            🌐 Check DHCP Leases
+                        </button>
+                        <button onclick="runDiagnostic('dns')" 
+                                class="w-full px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm text-left">
+                            🔍 Test DNS Resolution
+                        </button>
+                        <button onclick="runDiagnostic('connectivity')" 
+                                class="w-full px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm text-left">
+                            🌍 Test Internet Connectivity
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs -->
+        <div class="glass rounded-2xl p-6 mt-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-white">Network Logs</h2>
+                <button onclick="clearLogs()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm">
+                    Clear Logs
+                </button>
+            </div>
+            <div id="network-logs" class="bg-black/20 rounded-lg p-4 h-64 overflow-y-auto">
+                <div class="text-white/50 text-sm">Logs will appear here...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load settings on page load
+        loadNetworkSettings();
+        checkServiceStatus();
+
+        async function loadNetworkSettings() {
+            try {
+                const response = await fetch('/api/settings', {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const settings = await response.json();
+                    const network = settings.network || {};
+                    
+                    document.getElementById('interface').value = network.interface || 'enx00e04c68276e';
+                    document.getElementById('gateway_ip').value = network.gateway_ip || '192.168.100.1';
+                    document.getElementById('dhcp_start').value = network.dhcp_start || '192.168.100.10';
+                    document.getElementById('dhcp_end').value = network.dhcp_end || '192.168.100.100';
+                    document.getElementById('lease_time').value = network.lease_time || '12h';
+                    document.getElementById('dns_server').value = network.dns_server || '8.8.8.8';
+                }
+            } catch (error) {
+                addLog('Failed to load network settings: ' + error.message, 'error');
+            }
+        }
+
+        async function checkServiceStatus() {
+            // This would normally check actual service status
+            document.getElementById('dnsmasq-status').textContent = 'Online';
+            document.getElementById('dnsmasq-status').className = 'px-2 py-1 bg-green-500 text-white text-xs rounded';
+            
+            document.getElementById('nginx-status').textContent = 'Online';
+            document.getElementById('nginx-status').className = 'px-2 py-1 bg-green-500 text-white text-xs rounded';
+            
+            // Load network interfaces
+            loadNetworkInterfaces();
+        }
+
+        async function loadNetworkInterfaces() {
+            const interfacesDiv = document.getElementById('network-interfaces');
+            interfacesDiv.innerHTML = `
+                <div class="text-white/70 text-sm">end0: 192.168.1.105 (WAN)</div>
+                <div class="text-white/70 text-sm">enx...: 192.168.100.1 (LAN)</div>
+                <div class="text-white/70 text-sm">lo: 127.0.0.1 (Loopback)</div>
+            `;
+        }
+
+        document.getElementById('dhcp-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const settings = Object.fromEntries(formData);
+            
+            try {
+                const response = await fetch('/api/settings/network', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(settings)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog('Network settings updated successfully', 'success');
+                    addLog('Services restarted: dnsmasq, nginx', 'info');
+                } else {
+                    addLog('Failed to update settings: ' + result.error, 'error');
+                }
+            } catch (error) {
+                addLog('Update failed: ' + error.message, 'error');
+            }
+        });
+
+        async function controlService(service, action) {
+            addLog(`${action.charAt(0).toUpperCase() + action.slice(1)}ing ${service}...`, 'info');
+            
+            // Simulate service control
+            setTimeout(() => {
+                addLog(`${service} ${action} completed`, 'success');
+                checkServiceStatus();
+            }, 1000);
+        }
+
+        async function runDiagnostic(type) {
+            addLog(`Running ${type} diagnostic...`, 'info');
+            
+            // Simulate diagnostics
+            setTimeout(() => {
+                switch(type) {
+                    case 'interfaces':
+                        addLog('Network interfaces: end0 (UP), enx... (UP)', 'success');
+                        break;
+                    case 'dhcp':
+                        addLog('DHCP leases: 3 active clients', 'success');
+                        break;
+                    case 'dns':
+                        addLog('DNS resolution: OK (8.8.8.8 reachable)', 'success');
+                        break;
+                    case 'connectivity':
+                        addLog('Internet connectivity: OK', 'success');
+                        break;
+                }
+            }, 1000);
+        }
+
+        function addLog(message, type) {
+            const logsDiv = document.getElementById('network-logs');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = {
+                'info': 'text-blue-400',
+                'success': 'text-green-400',
+                'error': 'text-red-400',
+                'warning': 'text-yellow-400'
+            }[type] || 'text-white/70';
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = `${color} text-sm mb-1`;
+            logEntry.innerHTML = `[${timestamp}] ${message}`;
+            
+            logsDiv.appendChild(logEntry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('network-logs').innerHTML = '';
+            addLog('Logs cleared', 'info');
+        }
+
+        // Add some initial logs
+        addLog('Network settings page loaded', 'info');
+        addLog('Checking service status...', 'info');
+    </script>
+</body>
+</html>

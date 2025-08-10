@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+
+// Mount API sub-routes
+router.use('/clients', require('./api/clients'));
+router.use('/settings', require('./api/settings'));
+
+// Keep existing general API routes
 const { Pool } = require('pg');
 const { exec } = require('child_process');
 const { promisify } = require('util');
