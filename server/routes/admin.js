@@ -59,7 +59,7 @@ router.post('/login', async (req, res) => {
     // Set cookie and redirect
     res.cookie('auth-token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: false,  // Always allow HTTP for local PISOWifi network
       maxAge: 24 * 60 * 60 * 1000
     });
     

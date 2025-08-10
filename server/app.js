@@ -28,7 +28,9 @@ app.use(helmet({
       baseUri: ["'self'"],
       formAction: ["'self'"]
     }
-  }
+  },
+  hsts: false,  // Disable HTTP Strict Transport Security
+  forceHTTPS: false  // Disable HTTPS enforcement
 }));
 app.use(compression());
 app.use(morgan('combined'));
@@ -36,6 +38,13 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// Force HTTP for local PISOWifi network (prevent HTTPS redirects)
+app.use((req, res, next) => {
+  // Remove any HTTPS enforcement
+  res.removeHeader('Strict-Transport-Security');
+  next();
+});
 
 // Static files
 app.use(express.static(path.join(__dirname, 'public')));
