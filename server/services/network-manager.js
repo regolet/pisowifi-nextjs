@@ -259,21 +259,43 @@ server=8.8.4.4
       };
     }
     
-    // Check pisowifi-final service
+    // Check pisowifi services (try multiple service names)
+    let pisowifiActive = false;
+    let pisowifiStatus = 'inactive';
+    let pisowifiInfo = 'Service not found';
+    
+    // Check pisowifi-dynamic first
     try {
-      const { stdout } = await execAsync('systemctl is-active pisowifi-final');
-      status.pisowifi = {
-        active: stdout.trim() === 'active',
-        status: stdout.trim(),
-        info: `Captive portal ${stdout.trim()}`
-      };
+      const { stdout } = await execAsync('systemctl is-active pisowifi-dynamic');
+      if (stdout.trim() === 'active') {
+        pisowifiActive = true;
+        pisowifiStatus = 'active';
+        pisowifiInfo = 'Dynamic service active';
+      }
     } catch (error) {
-      status.pisowifi = {
-        active: false,
-        status: 'inactive',
-        info: 'Service not found'
-      };
+      // Try pisowifi-final
+      try {
+        const { stdout } = await execAsync('systemctl is-active pisowifi-final');
+        if (stdout.trim() === 'active') {
+          pisowifiActive = true;
+          pisowifiStatus = 'active';
+          pisowifiInfo = 'Final service active';
+        }
+      } catch (error2) {
+        // If no services, but rules exist, mark as active
+        if (status.iptables && status.iptables.active) {
+          pisowifiActive = true;
+          pisowifiStatus = 'manual';
+          pisowifiInfo = 'Rules manually applied';
+        }
+      }
     }
+    
+    status.pisowifi = {
+      active: pisowifiActive,
+      status: pisowifiStatus,
+      info: pisowifiInfo
+    };
     
     return status;
   }
