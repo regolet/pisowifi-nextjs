@@ -149,4 +149,19 @@ router.get('/reports', authenticateToken, (req, res) => {
   });
 });
 
+// Simple bypass for Orange Pi (temporary fix)
+router.get('/bypass', (req, res) => {
+  const token = jwt.sign(
+    { userId: 1, username: 'admin', role: 'admin' }, 
+    process.env.JWT_SECRET || 'your-secret-key',
+    { expiresIn: '24h' }
+  );
+  res.cookie('auth-token', token, { 
+    httpOnly: true, 
+    secure: false, // Set to false for HTTP
+    maxAge: 24 * 60 * 60 * 1000
+  });
+  res.redirect('/admin');
+});
+
 module.exports = router;
