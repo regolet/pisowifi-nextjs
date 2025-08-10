@@ -104,18 +104,24 @@ log-queries
 log-facility=/var/log/dnsmasq.log
 `;
 
-    await fs.writeFile('/etc/dnsmasq.d/pisowifi-dynamic.conf', dnsmasqConfig);
+    // Write to temp file first, then move with sudo
+    await fs.writeFile('/tmp/pisowifi-dynamic.conf', dnsmasqConfig);
     
-    // Remove old config files
+    // Remove old config files and copy new one
     await execAsync('sudo rm -f /etc/dnsmasq.d/pisowifi*.conf').catch(() => {});
-    await execAsync(`sudo cp /etc/dnsmasq.d/pisowifi-dynamic.conf /etc/dnsmasq.d/pisowifi-active.conf`);
+    await execAsync('sudo cp /tmp/pisowifi-dynamic.conf /etc/dnsmasq.d/pisowifi-active.conf');
 
     // Configure network interface
     console.log(`Configuring interface ${clientInterface}...`);
     await execAsync(`sudo ip addr flush dev ${clientInterface}`).catch(() => {});
-    await execAsync(`sudo ip addr add ${config.gateway}/${config.subnet_mask.split('.').map(octet => 
-      256 - parseInt(octet)
-    ).map(bits => Math.log2(bits)).reduce((sum, bits) => sum + (8 - bits), 0)} dev ${clientInterface}`);
+    
+    // Convert subnet mask to CIDR (255.255.255.0 = /24)
+    let cidr = 24;
+    if (config.subnet_mask === '255.255.255.0') cidr = 24;
+    else if (config.subnet_mask === '255.255.0.0') cidr = 16;
+    else if (config.subnet_mask === '255.0.0.0') cidr = 8;
+    
+    await execAsync(`sudo ip addr add ${config.gateway}/${cidr} dev ${clientInterface}`);
     await execAsync(`sudo ip link set ${clientInterface} up`);
 
     // Create dynamic iptables rules
@@ -167,7 +173,10 @@ echo "Client Interface: ${clientInterface}"
 echo "WAN Interface: ${wanInterface}"
 `;
 
-    await fs.writeFile('/etc/iptables/pisowifi-dynamic.sh', iptablesScript);
+    // Write to temp file first, then move with sudo
+    await fs.writeFile('/tmp/pisowifi-dynamic.sh', iptablesScript);
+    await execAsync('sudo mkdir -p /etc/iptables');
+    await execAsync('sudo cp /tmp/pisowifi-dynamic.sh /etc/iptables/pisowifi-dynamic.sh');
     await execAsync('sudo chmod +x /etc/iptables/pisowifi-dynamic.sh');
     await execAsync('sudo /etc/iptables/pisowifi-dynamic.sh');
 
@@ -188,7 +197,9 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 `;
 
-    await fs.writeFile('/etc/systemd/system/pisowifi-dynamic.service', serviceConfig);
+    // Write systemd service file
+    await fs.writeFile('/tmp/pisowifi-dynamic.service', serviceConfig);
+    await execAsync('sudo cp /tmp/pisowifi-dynamic.service /etc/systemd/system/pisowifi-dynamic.service');
     await execAsync('sudo systemctl daemon-reload');
     await execAsync('sudo systemctl enable pisowifi-dynamic');
     await execAsync('sudo systemctl start pisowifi-dynamic');
