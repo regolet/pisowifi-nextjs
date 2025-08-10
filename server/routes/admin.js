@@ -93,7 +93,8 @@ router.get('/', authenticateToken, async (req, res) => {
     res.render('admin-dashboard', { 
       title: 'Admin Dashboard',
       user: req.user,
-      stats: stats
+      stats: stats,
+      currentPage: 'dashboard'
     });
   } catch (error) {
     console.error('Dashboard error:', error);
@@ -105,7 +106,8 @@ router.get('/', authenticateToken, async (req, res) => {
 router.get('/clients', authenticateToken, (req, res) => {
   res.render('admin-clients', { 
     title: 'Client Management',
-    user: req.user
+    user: req.user,
+    currentPage: 'clients'
   });
 });
 
@@ -113,7 +115,8 @@ router.get('/clients', authenticateToken, (req, res) => {
 router.get('/network', authenticateToken, (req, res) => {
   res.render('admin-network', { 
     title: 'Network Settings',
-    user: req.user
+    user: req.user,
+    currentPage: 'network'
   });
 });
 
@@ -121,7 +124,8 @@ router.get('/network', authenticateToken, (req, res) => {
 router.get('/gpio', authenticateToken, (req, res) => {
   res.render('admin-gpio', { 
     title: 'GPIO Settings',
-    user: req.user
+    user: req.user,
+    currentPage: 'gpio'
   });
 });
 
@@ -129,7 +133,8 @@ router.get('/gpio', authenticateToken, (req, res) => {
 router.get('/portal', authenticateToken, (req, res) => {
   res.render('admin-portal', { 
     title: 'Portal Settings',
-    user: req.user
+    user: req.user,
+    currentPage: 'portal'
   });
 });
 
@@ -137,7 +142,8 @@ router.get('/portal', authenticateToken, (req, res) => {
 router.get('/rates', authenticateToken, (req, res) => {
   res.render('admin-rates', { 
     title: 'Coin Rates Management',
-    user: req.user
+    user: req.user,
+    currentPage: 'rates'
   });
 });
 
@@ -145,7 +151,8 @@ router.get('/rates', authenticateToken, (req, res) => {
 router.get('/reports', authenticateToken, (req, res) => {
   res.render('admin-reports', { 
     title: 'Reports & Analytics',
-    user: req.user
+    user: req.user,
+    currentPage: 'reports'
   });
 });
 

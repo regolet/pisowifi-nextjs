@@ -7,112 +7,173 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        .glass {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+        .sidebar-item:hover {
+            background-color: rgba(59, 130, 246, 0.1);
+        }
+        .sidebar-item.active {
+            background-color: rgba(59, 130, 246, 0.2);
+            border-right: 3px solid #3b82f6;
         }
     </style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
-    <div class="container mx-auto px-4 py-8">
-        <!-- Header -->
-        <div class="flex justify-between items-center mb-8">
-            <div class="flex items-center">
-                <div class="text-4xl mr-4">📊</div>
+<body class="bg-gray-50 flex h-screen">
+    <!-- Sidebar -->
+    <div class="w-64 bg-white shadow-lg">
+        <div class="p-6">
+            <div class="flex items-center mb-8">
+                <div class="text-2xl mr-3">📊</div>
+                <h1 class="text-xl font-bold text-gray-800">PISOWifi</h1>
+            </div>
+            
+            <nav class="space-y-2">
+                <a href="/admin" class="sidebar-item active flex items-center px-4 py-3 text-gray-700 rounded-lg">
+                    <span class="mr-3">🏠</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/admin/clients" class="sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg hover:bg-blue-50">
+                    <span class="mr-3">👥</span>
+                    <span>Clients</span>
+                </a>
+                <a href="/admin/rates" class="sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg hover:bg-blue-50">
+                    <span class="mr-3">🪙</span>
+                    <span>Coin Rates</span>
+                </a>
+                <a href="/admin/network" class="sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg hover:bg-blue-50">
+                    <span class="mr-3">🌐</span>
+                    <span>Network</span>
+                </a>
+                <a href="/admin/gpio" class="sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg hover:bg-blue-50">
+                    <span class="mr-3">⚡</span>
+                    <span>GPIO</span>
+                </a>
+                <a href="/admin/reports" class="sidebar-item flex items-center px-4 py-3 text-gray-700 rounded-lg hover:bg-blue-50">
+                    <span class="mr-3">📊</span>
+                    <span>Reports</span>
+                </a>
+            </nav>
+        </div>
+        
+        <div class="absolute bottom-0 w-64 p-6 border-t">
+            <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-3xl font-bold text-white">Admin Dashboard</h1>
-                    <p class="text-white/70">Welcome back, <%= user.username %>!</p>
+                    <p class="text-sm text-gray-600">Welcome back</p>
+                    <p class="text-sm font-medium text-gray-800"><%= user.username %></p>
+                </div>
+                <form action="/admin/logout" method="POST">
+                    <button type="submit" class="text-red-600 hover:text-red-700">
+                        <span class="text-lg">🚪</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="flex-1 overflow-y-auto">
+        <div class="p-8">
+            <!-- Header -->
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-gray-800">Dashboard</h2>
+                <p class="text-gray-600">Overview of your PISOWifi system</p>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white rounded-xl shadow-sm border p-6">
+                    <div class="flex items-center">
+                        <div class="text-3xl mr-4">👥</div>
+                        <div>
+                            <p class="text-2xl font-bold text-gray-800"><%= stats.totalClients %></p>
+                            <p class="text-gray-600">Total Clients</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-xl shadow-sm border p-6">
+                    <div class="flex items-center">
+                        <div class="text-3xl mr-4">🔄</div>
+                        <div>
+                            <p class="text-2xl font-bold text-gray-800"><%= stats.activeSessions %></p>
+                            <p class="text-gray-600">Active Sessions</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-xl shadow-sm border p-6">
+                    <div class="flex items-center">
+                        <div class="text-3xl mr-4">💰</div>
+                        <div>
+                            <p class="text-2xl font-bold text-gray-800">₱<%= stats.todayRevenue %></p>
+                            <p class="text-gray-600">Today's Revenue</p>
+                        </div>
+                    </div>
                 </div>
             </div>
-            
-            <form action="/admin/logout" method="POST">
-                <button type="submit" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg">
-                    Logout
-                </button>
-            </form>
-        </div>
 
-        <!-- Stats Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div class="glass rounded-2xl p-6 text-center">
-                <div class="text-4xl mb-2">👥</div>
-                <div class="text-2xl font-bold text-white"><%= stats.totalClients %></div>
-                <div class="text-white/70">Total Clients</div>
+            <!-- Quick Actions -->
+            <div class="bg-white rounded-xl shadow-sm border p-6 mb-8">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <a href="/admin/clients" class="flex flex-col items-center p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
+                        <span class="text-2xl mb-2">👥</span>
+                        <span class="text-sm text-gray-700">View Clients</span>
+                    </a>
+                    
+                    <a href="/admin/rates" class="flex flex-col items-center p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
+                        <span class="text-2xl mb-2">🪙</span>
+                        <span class="text-sm text-gray-700">Coin Rates</span>
+                    </a>
+                    
+                    <a href="/admin/network" class="flex flex-col items-center p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
+                        <span class="text-2xl mb-2">🌐</span>
+                        <span class="text-sm text-gray-700">Network</span>
+                    </a>
+                    
+                    <a href="/admin/reports" class="flex flex-col items-center p-4 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
+                        <span class="text-2xl mb-2">📊</span>
+                        <span class="text-sm text-gray-700">Reports</span>
+                    </a>
+                </div>
             </div>
-            
-            <div class="glass rounded-2xl p-6 text-center">
-                <div class="text-4xl mb-2">🔄</div>
-                <div class="text-2xl font-bold text-white"><%= stats.activeSessions %></div>
-                <div class="text-white/70">Active Sessions</div>
-            </div>
-            
-            <div class="glass rounded-2xl p-6 text-center">
-                <div class="text-4xl mb-2">💰</div>
-                <div class="text-2xl font-bold text-white">₱<%= stats.todayRevenue %></div>
-                <div class="text-white/70">Today's Revenue</div>
-            </div>
-        </div>
 
-        <!-- Quick Actions -->
-        <div class="glass rounded-2xl p-6 mb-8">
-            <h2 class="text-xl font-semibold text-white mb-4">Quick Actions</h2>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <button class="p-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
-                    <div class="text-2xl mb-2">👁️</div>
-                    <div>View Clients</div>
-                </button>
-                
-                <button class="p-4 bg-green-600 hover:bg-green-700 text-white rounded-lg">
-                    <div class="text-2xl mb-2">📊</div>
-                    <div>Reports</div>
-                </button>
-                
-                <button class="p-4 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg">
-                    <div class="text-2xl mb-2">🎫</div>
-                    <div>Vouchers</div>
-                </button>
-                
-                <button class="p-4 bg-purple-600 hover:bg-purple-700 text-white rounded-lg">
-                    <div class="text-2xl mb-2">⚙️</div>
-                    <div>Settings</div>
-                </button>
-            </div>
-        </div>
-
-        <!-- Recent Activity -->
-        <div class="glass rounded-2xl p-6">
-            <h2 class="text-xl font-semibold text-white mb-4">System Status</h2>
-            
+            <!-- System Status -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- System Services -->
-                <div>
-                    <h3 class="text-lg font-medium text-white mb-3">Services</h3>
-                    <div class="space-y-2">
-                        <div class="flex justify-between items-center p-3 bg-white/10 rounded-lg">
-                            <span class="text-white">PISOWifi App</span>
-                            <span class="px-2 py-1 bg-green-500 text-white text-sm rounded">Online</span>
+                <div class="bg-white rounded-xl shadow-sm border p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">System Services</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-700">PISOWifi App</span>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                ● Online
+                            </span>
                         </div>
-                        <div class="flex justify-between items-center p-3 bg-white/10 rounded-lg">
-                            <span class="text-white">GPIO Service</span>
-                            <span class="px-2 py-1 bg-green-500 text-white text-sm rounded">Online</span>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-700">GPIO Service</span>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                ● Online
+                            </span>
                         </div>
-                        <div class="flex justify-between items-center p-3 bg-white/10 rounded-lg">
-                            <span class="text-white">Database</span>
-                            <span class="px-2 py-1 bg-green-500 text-white text-sm rounded">Connected</span>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-700">Database</span>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                ● Connected
+                            </span>
                         </div>
-                        <div class="flex justify-between items-center p-3 bg-white/10 rounded-lg">
-                            <span class="text-white">WiFi Access Point</span>
-                            <span class="px-2 py-1 bg-green-500 text-white text-sm rounded">Broadcasting</span>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-700">WiFi AP</span>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                ● Broadcasting
+                            </span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Real-time Updates -->
-                <div>
-                    <h3 class="text-lg font-medium text-white mb-3">Live Activity</h3>
+                <!-- Live Activity -->
+                <div class="bg-white rounded-xl shadow-sm border p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Recent Activity</h3>
                     <div id="live-activity" class="space-y-2 max-h-64 overflow-y-auto">
-                        <div class="p-3 bg-white/10 rounded-lg text-white text-sm">
+                        <div class="text-sm text-gray-600 p-2 bg-gray-50 rounded">
                             System initialized and ready
                         </div>
                     </div>
@@ -140,18 +201,18 @@
         function addActivity(message) {
             const container = document.getElementById('live-activity');
             const div = document.createElement('div');
-            div.className = 'p-3 bg-white/10 rounded-lg text-white text-sm';
+            div.className = 'text-sm text-gray-600 p-2 bg-gray-50 rounded';
             div.innerHTML = `
                 <div class="flex justify-between items-center">
                     <span>${message}</span>
-                    <span class="text-white/50">${new Date().toLocaleTimeString()}</span>
+                    <span class="text-gray-400 text-xs">${new Date().toLocaleTimeString()}</span>
                 </div>
             `;
             
             container.insertBefore(div, container.firstChild);
             
-            // Keep only last 10 activities
-            while (container.children.length > 10) {
+            // Keep only last 8 activities
+            while (container.children.length > 8) {
                 container.removeChild(container.lastChild);
             }
         }
