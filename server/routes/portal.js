@@ -16,13 +16,24 @@ const pool = new Pool({
 // Portal page
 router.get('/', async (req, res) => {
   try {
-    // Get client IP
-    const clientIP = req.headers['x-forwarded-for'] || 
-                     req.connection.remoteAddress || 
-                     req.socket.remoteAddress ||
-                     (req.connection.socket ? req.connection.socket.remoteAddress : null);
+    // Get client IP and clean it
+    let clientIP = req.headers['x-forwarded-for'] || 
+                   req.headers['x-real-ip'] ||
+                   req.connection.remoteAddress || 
+                   req.socket.remoteAddress ||
+                   (req.connection.socket ? req.connection.socket.remoteAddress : null);
 
-    console.log(`Portal access from IP: ${clientIP}`);
+    // Clean IPv6-mapped IPv4 addresses (remove ::ffff: prefix)
+    if (clientIP && clientIP.startsWith('::ffff:')) {
+      clientIP = clientIP.substring(7);
+    }
+    
+    // Remove port if present
+    if (clientIP && clientIP.includes(':') && !clientIP.includes('::')) {
+      clientIP = clientIP.split(':')[0];
+    }
+
+    console.log(`Portal access from cleaned IP: ${clientIP}`);
     
     // Try to detect MAC address from multiple sources
     let detectedMac = null;
@@ -106,14 +117,33 @@ router.get('/', async (req, res) => {
       wanStatus = 'disconnected';
     }
     
+    // Get portal settings
+    let portalSettings = {
+      coin_timeout: 60,
+      coin_value: 5.00,
+      time_per_peso: 6,
+      portal_title: 'PISOWifi Portal',
+      portal_subtitle: 'Insert coins for internet access'
+    };
+    
+    try {
+      const settingsResult = await pool.query('SELECT * FROM portal_settings LIMIT 1');
+      if (settingsResult.rows.length > 0) {
+        portalSettings = settingsResult.rows[0];
+      }
+    } catch (settingsError) {
+      console.warn('Failed to load portal settings, using defaults:', settingsError.message);
+    }
+    
     res.render('portal', {
-      title: 'PISOWifi Portal',
+      title: portalSettings.portal_title,
       rates: rates,
       clientIP: clientIP,
       clientMAC: detectedMac || 'Unknown',
       isAuthenticated: isAuthenticated,
       clientInfo: clientInfo,
-      wanStatus: wanStatus
+      wanStatus: wanStatus,
+      portalSettings: portalSettings
     });
   } catch (error) {
     console.error('Portal error:', error);
@@ -194,16 +224,32 @@ router.post('/connect', async (req, res) => {
       }
     }
     
+    // Get portal settings for calculation
+    let portalSettings = {
+      coin_value: 5.00,
+      time_per_peso: 6
+    };
+    
+    try {
+      const settingsResult = await pool.query('SELECT coin_value, time_per_peso FROM portal_settings LIMIT 1');
+      if (settingsResult.rows.length > 0) {
+        portalSettings = settingsResult.rows[0];
+      }
+    } catch (settingsError) {
+      console.warn('Failed to load portal settings for calculation, using defaults:', settingsError.message);
+    }
+    
     // Calculate duration and cost
     let sessionDuration = duration || 3600; // Default 1 hour
-    let sessionCost = coinsInserted * 5; // ₱5 per coin
+    let sessionCost = coinsInserted * portalSettings.coin_value; // Dynamic coin value
     
     if (selectedRate) {
       sessionDuration = selectedRate.duration;
       sessionCost = selectedRate.price;
     } else if (coinsInserted) {
-      // Calculate based on coin value (₱5 per coin = 30 minutes)
-      sessionDuration = coinsInserted * 30 * 60; // 30 minutes per coin
+      // Calculate based on dynamic coin value and time per peso
+      const timePerCoin = portalSettings.coin_value * portalSettings.time_per_peso; // minutes per coin
+      sessionDuration = coinsInserted * timePerCoin * 60; // Convert to seconds
     }
     
     // Parse device information if provided

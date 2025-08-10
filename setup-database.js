@@ -186,6 +186,33 @@ async function setupDatabase() {
       console.log('✓ Admin users already exist');
     }
 
+    // Create portal_settings table
+    console.log('Creating portal_settings table...');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS portal_settings (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        coin_timeout INTEGER DEFAULT 60,
+        coin_value DECIMAL(10,2) DEFAULT 5.00,
+        time_per_peso INTEGER DEFAULT 6,
+        portal_title VARCHAR(100) DEFAULT 'PISOWifi Portal',
+        portal_subtitle VARCHAR(200) DEFAULT 'Insert coins for internet access',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✓ portal_settings table created');
+
+    // Insert default portal settings if none exist
+    const portalResult = await pool.query('SELECT COUNT(*) FROM portal_settings');
+    if (parseInt(portalResult.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO portal_settings (id) VALUES (1)
+      `);
+      console.log('✓ Default portal settings inserted');
+    } else {
+      console.log('✓ Portal settings already exist');
+    }
+
     console.log('');
     console.log('=== Database Setup Complete ===');
     console.log('');
@@ -197,6 +224,7 @@ async function setupDatabase() {
     console.log('  - transactions (payment records)');
     console.log('  - system_logs (system events)');
     console.log('  - admin_users (admin accounts)');
+    console.log('  - portal_settings (portal configuration)');
     console.log('');
     console.log('Default data inserted:');
     console.log('  - Network config: 192.168.100.1 gateway');

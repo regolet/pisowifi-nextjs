@@ -20,6 +20,9 @@
             background: white;
             min-height: 100vh;
             width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
         
         .portal-header {
@@ -62,19 +65,24 @@
         .status-card {
             background: #f8f9fa;
             border: 1px solid #e9ecef;
-            border-radius: 0;
+            border-radius: 12px;
             padding: 30px 20px;
-            margin: 0 20px 20px 20px;
-            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+            margin: 20px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            text-align: center;
         }
         
         .btn-portal {
-            width: calc(100% - 40px);
-            margin: 0 20px 10px 20px;
-            padding: 12px;
-            font-size: 1.1rem;
+            width: 100%;
+            max-width: 300px;
+            margin: 0 auto 15px auto;
+            padding: 15px 20px;
+            font-size: 1.2rem;
             font-weight: 600;
-            border-radius: 8px;
+            border-radius: 10px;
+            display: block;
         }
         
         .coin-animation {
@@ -133,8 +141,8 @@
             <div class="banner-carousel">
                 <!-- Portal Title Overlay -->
                 <div class="portal-title-overlay">
-                    <h1>PISOWifi Portal</h1>
-                    <p>Insert coins for internet access</p>
+                    <h1><%= portalSettings.portal_title %></h1>
+                    <p><%= portalSettings.portal_subtitle %></p>
                 </div>
             </div>
         </div>
@@ -152,29 +160,26 @@
             
             <!-- System Status Information -->
             <div class="mb-4">
-                <div class="d-flex justify-content-center align-items-center gap-2 mb-2">
-                    <div style="font-size: 0.85rem;">
-                        🌐 Internet
-                    </div>
-                    <div>
-                        <% if (wanStatus === 'connected') { %>
-                            <span class="badge bg-success" style="font-size: 0.75rem;">
-                                ✅ Online
-                            </span>
-                        <% } else { %>
-                            <span class="badge bg-danger" style="font-size: 0.75rem;">
-                                ❌ Offline
-                            </span>
-                        <% } %>
-                    </div>
+                <div class="d-flex justify-content-center align-items-center mb-2" style="gap: 10px;">
+                    <span style="font-size: 1rem; font-weight: 500;">🌐 Internet:</span>
+                    <% if (wanStatus === 'connected') { %>
+                        <span style="color: #28a745; font-weight: bold;">✅ Online</span>
+                    <% } else { %>
+                        <span style="color: #dc3545; font-weight: bold;">❌ Offline</span>
+                    <% } %>
                 </div>
             </div>
             
             <!-- Client MAC and IP Address Section -->
             <div class="text-center mb-3">
-                <span style="font-size: 0.9rem; font-family: 'Courier New', monospace; color: #6c757d;">
-                    MAC:<%= clientMAC %> || IP:<%= clientIP %>
-                </span>
+                <div style="font-size: 0.95rem; font-family: 'Courier New', monospace; color: #495057; line-height: 1.6;">
+                    <div class="mb-1">
+                        <strong>MAC:</strong> <span style="color: #007bff;"><%= clientMAC %></span>
+                    </div>
+                    <div>
+                        <strong>IP:</strong> <span style="color: #28a745;"><%= clientIP %></span>
+                    </div>
+                </div>
             </div>
             
             <!-- Client Authentication Status -->
@@ -259,7 +264,7 @@
                             </div>
                             <div class="col-4">
                                 <strong>Rate:</strong><br>
-                                <span id="currentRate" class="text-info">₱5/30min</span>
+                                <span id="currentRate" class="text-info">₱<%= portalSettings.coin_value %>/<%=portalSettings.coin_value * portalSettings.time_per_peso %>min</span>
                             </div>
                         </div>
                     </div>
@@ -286,10 +291,13 @@
                         <p class="text-muted mt-2 mb-0">Click CONNECT to start your internet session</p>
                     </div>
                     
-                    <!-- Test Coin Button for Development -->
+                    <!-- GPIO Status & Test Controls -->
                     <div class="text-center mb-3">
+                        <div id="gpioStatus" class="mb-2 p-2 bg-light rounded" style="font-size: 0.8rem;">
+                            <span class="text-muted">🔧 Initializing GPIO...</span>
+                        </div>
                         <button class="btn btn-outline-warning" onclick="testCoin()">
-                            ⚙️ Test Coin (Development)
+                            ⚙️ Test Coin Detection
                         </button>
                     </div>
                     
@@ -408,13 +416,83 @@
     <script>
         const socket = io();
         let countdownTimer = null;
-        let timeLeft = 60; // 60 seconds timeout
+        let timeLeft = <%= portalSettings.coin_timeout %>; // Dynamic timeout from settings
         let coinCheckInterval = null;
         let coinsInserted = 0;
         let availableTime = 0;
+        
+        // Portal settings from database
+        const portalSettings = {
+            coinTimeout: <%= portalSettings.coin_timeout %>,
+            coinValue: <%= portalSettings.coin_value %>,
+            timePerPeso: <%= portalSettings.time_per_peso %>
+        };
+        
+        // GPIO Service Connection
+        let gpioSocket = null;
+        
+        // Initialize GPIO connection
+        function initGPIOConnection() {
+            try {
+                gpioSocket = io('http://localhost:3001', {
+                    transports: ['websocket', 'polling'],
+                    timeout: 5000
+                });
+                
+                gpioSocket.on('connect', () => {
+                    console.log('🔌 Connected to GPIO service');
+                });
+                
+                gpioSocket.on('coin_detected', (data) => {
+                    console.log('🪙 GPIO Coin detected:', data);
+                    coinDetected();
+                });
+                
+                gpioSocket.on('gpio_status', (status) => {
+                    console.log('🔧 GPIO Status:', status);
+                    updateGPIOStatus(status);
+                });
+                
+                gpioSocket.on('disconnect', () => {
+                    console.log('🔌 Disconnected from GPIO service');
+                });
+                
+                gpioSocket.on('connect_error', (error) => {
+                    console.warn('⚠️ GPIO service connection failed:', error.message);
+                    console.log('🔄 Using manual coin detection mode');
+                    updateGPIOStatus({ available: false, status: 'Service offline' });
+                });
+            } catch (error) {
+                console.warn('⚠️ GPIO service not available:', error.message);
+                console.log('🔄 Using manual coin detection mode');
+                updateGPIOStatus({ available: false, status: 'Not available' });
+            }
+        }
+        
+        function updateGPIOStatus(status) {
+            const statusElement = document.getElementById('gpioStatus');
+            if (statusElement) {
+                if (status.available) {
+                    console.log(`✅ GPIO ready: ${status.library} mode`);
+                    statusElement.innerHTML = `
+                        <span class="text-success">✅ GPIO Ready (${status.library})</span>
+                        ${status.isMonitoring ? '<span class="text-info ml-2">👁️ Monitoring</span>' : ''}
+                    `;
+                } else {
+                    console.log(`⚠️ GPIO not available: ${status.status}`);
+                    statusElement.innerHTML = `
+                        <span class="text-warning">⚠️ GPIO: ${status.status}</span>
+                        <div class="text-muted" style="font-size: 0.7rem;">Manual mode available</div>
+                    `;
+                }
+            }
+        }
 
         // Load rates on page load
         loadRates();
+        
+        // Initialize GPIO connection
+        initGPIOConnection();
 
         async function loadRates() {
             try {
@@ -460,7 +538,7 @@
             updateCoinDisplay();
             
             // Start countdown
-            timeLeft = 60;
+            timeLeft = portalSettings.coinTimeout;
             document.getElementById('countdownTimer').textContent = timeLeft;
             document.getElementById('countdownProgress').style.width = '100%';
             
@@ -474,7 +552,7 @@
                 document.getElementById('countdownTimer').textContent = timeLeft;
                 
                 // Update progress bar
-                const progressPercent = (timeLeft / 60) * 100;
+                const progressPercent = (timeLeft / portalSettings.coinTimeout) * 100;
                 document.getElementById('countdownProgress').style.width = progressPercent + '%';
                 
                 // Change progress bar color as time runs out
@@ -508,11 +586,19 @@
         }
 
         function startCoinDetection() {
-            // Simulate coin detection or listen for real GPIO events
+            // Real coin detection via GPIO service
+            if (gpioSocket && gpioSocket.connected) {
+                console.log('🎯 Listening for GPIO coin detection...');
+                // GPIO events are handled by the websocket listeners
+            } else {
+                console.log('🔄 GPIO not connected, using manual detection mode');
+                // Fallback: could add a periodic check or keep manual testing
+            }
+            
+            // Keep interval for any additional checks if needed
             coinCheckInterval = setInterval(function() {
-                // This would normally check for coin insertion via API
-                // For now, we'll wait for manual testing or real coin events
-            }, 500);
+                // Could add periodic GPIO service health checks here
+            }, 1000);
         }
 
         // Socket.io events for real-time coin detection
@@ -530,15 +616,13 @@
                 setTimeout(() => coinIcon.classList.remove('coin-animation'), 600);
             }
             
-            // Calculate available time (example: ₱5 = 30 minutes)
-            const coinValue = 5; // ₱5 per coin
-            const timePerPeso = 6; // 6 minutes per peso
-            availableTime = coinsInserted * coinValue * timePerPeso;
+            // Calculate available time using dynamic settings
+            availableTime = coinsInserted * portalSettings.coinValue * portalSettings.timePerPeso;
             
             updateCoinDisplay();
             
             // Show brief coin added notification
-            showCoinNotification(coinValue);
+            showCoinNotification(portalSettings.coinValue);
             
             // Enable connect button if coins are available
             if (coinsInserted > 0) {
@@ -557,7 +641,7 @@
         }
 
         function updateCoinDisplay() {
-            document.getElementById('totalCoins').textContent = '₱' + (coinsInserted * 5).toFixed(2);
+            document.getElementById('totalCoins').textContent = '₱' + (coinsInserted * portalSettings.coinValue).toFixed(2);
             document.getElementById('availableTime').textContent = availableTime + ' minutes';
         }
 
@@ -582,8 +666,19 @@
         }
 
         function testCoin() {
-            // Simulate coin insertion for testing
-            coinDetected();
+            // Try GPIO test first, fallback to manual
+            if (gpioSocket && gpioSocket.connected) {
+                console.log('🧪 Triggering GPIO coin test...');
+                gpioSocket.emit('test_coin');
+                // Also trigger LED pulse via REST API
+                fetch('http://localhost:3001/test-coin', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => console.log('GPIO Test Result:', data))
+                    .catch(error => console.warn('GPIO API test failed:', error));
+            } else {
+                console.log('🧪 Manual coin test (GPIO not connected)');
+                coinDetected();
+            }
         }
 
         async function startSession() {
