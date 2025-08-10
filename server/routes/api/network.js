@@ -332,18 +332,22 @@ router.get('/bandwidth-monitor', authenticateToken, async (req, res) => {
 // Get service status
 router.get('/service-status', authenticateToken, async (req, res) => {
   try {
+    console.log('API: Getting service status...');
     const NetworkManager = require('../../services/network-manager');
     const networkManager = new NetworkManager();
     const status = await networkManager.getServiceStatus();
+    console.log('API: Service status result:', JSON.stringify(status, null, 2));
     res.json(status);
   } catch (error) {
-    console.error('Service status error:', error);
-    // Return mock status on error
-    res.json({
-      dnsmasq: { active: true, status: 'active', info: 'DHCP & DNS Server' },
-      hostapd: { active: true, status: 'active', info: 'Access Point Service' },
-      iptables: { active: true, status: 'active', info: 'Firewall Rules' }
-    });
+    console.error('Service status API error:', error);
+    // Return actual detected status even on error
+    const fallbackStatus = {
+      dnsmasq: { active: false, status: 'error', info: 'Detection failed' },
+      hostapd: { active: false, status: 'disabled', info: 'WiFi not available' },
+      iptables: { active: false, status: 'error', info: 'Detection failed' },
+      pisowifi: { active: false, status: 'error', info: 'Detection failed' }
+    };
+    res.json(fallbackStatus);
   }
 });
 
