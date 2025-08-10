@@ -229,18 +229,21 @@ server=8.8.4.4
     
     // Check iptables/firewall
     try {
-      const { stdout } = await execAsync('sudo iptables -L -n | head -5');
-      const hasRules = stdout.includes('Chain') && stdout.includes('192.168.100.1');
+      const { stdout } = await execAsync('sudo iptables -t nat -L PREROUTING -n');
+      const hasRedirectRules = stdout.includes('DNAT') && stdout.includes('3000');
+      const { stdout2 } = await execAsync('sudo iptables -L INPUT -n');
+      const hasInputRules = stdout2.includes('tcp dpt:3000') || stdout.includes('dpt:3000');
+      
       status.iptables = {
-        active: hasRules,
-        status: hasRules ? 'active' : 'inactive',
-        info: hasRules ? 'PISOWifi rules loaded' : 'No PISOWifi rules'
+        active: hasRedirectRules,
+        status: hasRedirectRules ? 'active' : 'inactive',
+        info: hasRedirectRules ? 'Captive portal rules active' : 'No captive portal rules'
       };
     } catch (error) {
       status.iptables = {
         active: false,
         status: 'inactive',
-        info: 'Cannot check iptables'
+        info: 'Cannot check iptables rules'
       };
     }
     

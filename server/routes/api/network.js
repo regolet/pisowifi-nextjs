@@ -133,11 +133,24 @@ router.put('/config', authenticateToken, async (req, res) => {
     
     await fs.writeFile('/tmp/network-config.json', JSON.stringify(config, null, 2));
     
-    // Apply configuration
+    // Apply dynamic configuration
     try {
-      await applyNetworkConfig(config);
+      const { execAsync } = require('child_process');
+      const { promisify } = require('util');
+      const exec = promisify(execAsync);
+      
+      // Run the dynamic configuration updater
+      await exec('node /root/pisowifi-nextjs/update-network-config.js');
+      console.log('Dynamic network configuration applied');
     } catch (applyError) {
-      console.warn('Network config application warning:', applyError.message);
+      console.warn('Dynamic config application warning:', applyError.message);
+      
+      // Fallback to static config
+      try {
+        await applyNetworkConfig(config);
+      } catch (staticError) {
+        console.warn('Static config also failed:', staticError.message);
+      }
     }
     
     res.json({ success: true, message: 'Network configuration updated successfully' });
