@@ -4,963 +4,539 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><%= title %></title>
-    <link href="http://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <script src="/socket.io/socket.io.js"></script>
     <style>
-        body {
-            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-            min-height: 100vh;
+        * {
             margin: 0;
             padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: #212529;
+            box-sizing: border-box;
         }
         
-        .content-wrapper {
-            background: white;
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            width: 100%;
             display: flex;
-            flex-direction: column;
             align-items: center;
+            justify-content: center;
+            padding: 20px;
         }
         
-        .portal-header {
+        .portal-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
             text-align: center;
-            margin-bottom: 0;
-        }
-        
-        .banner-carousel {
-            position: relative;
+            max-width: 400px;
             width: 100%;
-            height: 250px;
-            margin-bottom: 0;
-            overflow: hidden;
-            background: linear-gradient(135deg, #007bff, #0056b3);
         }
         
-        .banner-slider {
-            position: relative;
+        .logo {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: #667eea;
+        }
+        
+        .portal-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+        
+        .portal-subtitle {
+            color: #718096;
+            font-size: 1rem;
+            margin-bottom: 30px;
+        }
+        
+        .status-section {
+            margin-bottom: 30px;
+        }
+        
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+        
+        .status-connected {
+            background: #f0fff4;
+            color: #38a169;
+            border: 1px solid #9ae6b4;
+        }
+        
+        .status-disconnected {
+            background: #fff5f5;
+            color: #e53e3e;
+            border: 1px solid #feb2b2;
+        }
+        
+        .device-info {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 20px 0;
+            font-size: 0.9rem;
+            color: #4a5568;
+        }
+        
+        .device-info div {
+            margin-bottom: 4px;
+        }
+        
+        .client-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin: 20px 0;
+        }
+        
+        .stat-item {
+            background: #f7fafc;
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-label {
+            font-size: 0.8rem;
+            color: #718096;
+            margin-bottom: 4px;
+        }
+        
+        .stat-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        
+        .main-button {
             width: 100%;
-            height: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 12px;
         }
         
-        .banner-slide {
-            position: absolute;
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+        }
+        
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(72, 187, 120, 0.3);
+        }
+        
+        .secondary-button {
+            background: none;
+            border: 1px solid #e2e8f0;
+            color: #4a5568;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            margin: 8px;
+            transition: all 0.2s ease;
+        }
+        
+        .secondary-button:hover {
+            background: #f7fafc;
+        }
+        
+        .coin-modal {
+            display: none;
+            position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            opacity: 0;
-            transition: opacity 0.8s ease-in-out;
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
         }
         
-        .banner-slide.active {
-            opacity: 1;
-        }
-        
-        .banner-dots {
-            display: flex;
-            gap: 8px;
-        }
-        
-        .banner-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.5);
-            cursor: pointer;
-            transition: background 0.3s ease;
-        }
-        
-        .banner-dot.active {
-            background: rgba(255, 255, 255, 0.9);
-        }
-        
-        .portal-title-overlay {
+        .modal-content {
             position: absolute;
-            bottom: 20px;
-            left: 20px;
-            right: 20px;
-            z-index: 10;
-            text-align: center;
-        }
-        
-        .portal-title-overlay h1 {
-            color: white;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-            margin: 0;
-            font-size: 1.8rem;
-        }
-        
-        .portal-title-overlay p {
-            color: white;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
-            margin: 5px 0 0 0;
-            font-size: 1.1rem;
-        }
-        
-        .status-card {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 12px;
-            padding: 30px 20px;
-            margin: 20px;
-            max-width: 500px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            max-width: 350px;
             width: 90%;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
             text-align: center;
         }
         
-        .btn-portal {
-            width: 100%;
-            max-width: 300px;
-            margin: 0 auto 15px auto;
-            padding: 15px 20px;
-            font-size: 1.2rem;
-            font-weight: 600;
-            border-radius: 10px;
-            display: block;
-        }
-        
-        .coin-animation {
-            animation: coinBounce 0.6s ease-in-out;
-        }
-        
-        @keyframes coinBounce {
-            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-            40% { transform: translateY(-10px); }
-            60% { transform: translateY(-5px); }
-        }
-        
-        @keyframes bounce {
-            0%, 20%, 50%, 80%, 100% {
-                transform: translateY(0);
-            }
-            40% {
-                transform: translateY(-10px);
-            }
-            60% {
-                transform: translateY(-5px);
-            }
-        }
-        
-        .coin-animation {
+        .coin-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
             animation: pulse 2s infinite;
         }
         
         @keyframes pulse {
-            0% {
-                transform: scale(1);
-            }
-            50% {
-                transform: scale(1.1);
-            }
-            100% {
-                transform: scale(1);
-            }
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
         }
         
-        .progress-bar-animated {
-            animation: progress-bar-stripes 1s linear infinite;
+        .countdown {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #e53e3e;
+            margin: 16px 0;
         }
         
-        .countdown-container {
-            border: 2px dashed #ffc107;
-            padding: 20px;
-            border-radius: 10px;
-            background: rgba(255, 193, 7, 0.1);
+        .coin-stats {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+            font-size: 0.9rem;
+        }
+        
+        .coin-stats div {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #718096;
+        }
+        
+        .footer-text {
+            margin-top: 30px;
+            font-size: 0.8rem;
+            color: #a0aec0;
+        }
+        
+        @media (max-width: 480px) {
+            .portal-container {
+                padding: 30px 20px;
+            }
+            
+            .client-stats {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="content-wrapper">
-        <div class="portal-header">
-            <div class="banner-carousel">
-                <!-- Banner Images Carousel -->
-                <div class="banner-slider" id="bannerSlider">
-                    <!-- Default banner -->
-                    <div class="banner-slide active" style="background: linear-gradient(135deg, #007bff, #0056b3);">
-                        <!-- Additional banner images can be added here -->
-                    </div>
-                </div>
-                
-                <!-- Portal Title Overlay -->
-                <div class="portal-title-overlay">
-                    <h1><%= portalSettings.portal_title %></h1>
-                    <p><%= portalSettings.portal_subtitle %></p>
-                </div>
-                
-                <!-- Banner Navigation Dots (if multiple banners) -->
-                <div class="banner-dots" id="bannerDots" style="position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); display: none;">
-                    <!-- Dots will be added by JavaScript if multiple banners exist -->
-                </div>
-            </div>
-        </div>
-
-        <div class="status-card text-center">
-            <div class="mb-4">
-                <div style="font-size: 2.5rem; font-weight: bold;">
-                    <% if (isAuthenticated) { %>
-                        <span style="color: #28a745;">✅ Connected</span>
-                    <% } else { %>
-                        <span style="color: #dc3545;">⛔ Disconnected</span>
-                    <% } %>
-                </div>
+    <div class="portal-container">
+        <!-- Portal Header -->
+        <div class="logo">📶</div>
+        <h1 class="portal-title"><%= portalSettings.portal_title %></h1>
+        <p class="portal-subtitle"><%= portalSettings.portal_subtitle %></p>
+        
+        <!-- Connection Status -->
+        <div class="status-section">
+            <div class="status-indicator <%= isAuthenticated ? 'status-connected' : 'status-disconnected' %>">
+                <span><%= isAuthenticated ? '✅' : '❌' %></span>
+                <span><%= isAuthenticated ? 'Connected' : 'Disconnected' %></span>
             </div>
             
-            <!-- System Status Information -->
-            <div class="mb-4">
-                <div class="d-flex justify-content-center align-items-center mb-2" style="gap: 10px;">
-                    <span style="font-size: 1rem; font-weight: 500;">🌐 Internet:</span>
-                    <% if (wanStatus === 'connected') { %>
-                        <span style="color: #28a745; font-weight: bold;">✅ Online</span>
-                    <% } else { %>
-                        <span style="color: #dc3545; font-weight: bold;">❌ Offline</span>
-                    <% } %>
-                </div>
+            <!-- Device Info -->
+            <div class="device-info">
+                <div><strong>MAC:</strong> <%= clientMAC %></div>
+                <div><strong>IP:</strong> <%= clientIP %></div>
+                <div><strong>Internet:</strong> <%= wanStatus === 'connected' ? '✅ Online' : '❌ Offline' %></div>
             </div>
             
-            <!-- Client MAC and IP Address Section -->
-            <div class="text-center mb-3">
-                <div style="font-size: 0.95rem; font-family: 'Courier New', monospace; color: #495057; line-height: 1.6;">
-                    <div class="mb-1">
-                        <strong>MAC:</strong> <span style="color: #007bff;"><%= clientMAC %></span>
-                    </div>
-                    <div>
-                        <strong>IP:</strong> <span style="color: #28a745;"><%= clientIP %></span>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Client Authentication Status -->
+            <!-- Client Stats (if authenticated) -->
             <% if (isAuthenticated && clientInfo) { %>
-            <div class="alert alert-success text-center mb-3">
-                <h6 class="mb-3">🎉 Welcome back!</h6>
-                <div class="row text-center">
-                    <div class="col-6">
-                        <div class="text-success mb-1">
-                            <strong>⏱️ Time Remaining</strong>
-                        </div>
-                        <div class="h5 text-primary mb-0">
-                            <%= Math.floor(clientInfo.time_remaining / 60) %> minutes
-                        </div>
-                    </div>
-                    <div class="col-6">
-                        <div class="text-info mb-1">
-                            <strong>💰 Rate</strong>
-                        </div>
-                        <div class="h5 text-success mb-0">
-                            ₱<%= (clientInfo.total_amount_paid || 5).toFixed(2) %>
-                        </div>
-                    </div>
+            <div class="client-stats">
+                <div class="stat-item">
+                    <div class="stat-label">Time Remaining</div>
+                    <div class="stat-value"><%= Math.floor(clientInfo.time_remaining / 60) %> min</div>
                 </div>
-                <hr class="my-3">
-                <p class="mb-1"><strong>Device:</strong> <%= clientInfo.device_name || 'Your Device' %></p>
-                <p class="mb-0"><strong>Status:</strong> <span class="badge bg-success">Connected</span></p>
+                <div class="stat-item">
+                    <div class="stat-label">Amount Paid</div>
+                    <div class="stat-value">₱<%= (clientInfo.total_amount_paid || 5).toFixed(2) %></div>
+                </div>
             </div>
             <% } %>
         </div>
-
-        <div class="d-grid gap-2">
+        
+        <!-- Main Action Buttons -->
+        <div class="action-section">
             <% if (isAuthenticated && clientInfo) { %>
-                <!-- Already Connected - Show Options -->
-                <button class="btn btn-success btn-portal" onclick="redirectToInternet()">
-                    🌐 ACCESS INTERNET
+                <!-- Connected State -->
+                <button class="main-button btn-success" onclick="window.open('http://www.google.com', '_blank')">
+                    🌐 Access Internet
                 </button>
-                
-                <button class="btn btn-outline-secondary btn-sm mt-2" onclick="showClientInfo()" style="font-size: 0.85rem; margin: 0 20px;">
-                    📊 View Session Info
+                <button class="secondary-button" onclick="showCoinModal()">
+                    ⏱️ Add More Time
                 </button>
             <% } else { %>
-                <!-- Not Connected - Show Coin Insert -->
-                <button class="btn btn-primary btn-portal d-flex align-items-center justify-content-center" onclick="insertCoin()" style="background: linear-gradient(135deg, #007bff, #0056b3); border: none; box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <path d="M16 8l-4 4-4-4"/>
-                    </svg>
-                    INSERT COIN
+                <!-- Disconnected State -->
+                <button class="main-button btn-primary" onclick="showCoinModal()">
+                    🪙 Insert Coin
                 </button>
-                
-                <!-- WiFi Rates Button -->
-                <button class="btn btn-outline-info btn-sm mt-3" onclick="showRates()" style="font-size: 0.9rem; margin: 0 20px; padding: 8px 16px;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-2">
-                        <path d="M9 11H5a2 2 0 0 0-2 2v3c0 1.1.9 2 2 2h2"/>
-                        <path d="M11 13.6V21H6"/>
-                        <path d="M16 8V3c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v5h8z"/>
-                        <path d="M21 11h-4a2 2 0 0 0-2 2v3c0 1.1.9 2 2 2h2"/>
-                    </svg>
-                    View WiFi Rates
+                <button class="secondary-button" onclick="showRates()">
+                    💰 View Rates
                 </button>
             <% } %>
         </div>
-
-        <!-- Portal Text Content -->
-        <div class="text-center mt-3 p-3 bg-light rounded" style="margin: 20px;">
-            <div>
-                <% if (isAuthenticated) { %>
-                    You are connected to PISOWifi! Enjoy your internet access.
-                <% } else { %>
-                    Welcome to PISOWifi! Insert coins to get internet access.
-                <% } %>
-            </div>
-        </div>
         
-        <div class="text-center mt-3">
-            <small class="text-muted">
-                🛡️ Secure Connection Protected
-            </small>
+        <div class="footer-text">
+            🛡️ Secure WiFi Connection
         </div>
     </div>
 
-    <!-- INSERT COIN Modal -->
-    <div class="modal fade" id="insertCoinModal" tabindex="-1" aria-labelledby="insertCoinModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title" id="insertCoinModalLabel">
-                        🪙 INSERT COIN
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+    <!-- Coin Insert Modal -->
+    <div class="coin-modal" id="coinModal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeCoinModal()">&times;</button>
+            
+            <div class="coin-icon">🪙</div>
+            <h3>Insert Coins</h3>
+            <p>Insert coins to get internet access</p>
+            
+            <div class="countdown">
+                Time left: <span id="timeLeft"><%= portalSettings.coin_timeout %></span>s
+            </div>
+            
+            <div class="coin-stats">
+                <div>
+                    <span>Coins:</span>
+                    <span id="coinCount">₱0.00</span>
                 </div>
-                <div class="modal-body text-center">
-                    <div class="coin-animation mb-4">
-                        <span style="font-size: 4rem; color: #ffc107; animation: bounce 1s infinite;">🪙</span>
-                    </div>
-                    
-                    <h4 class="mb-3">Waiting for coin insertion...</h4>
-                    <p class="text-muted mb-4">Insert coins to accumulate credit. The system will automatically calculate your available time.</p>
-                    
-                    <div class="coin-status-info bg-light p-3 rounded mb-4">
-                        <div class="row">
-                            <div class="col-4">
-                                <strong>Coins:</strong><br>
-                                <span id="totalCoins" class="text-success">₱0.00</span>
-                            </div>
-                            <div class="col-4">
-                                <strong>Time:</strong><br>
-                                <span id="availableTime" class="text-primary">0 min</span>
-                            </div>
-                            <div class="col-4">
-                                <strong>Rate:</strong><br>
-                                <span id="currentRate" class="text-info">Loading...</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Countdown Timer -->
-                    <div class="countdown-container mb-4">
-                        <div class="progress mb-2">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning" 
-                                 role="progressbar" 
-                                 id="countdownProgress" 
-                                 style="width: 100%">
-                            </div>
-                        </div>
-                        <h5>
-                            Time remaining: <span id="countdownTimer" class="text-warning">60</span> seconds
-                        </h5>
-                    </div>
-                    
-                    <!-- Connect Button -->
-                    <div id="coinStatus" class="text-center mb-3">
-                        <button class="btn btn-success btn-lg" onclick="startSession()" id="connectBtn">
-                            ▶️ CONNECT
-                        </button>
-                        <p class="text-muted mt-2 mb-0">Click CONNECT to start your internet session</p>
-                    </div>
-                    
-                    <!-- GPIO Status & Test Controls -->
-                    <div class="text-center mb-3">
-                        <div id="gpioStatus" class="mb-2 p-2 bg-light rounded" style="font-size: 0.8rem;">
-                            <span class="text-muted">🔧 Initializing GPIO...</span>
-                        </div>
-                        <button class="btn btn-outline-warning" onclick="testCoin()">
-                            ⚙️ Test Coin Detection
-                        </button>
-                    </div>
-                    
-                    <!-- Coin Detection Animation -->
-                    <div id="coinDetected" class="alert alert-success d-none">
-                        <i class="fas fa-check-circle me-2"></i>
-                        Coin detected! Processing payment...
-                    </div>
+                <div>
+                    <span>Time:</span>
+                    <span id="timeCount">0 min</span>
                 </div>
             </div>
+            
+            <button class="main-button btn-success" onclick="connectNow()" id="connectBtn" disabled>
+                ▶️ Connect Now
+            </button>
+            
+            <button class="secondary-button" onclick="testCoin()">
+                🧪 Test Coin
+            </button>
         </div>
     </div>
 
-    <!-- WiFi Rates Modal -->
-    <div class="modal fade" id="ratesModal" tabindex="-1" aria-labelledby="ratesModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header bg-info text-white">
-                    <h5 class="modal-title" id="ratesModalLabel">
-                        📋 WiFi Rates
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="rates-list" id="ratesContainer">
-                        <!-- Rates will be loaded here -->
-                    </div>
-                    
-                    <div class="mt-4 p-3 bg-primary bg-opacity-10 rounded">
-                        <h6 class="text-primary mb-2">
-                            💡 Rate Information
-                        </h6>
-                        <small class="text-muted">
-                            Insert coins based on your desired internet time. Rates are calculated automatically.
-                        </small>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        ✕ Close
-                    </button>
-                </div>
+    <!-- Rates Modal -->
+    <div class="coin-modal" id="ratesModal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeRatesModal()">&times;</button>
+            
+            <h3>WiFi Rates</h3>
+            <div id="ratesList" style="margin: 20px 0; text-align: left;">
+                Loading rates...
             </div>
+            
+            <button class="secondary-button" onclick="closeRatesModal()">
+                Close
+            </button>
         </div>
     </div>
-
-    <!-- Client Info Modal -->
-    <div class="modal fade" id="clientInfoModal" tabindex="-1" aria-labelledby="clientInfoModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title" id="clientInfoModalLabel">
-                        📊 Session Information
-                    </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <% if (isAuthenticated && clientInfo) { %>
-                    <div class="session-info">
-                        <h6 class="text-success mb-3">🎉 You are connected!</h6>
-                        
-                        <div class="info-grid">
-                            <div class="row mb-2">
-                                <div class="col-5"><strong>Device:</strong></div>
-                                <div class="col-7"><%= clientInfo.device_name || 'Unknown Device' %></div>
-                            </div>
-                            
-                            <div class="row mb-2">
-                                <div class="col-5"><strong>MAC Address:</strong></div>
-                                <div class="col-7" style="font-family: monospace; font-size: 0.85rem;"><%= clientInfo.mac_address %></div>
-                            </div>
-                            
-                            <div class="row mb-2">
-                                <div class="col-5"><strong>IP Address:</strong></div>
-                                <div class="col-7" style="font-family: monospace; font-size: 0.85rem;"><%= clientInfo.ip_address %></div>
-                            </div>
-                            
-                            <div class="row mb-2">
-                                <div class="col-5"><strong>Time Remaining:</strong></div>
-                                <div class="col-7 text-primary"><strong id="sessionTimeRemaining"><%= Math.floor(clientInfo.time_remaining / 60) %> minutes</strong></div>
-                            </div>
-                            
-                            <div class="row mb-2">
-                                <div class="col-5"><strong>Status:</strong></div>
-                                <div class="col-7">
-                                    <span class="badge bg-success">Connected</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="mt-4 p-3 bg-light rounded">
-                            <h6 class="text-primary mb-2">💡 Tips</h6>
-                            <ul class="mb-0" style="font-size: 0.9rem;">
-                                <li>Keep this window open to monitor your session</li>
-                                <li>Time remaining updates automatically</li>
-                                <li>Insert more coins to extend your session</li>
-                            </ul>
-                        </div>
-                    </div>
-                    <% } %>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" onclick="insertCoin(); $('#clientInfoModal').modal('hide');">
-                        🪙 Add More Time
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Bootstrap JS -->
-    <script src="http://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- Font Awesome Icons replaced with Unicode symbols for HTTP compatibility -->
 
     <script>
-        const socket = io();
-        let countdownTimer = null;
-        let timeLeft = <%= portalSettings.coin_timeout %>; // Dynamic timeout from settings
-        let coinCheckInterval = null;
+        let countdown;
+        let timeLeft = <%= portalSettings.coin_timeout %>;
         let coinsInserted = 0;
-        let availableTime = 0;
+        let totalTime = 0;
         
-        // Portal settings from database
-        const portalSettings = {
-            coinTimeout: <%= portalSettings.coin_timeout %>
-        };
+        // Default rate (will be updated when rates load)
+        let coinValue = 5.00;
+        let timePerCoin = 30; // minutes
         
-        // Default rate values (will be updated when rates are loaded)
-        let defaultRate = {
-            price: 5.00,
-            duration: 1800, // 30 minutes in seconds
-            coins_required: 1
-        };
-        
-        // GPIO Service Connection
-        let gpioSocket = null;
-        
-        // Initialize GPIO connection
-        function initGPIOConnection() {
-            try {
-                gpioSocket = io('http://localhost:3001', {
-                    transports: ['websocket', 'polling'],
-                    timeout: 5000
-                });
-                
-                gpioSocket.on('connect', () => {
-                    console.log('🔌 Connected to GPIO service');
-                });
-                
-                gpioSocket.on('coin_detected', (data) => {
-                    console.log('🪙 GPIO Coin detected:', data);
-                    coinDetected();
-                });
-                
-                gpioSocket.on('gpio_status', (status) => {
-                    console.log('🔧 GPIO Status:', status);
-                    updateGPIOStatus(status);
-                });
-                
-                gpioSocket.on('disconnect', () => {
-                    console.log('🔌 Disconnected from GPIO service');
-                });
-                
-                gpioSocket.on('connect_error', (error) => {
-                    console.warn('⚠️ GPIO service connection failed:', error.message);
-                    console.log('🔄 Using manual coin detection mode');
-                    updateGPIOStatus({ available: false, status: 'Service offline' });
-                });
-            } catch (error) {
-                console.warn('⚠️ GPIO service not available:', error.message);
-                console.log('🔄 Using manual coin detection mode');
-                updateGPIOStatus({ available: false, status: 'Not available' });
-            }
-        }
-        
-        function updateGPIOStatus(status) {
-            const statusElement = document.getElementById('gpioStatus');
-            if (statusElement) {
-                if (status.available) {
-                    console.log(`✅ GPIO ready: ${status.library} mode`);
-                    statusElement.innerHTML = `
-                        <span class="text-success">✅ GPIO Ready (${status.library})</span>
-                        ${status.isMonitoring ? '<span class="text-info ml-2">👁️ Monitoring</span>' : ''}
-                    `;
-                } else {
-                    console.log(`⚠️ GPIO not available: ${status.status}`);
-                    statusElement.innerHTML = `
-                        <span class="text-warning">⚠️ GPIO: ${status.status}</span>
-                        <div class="text-muted" style="font-size: 0.7rem;">Manual mode available</div>
-                    `;
-                }
-            }
-        }
-
-        // Load rates on page load
+        // Load rates on page start
         loadRates();
         
-        // Initialize GPIO connection
-        initGPIOConnection();
-        
-        // Initialize banner carousel
-        initBannerCarousel();
-
         async function loadRates() {
             try {
                 const response = await fetch('/api/rates');
                 const rates = await response.json();
                 
-                // Set default rate from the first active rate
                 if (rates.length > 0) {
-                    defaultRate = rates[0];
-                    updateCoinDisplay(); // Update display with new rate
+                    const defaultRate = rates[0];
+                    coinValue = defaultRate.price / defaultRate.coins_required;
+                    timePerCoin = Math.floor(defaultRate.duration / 60 / defaultRate.coins_required);
                 }
                 
-                const container = document.getElementById('ratesContainer');
-                if (!container) {
-                    console.error('Rates container not found');
-                    return;
-                }
-                
-                console.log('Loading rates:', rates);
-                
+                // Update rates modal
+                const ratesList = document.getElementById('ratesList');
                 if (rates.length === 0) {
-                    container.innerHTML = `
-                        <div class="text-center py-4 text-muted">
-                            ⚠️ No rates configured. Please contact administrator.
+                    ratesList.innerHTML = '<div style="text-align: center; color: #718096;">No rates available</div>';
+                } else {
+                    ratesList.innerHTML = rates.map(rate => `
+                        <div style="display: flex; justify-content: space-between; padding: 12px; background: #f7fafc; border-radius: 6px; margin-bottom: 8px;">
+                            <div>
+                                <div style="font-weight: 600;">${rate.name}</div>
+                                <div style="font-size: 0.8rem; color: #718096;">${rate.coins_required} coin(s)</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-weight: 600; color: #38a169;">₱${parseFloat(rate.price).toFixed(2)}</div>
+                                <div style="font-size: 0.8rem; color: #718096;">${Math.floor(rate.duration / 60)} min</div>
+                            </div>
                         </div>
-                    `;
-                    return;
+                    `).join('');
                 }
-                
-                container.innerHTML = rates.map(rate => `
-                    <div class="rate-item d-flex justify-content-between align-items-center p-3 mb-2 bg-light rounded border">
-                        <div>
-                            <strong class="text-primary">${rate.name}</strong>
-                            <small class="text-muted d-block">${rate.coins_required} coin(s) required</small>
-                        </div>
-                        <div class="text-end">
-                            <div class="text-success fw-bold">₱${parseFloat(rate.price).toFixed(2)}</div>
-                            <small class="text-muted">${Math.floor(rate.duration / 60)} minutes</small>
-                        </div>
-                    </div>
-                `).join('');
             } catch (error) {
                 console.error('Failed to load rates:', error);
             }
         }
-
-        function insertCoin() {
-            // Show the modal using Bootstrap 5 API
-            const modal = new bootstrap.Modal(document.getElementById('insertCoinModal'));
-            modal.show();
-            
-            // Reset coin tracking
-            coinsInserted = 0;
-            availableTime = 0;
-            updateCoinDisplay();
-            
-            // Start countdown
-            timeLeft = portalSettings.coinTimeout;
-            document.getElementById('countdownTimer').textContent = timeLeft;
-            document.getElementById('countdownProgress').style.width = '100%';
-            
+        
+        function showCoinModal() {
+            document.getElementById('coinModal').style.display = 'block';
             startCountdown();
-            startCoinDetection();
+            resetCoins();
         }
-
+        
+        function closeCoinModal() {
+            document.getElementById('coinModal').style.display = 'none';
+            if (countdown) clearInterval(countdown);
+        }
+        
+        function showRates() {
+            document.getElementById('ratesModal').style.display = 'block';
+        }
+        
+        function closeRatesModal() {
+            document.getElementById('ratesModal').style.display = 'none';
+        }
+        
         function startCountdown() {
-            countdownTimer = setInterval(function() {
+            timeLeft = <%= portalSettings.coin_timeout %>;
+            document.getElementById('timeLeft').textContent = timeLeft;
+            
+            countdown = setInterval(() => {
                 timeLeft--;
-                document.getElementById('countdownTimer').textContent = timeLeft;
-                
-                // Update progress bar
-                const progressPercent = (timeLeft / portalSettings.coinTimeout) * 100;
-                document.getElementById('countdownProgress').style.width = progressPercent + '%';
-                
-                // Change progress bar color as time runs out
-                const progressBar = document.getElementById('countdownProgress');
-                if (timeLeft <= 20) {
-                    progressBar.classList.remove('bg-warning');
-                    progressBar.classList.add('bg-danger');
-                } else if (timeLeft <= 40) {
-                    progressBar.classList.remove('bg-warning');
-                    progressBar.classList.add('bg-warning');
-                }
+                document.getElementById('timeLeft').textContent = timeLeft;
                 
                 if (timeLeft <= 0) {
-                    clearInterval(countdownTimer);
-                    clearInterval(coinCheckInterval);
-                    
-                    // Show timeout message
-                    document.getElementById('coinStatus').innerHTML = `
-                        <div class="alert alert-warning">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            Time expired! Please insert more coins or try again.
-                        </div>
-                    `;
-                    
-                    // Auto close modal after 3 seconds
-                    setTimeout(function() {
-                        bootstrap.Modal.getInstance(document.getElementById('insertCoinModal')).hide();
-                    }, 3000);
+                    clearInterval(countdown);
+                    closeCoinModal();
                 }
             }, 1000);
         }
-
-        function startCoinDetection() {
-            // Real coin detection via GPIO service
-            if (gpioSocket && gpioSocket.connected) {
-                console.log('🎯 Listening for GPIO coin detection...');
-                // GPIO events are handled by the websocket listeners
-            } else {
-                console.log('🔄 GPIO not connected, using manual detection mode');
-                // Fallback: could add a periodic check or keep manual testing
-            }
-            
-            // Keep interval for any additional checks if needed
-            coinCheckInterval = setInterval(function() {
-                // Could add periodic GPIO service health checks here
-            }, 1000);
+        
+        function resetCoins() {
+            coinsInserted = 0;
+            totalTime = 0;
+            updateCoinDisplay();
         }
-
-        // Socket.io events for real-time coin detection
-        socket.on('coin-detected', function(data) {
-            coinDetected();
-        });
-
-        function coinDetected() {
+        
+        function testCoin() {
+            addCoin();
+        }
+        
+        function addCoin() {
             coinsInserted++;
-            
-            // Coin animation
-            const coinIcon = document.querySelector('.coin-animation i');
-            if (coinIcon) {
-                coinIcon.classList.add('coin-animation');
-                setTimeout(() => coinIcon.classList.remove('coin-animation'), 600);
-            }
-            
-            // Calculate available time using rates
-            const coinsNeeded = defaultRate.coins_required;
-            const timePerCoin = defaultRate.duration / coinsNeeded; // seconds per coin
-            availableTime = Math.floor((coinsInserted * timePerCoin) / 60); // convert to minutes
-            
+            totalTime = coinsInserted * timePerCoin;
             updateCoinDisplay();
             
-            // Show brief coin added notification
-            const coinsNeeded = defaultRate.coins_required;
-            const pricePerCoin = defaultRate.price / coinsNeeded;
-            showCoinNotification(pricePerCoin);
-            
-            // Enable connect button if coins are available
+            // Enable connect button if coins added
+            const connectBtn = document.getElementById('connectBtn');
             if (coinsInserted > 0) {
-                document.getElementById('coinStatus').innerHTML = `
-                    <div class="text-center">
-                        <button class="btn btn-success btn-lg" onclick="startSession()" id="connectBtn">
-                            <i class="fas fa-play me-2"></i>CONNECT
-                        </button>
-                        <p class="text-success mt-2 mb-0">
-                            <i class="fas fa-check-circle me-1"></i>
-                            Coins detected! Click CONNECT to start your session.
-                        </p>
-                    </div>
-                `;
+                connectBtn.disabled = false;
+                connectBtn.style.opacity = '1';
             }
         }
-
+        
         function updateCoinDisplay() {
-            const coinsNeeded = defaultRate.coins_required;
-            const pricePerCoin = defaultRate.price / coinsNeeded;
-            const totalCost = coinsInserted * pricePerCoin;
-            
-            document.getElementById('totalCoins').textContent = '₱' + totalCost.toFixed(2);
-            document.getElementById('availableTime').textContent = availableTime + ' min';
-            
-            // Update current rate display
-            const currentRateElement = document.getElementById('currentRate');
-            if (currentRateElement) {
-                if (defaultRate.name) {
-                    currentRateElement.textContent = `₱${pricePerCoin.toFixed(2)}/coin`;
-                } else {
-                    currentRateElement.textContent = 'Loading...';
-                }
-            }
+            document.getElementById('coinCount').textContent = '₱' + (coinsInserted * coinValue).toFixed(2);
+            document.getElementById('timeCount').textContent = totalTime + ' min';
         }
-
-        function showCoinNotification(amount) {
-            const notification = document.createElement('div');
-            notification.className = 'alert alert-success alert-dismissible fade show mt-2';
-            notification.innerHTML = `
-                <i class="fas fa-coins me-2"></i>
-                Coin added! +₱${amount.toFixed(2)}
-            `;
-            notification.style.position = 'absolute';
-            notification.style.top = '10px';
-            notification.style.right = '10px';
-            notification.style.zIndex = '9999';
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.parentNode.removeChild(notification);
-                }
-            }, 2000);
-        }
-
-        function testCoin() {
-            // Try GPIO test first, fallback to manual
-            if (gpioSocket && gpioSocket.connected) {
-                console.log('🧪 Triggering GPIO coin test...');
-                gpioSocket.emit('test_coin');
-                // Also trigger LED pulse via REST API
-                fetch('http://localhost:3001/test-coin', { method: 'POST' })
-                    .then(response => response.json())
-                    .then(data => console.log('GPIO Test Result:', data))
-                    .catch(error => console.warn('GPIO API test failed:', error));
-            } else {
-                console.log('🧪 Manual coin test (GPIO not connected)');
-                coinDetected();
-            }
-        }
-
-        async function startSession() {
+        
+        async function connectNow() {
             if (coinsInserted === 0) return;
             
-            // Disable connect button and show loading
             const connectBtn = document.getElementById('connectBtn');
+            connectBtn.textContent = '⏳ Connecting...';
             connectBtn.disabled = true;
-            connectBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>CONNECTING...';
             
             try {
-                // Get device information
-                const deviceInfo = {
-                    userAgent: navigator.userAgent,
-                    platform: navigator.platform,
-                    language: navigator.language,
-                    cookieEnabled: navigator.cookieEnabled,
-                    onLine: navigator.onLine,
-                    screenWidth: screen.width,
-                    screenHeight: screen.height,
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-                };
-                
-                // Make request to start session
                 const response = await fetch('/portal/connect', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         coinsInserted: coinsInserted,
-                        duration: availableTime * 60, // Convert to seconds
-                        macAddress: 'auto-detect',
-                        deviceInfo: deviceInfo
+                        duration: totalTime * 60, // Convert to seconds
+                        macAddress: 'auto-detect'
                     })
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Session started successfully
-                    document.getElementById('coinStatus').innerHTML = `
-                        <div class="alert alert-success">
-                            <i class="fas fa-check-circle me-2"></i>
-                            Session started successfully! You are now connected.
-                        </div>
-                    `;
-                    
-                    // Close modal and redirect
-                    setTimeout(function() {
-                        bootstrap.Modal.getInstance(document.getElementById('insertCoinModal')).hide();
-                        window.location.href = 'http://www.google.com';
-                    }, 2000);
+                    connectBtn.textContent = '✅ Connected!';
+                    setTimeout(() => {
+                        closeCoinModal();
+                        window.location.reload();
+                    }, 1500);
                 } else {
-                    // Session failed
-                    document.getElementById('coinStatus').innerHTML = `
-                        <div class="alert alert-danger">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            ${data.message || 'Failed to start session. Please try again.'}
-                        </div>
-                        <button class="btn btn-success btn-lg mt-2" onclick="startSession()" id="connectBtn">
-                            <i class="fas fa-play me-2"></i>CONNECT
-                        </button>
-                    `;
+                    connectBtn.textContent = '❌ Failed';
+                    setTimeout(() => {
+                        connectBtn.textContent = '▶️ Connect Now';
+                        connectBtn.disabled = false;
+                    }, 2000);
                 }
             } catch (error) {
-                console.error('Session start error:', error);
-                document.getElementById('coinStatus').innerHTML = `
-                    <div class="alert alert-danger">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        Connection error. Please try again.
-                    </div>
-                    <button class="btn btn-success btn-lg mt-2" onclick="startSession()" id="connectBtn">
-                        <i class="fas fa-play me-2"></i>CONNECT
-                    </button>
-                `;
+                connectBtn.textContent = '❌ Error';
+                setTimeout(() => {
+                    connectBtn.textContent = '▶️ Connect Now';
+                    connectBtn.disabled = false;
+                }, 2000);
             }
         }
         
-        function showRates() {
-            // Show rates modal using Bootstrap 5 API
-            const modal = new bootstrap.Modal(document.getElementById('ratesModal'));
-            modal.show();
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            const coinModal = document.getElementById('coinModal');
+            const ratesModal = document.getElementById('ratesModal');
+            
+            if (event.target === coinModal) {
+                closeCoinModal();
+            }
+            if (event.target === ratesModal) {
+                closeRatesModal();
+            }
         }
         
-        function showClientInfo() {
-            // Show client info modal using Bootstrap 5 API
-            const modal = new bootstrap.Modal(document.getElementById('clientInfoModal'));
-            modal.show();
-        }
-        
-        function redirectToInternet() {
-            // Redirect authenticated users to internet
-            window.location.href = 'http://www.google.com';
-        }
-        
-        // Auto-refresh session info for authenticated users
+        // Auto-refresh for authenticated users
         <% if (isAuthenticated && clientInfo) { %>
-        setInterval(function() {
-            // Update time remaining every minute
+        setInterval(() => {
             fetch('/portal/session-status')
                 .then(response => response.json())
                 .then(data => {
-                    if (data.time_remaining !== undefined) {
-                        const minutes = Math.floor(data.time_remaining / 60);
-                        const sessionTimeElement = document.getElementById('sessionTimeRemaining');
-                        if (sessionTimeElement) {
-                            sessionTimeElement.textContent = minutes + ' minutes';
-                        }
-                        
-                        // If time is up, reload page
-                        if (data.time_remaining <= 0) {
-                            window.location.reload();
-                        }
+                    if (data.time_remaining <= 0) {
+                        window.location.reload();
                     }
                 })
-                .catch(error => console.warn('Failed to update session status:', error));
-        }, 60000); // Update every minute
+                .catch(error => console.warn('Failed to check session status'));
+        }, 60000); // Check every minute
         <% } %>
-
-        // Banner carousel functionality
-        function initBannerCarousel() {
-            const slides = document.querySelectorAll('.banner-slide');
-            const dotsContainer = document.getElementById('bannerDots');
-            
-            if (slides.length <= 1) {
-                return; // No carousel needed for single slide
-            }
-            
-            // Create navigation dots
-            slides.forEach((_, index) => {
-                const dot = document.createElement('div');
-                dot.className = `banner-dot ${index === 0 ? 'active' : ''}`;
-                dot.onclick = () => goToSlide(index);
-                dotsContainer.appendChild(dot);
-            });
-            
-            dotsContainer.style.display = 'flex';
-            
-            let currentSlide = 0;
-            
-            function goToSlide(index) {
-                // Remove active class from current slide and dot
-                slides[currentSlide].classList.remove('active');
-                document.querySelectorAll('.banner-dot')[currentSlide].classList.remove('active');
-                
-                // Add active class to new slide and dot
-                currentSlide = index;
-                slides[currentSlide].classList.add('active');
-                document.querySelectorAll('.banner-dot')[currentSlide].classList.add('active');
-            }
-            
-            // Auto-advance carousel every 5 seconds
-            setInterval(() => {
-                const nextSlide = (currentSlide + 1) % slides.length;
-                goToSlide(nextSlide);
-            }, 5000);
-        }
-        
-        // Clean up intervals when coin modal is closed
-        document.getElementById('insertCoinModal').addEventListener('hidden.bs.modal', function () {
-            if (countdownTimer) clearInterval(countdownTimer);
-            if (coinCheckInterval) clearInterval(coinCheckInterval);
-        });
     </script>
 </body>
 </html>
