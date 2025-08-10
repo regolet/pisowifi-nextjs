@@ -4,9 +4,10 @@ const router = express.Router();
 // Captive portal detection endpoints
 // These URLs are requested by devices to detect internet connectivity
 
-// Store portal URL for consistency
+// Store portal URL for consistency - Force HTTP only
 const getPortalUrl = (req) => {
   const host = req.headers.host || 'pisowifi.local';
+  // Ensure we always use HTTP, never HTTPS
   return `http://${host}/portal`;
 };
 
