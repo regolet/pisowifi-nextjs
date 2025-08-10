@@ -1,13 +1,14 @@
 # 🍊 Orange Pi PISOWifi Installation Guide
 
-This guide walks you through installing and configuring the PISOWifi Next.js application on your Orange Pi to create a complete coin-operated WiFi hotspot system.
+This guide walks you through installing and configuring the PISOWifi Express.js application on your Orange Pi to create a complete coin-operated WiFi hotspot system.
 
 ## 📋 Prerequisites
 
 - Orange Pi with fresh SD card installation
 - SSH access to your Orange Pi
-- Internet connection via Ethernet
-- WiFi adapter (built-in or USB)
+- Internet connection via Ethernet (built-in port)
+- USB-to-LAN adapter connected to WiFi router (for hotspot network)
+- WiFi router configured in AP mode
 
 ---
 
@@ -16,17 +17,17 @@ This guide walks you through installing and configuring the PISOWifi Next.js app
 ### **Step 1: System Preparation**
 
 ```bash
-# SSH into your Orange Pi
-ssh orangepi@your-orange-pi-ip
+# SSH into your Orange Pi (as root or with sudo)
+ssh root@your-orange-pi-ip
 
 # Update system packages
 sudo apt update && sudo apt upgrade -y
 
 # Install required system packages
-sudo apt install -y git curl build-essential python3 python3-pip
+sudo apt install -y git curl build-essential python3 python3-pip net-tools
 
-# Navigate to installation directory
-cd /home/orangepi
+# Clone the repository
+cd ~
 git clone <your-repo-url> pisowifi-nextjs
 cd pisowifi-nextjs
 
@@ -37,7 +38,7 @@ git pull
 ### **Step 2: Install Node.js**
 
 ```bash
-# Install Node.js 18.x (recommended for Next.js 14)
+# Install Node.js 18.x (works with ARM architecture)
 curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
@@ -46,10 +47,13 @@ node --version  # Should show v18.x.x
 npm --version   # Should show 9.x.x or higher
 ```
 
-### **Step 3: Install Project Dependencies**
+### **Step 3: Switch to Express.js and Install Dependencies**
 
 ```bash
-# Install all npm packages
+# Use the Express.js package configuration
+cp package-express.json package.json
+
+# Install Express.js dependencies (ARM compatible)
 npm install
 
 # Install PM2 for production process management
@@ -84,18 +88,9 @@ exit
 psql -h localhost -U pisowifi_user -d pisowifi -c "SELECT version();"
 ```
 
-**Expected Output:**
-```
- PostgreSQL 16.9 (Ubuntu 16.9-0ubuntu0.24.04.1) on arm-unknown-linux-gnueabihf, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0, 32-bit
-(1 row)
-```
-
 ### **Step 5: Create Database Schema**
 
 ```bash
-# Install PostgreSQL driver for Node.js
-npm install pg @types/pg
-
 # Create database tables
 psql -h localhost -U pisowifi_user -d pisowifi -c "
 CREATE TABLE users (
@@ -179,35 +174,114 @@ INSERT INTO rates (name, duration, coins_required, price, is_active) VALUES
 INSERT INTO system_logs (level, message, category) VALUES 
 ('INFO', 'Database schema created and default data inserted', 'setup');
 "
-
-# Verify tables were created
-psql -h localhost -U pisowifi_user -d pisowifi -c "\dt"
 ```
 
-### **Step 6: Configure Network (Captive Portal)**
+### **Step 6: Configure Network Interfaces**
 
 ```bash
-# Run the captive portal setup script
-sudo bash scripts/setup-captive-portal.sh
+# Check your network interfaces
+ip link show
+# You should see:
+# - end0 or eth0 (built-in Ethernet for internet)
+# - enx... (USB-to-LAN adapter for hotspot network)
+
+# Set static IP on USB-LAN interface (replace enx00e04c68276e with your interface name)
+sudo ip addr add 192.168.100.1/24 dev enx00e04c68276e
+sudo ip link set enx00e04c68276e up
+
+# Verify IP is assigned
+ip addr show enx00e04c68276e
 ```
 
-This script will configure:
-- **WiFi Access Point** - Creates "PISOWifi-Free" network
-- **DHCP Server** - Assigns IP addresses to clients (192.168.100.10-100)
-- **DNS Hijacking** - Redirects all DNS queries to portal
-- **iptables Rules** - Controls traffic flow and authentication
-- **Nginx Proxy** - Handles HTTP redirects to portal
+### **Step 7: Setup DHCP and DNS (dnsmasq)**
 
-**Expected Output:**
-```
-✅ Captive Portal Setup Complete!
-==================================
-📡 WiFi Network: PISOWifi-Free
-🌐 Portal IP: 192.168.100.1
-🔗 Portal URL: http://192.168.100.1:3000/portal
+```bash
+# Install dnsmasq
+sudo apt install dnsmasq -y
+
+# Stop systemd-resolved (conflicts with dnsmasq on port 53)
+sudo systemctl stop systemd-resolved
+sudo systemctl disable systemd-resolved
+
+# Fix DNS resolution
+sudo rm -f /etc/resolv.conf
+echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
+echo "nameserver 8.8.4.4" | sudo tee -a /etc/resolv.conf
+
+# Configure dnsmasq
+sudo nano /etc/dnsmasq.conf
 ```
 
-### **Step 7: Environment Configuration**
+Add this configuration (replace interface name with yours):
+```
+interface=enx00e04c68276e
+dhcp-range=192.168.100.10,192.168.100.100,12h
+dhcp-option=3,192.168.100.1
+dhcp-option=6,192.168.100.1
+address=/#/192.168.100.1
+domain-needed
+bogus-priv
+no-resolv
+log-queries
+log-dhcp
+```
+
+```bash
+# Start dnsmasq
+sudo systemctl start dnsmasq
+sudo systemctl enable dnsmasq
+```
+
+### **Step 8: Setup HTTP Redirection (nginx)**
+
+```bash
+# Install nginx
+sudo apt install nginx -y
+
+# Create captive portal redirect configuration
+sudo nano /etc/nginx/sites-available/portal
+```
+
+Add this configuration:
+```nginx
+server {
+    listen 80;
+    server_name _;
+    
+    location / {
+        return 302 http://192.168.100.1:3000/portal;
+    }
+    
+    location = /generate_204 {
+        return 302 http://192.168.100.1:3000/portal;
+    }
+    
+    location = /connecttest.txt {
+        return 302 http://192.168.100.1:3000/portal;
+    }
+}
+```
+
+```bash
+# Enable the configuration
+sudo ln -s /etc/nginx/sites-available/portal /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
+
+# Test and start nginx
+sudo nginx -t
+sudo systemctl start nginx
+sudo systemctl enable nginx
+```
+
+### **Step 9: Enable IP Forwarding**
+
+```bash
+# Enable IP forwarding for internet sharing
+sudo sysctl -w net.ipv4.ip_forward=1
+echo "net.ipv4.ip_forward=1" | sudo tee -a /etc/sysctl.conf
+```
+
+### **Step 10: Environment Configuration**
 
 ```bash
 # Copy environment file
@@ -217,86 +291,81 @@ cp .env.example .env
 nano .env
 ```
 
-**Critical settings to update:**
+Update with these values:
 ```env
 # Database (PostgreSQL for ARM compatibility)
 DATABASE_URL="postgresql://pisowifi_user:pisowifi123@localhost:5432/pisowifi"
 
 # Authentication
-NEXTAUTH_SECRET="your-secret-key-here"
-NEXTAUTH_URL="http://192.168.100.1:3000"
 JWT_SECRET="your-super-secret-jwt-key-change-this-in-production"
 
 # GPIO Service
 GPIO_SERVICE_URL="http://localhost:3001"
 ```
 
-### **Step 8: Build & Start Application**
+### **Step 11: Start the Application**
 
 ```bash
-# Build the Next.js application
-npm run build
+# Start Express app with PM2
+cd ~/pisowifi-nextjs
+pm2 start npm --name "pisowifi" -- run dev
 
-# Start with PM2 for production
-pm2 start npm --name "pisowifi-app" -- start
-
-# Start GPIO service
+# Start GPIO service (optional)
 pm2 start npm --name "pisowifi-gpio" -- run gpio
 
-# Save PM2 configuration and setup auto-startup
+# Save PM2 configuration
 pm2 save
 pm2 startup
+
+# Check status
+pm2 status
 ```
 
-**Expected Output:**
-```
-┌─────────────────┬────┬─────────┬──────┬───────┬────────┐
-│ Name            │ id │ status  │ cpu  │ mem   │ watch  │
-├─────────────────┼────┼─────────┼──────┼───────┼────────┤
-│ pisowifi-app    │ 0  │ online  │ 0%   │ 45.2mb│ false  │
-│ pisowifi-gpio   │ 1  │ online  │ 0%   │ 22.1mb│ false  │
-└─────────────────┴────┴─────────┴──────┴───────┴────────┘
-```
+### **Step 12: Configure Your WiFi Router**
+
+Connect your WiFi router to the USB-LAN adapter and configure:
+
+1. **Set Router to AP Mode** (Access Point/Bridge mode)
+2. **Disable DHCP** on the router (Orange Pi handles DHCP)
+3. **Set Router IP:** 192.168.100.2
+4. **Connect router's LAN port** (not WAN) to USB-LAN adapter
+5. **Set WiFi SSID:** "PISOWifi-Free" (or your preferred name)
 
 ---
 
 ## 🧪 Testing & Verification
 
-### **Step 9: Verify Installation**
+### **Verify All Services**
 
 ```bash
-# Check PM2 services status
-pm2 status
-
-# Check network services
-sudo systemctl status hostapd
+# Check services are running
 sudo systemctl status dnsmasq
 sudo systemctl status nginx
+pm2 status
 
-# Test application endpoints
-curl http://localhost:3000                    # Next.js app
-curl http://localhost:3001/status            # GPIO service
-curl http://192.168.100.1:3000/portal       # Portal via network IP
+# Check network ports
+sudo ss -tlnp | grep -E ':53|:67|:80|:3000'
+# Should show:
+# :53 (DNS - dnsmasq)
+# :67 (DHCP - dnsmasq)
+# :80 (HTTP - nginx)
+# :3000 (Express app)
 ```
 
-### **Step 10: Test Captive Portal**
+### **Test Captive Portal**
 
-1. **Connect a device** to "PISOWifi-Free" WiFi network
-2. **Open any website** in browser - should redirect to portal automatically
-3. **Access admin panel:** `http://192.168.100.1:3000/admin`
-4. **Login credentials:** 
+1. **Connect a device** to your WiFi router's network
+2. **Device should get IP** in range 192.168.100.10-100
+3. **Open browser** and visit any http:// website
+4. **Should redirect** to http://192.168.100.1:3000/portal
+
+### **Test Portal Features**
+
+1. **Portal Access:** http://192.168.100.1:3000/portal
+2. **Admin Panel:** http://192.168.100.1:3000/admin
    - Username: `admin`
    - Password: `admin123`
-
-### **Step 11: Test Coin Detection (Optional)**
-
-```bash
-# Test GPIO coin detection
-curl -X POST http://localhost:3001/test-coin
-
-# Check GPIO service logs
-pm2 logs pisowifi-gpio
-```
+3. **Test coin detection:** Click "Test Coin" button on portal
 
 ---
 
@@ -307,39 +376,29 @@ pm2 logs pisowifi-gpio
 # PM2 Application Management
 pm2 status                      # Check service status
 pm2 restart all                 # Restart all services
-pm2 logs pisowifi-app           # View app logs
+pm2 logs pisowifi               # View app logs
 pm2 logs pisowifi-gpio          # View GPIO logs
 pm2 monit                       # Real-time monitoring
 
-# Network Services
-sudo systemctl restart hostapd dnsmasq nginx
-sudo systemctl status hostapd
+# System Services
+sudo systemctl restart dnsmasq nginx
 sudo systemctl status dnsmasq
+sudo systemctl status nginx
 ```
 
-### **Client Management**
+### **Network Monitoring**
 ```bash
-# Allow client internet access
-pisowifi-allow-client aa:bb:cc:dd:ee:ff
+# Check connected clients
+arp -a | grep 192.168.100
 
-# Block client access
-pisowifi-block-client aa:bb:cc:dd:ee:ff
+# Monitor DHCP leases
+sudo journalctl -f -u dnsmasq
 
-# List authenticated clients
-pisowifi-list-clients
-```
+# Check DNS queries
+sudo tail -f /var/log/syslog | grep dnsmasq
 
-### **Network Debugging**
-```bash
-# Check network connectivity
-ping 8.8.8.8                    # Internet connectivity
-iwconfig wlan0                  # WiFi interface status
-sudo iptables -t nat -L -n -v   # Firewall rules
-cat /var/lib/dhcp/dhcpd.leases  # DHCP leases
-
-# Monitor traffic
-sudo tcpdump -i wlan0           # Monitor WiFi traffic
-sudo journalctl -f -u hostapd   # Monitor hostapd logs
+# Test DNS hijacking
+dig @192.168.100.1 google.com
 ```
 
 ---
@@ -348,69 +407,61 @@ sudo journalctl -f -u hostapd   # Monitor hostapd logs
 
 ### **Common Issues & Solutions**
 
-#### **1. WiFi Access Point Not Broadcasting**
-```bash
-# Check WiFi interface
-iwconfig
-sudo systemctl status hostapd
-sudo systemctl restart hostapd
+#### **1. No WiFi Network Visible**
+This setup uses Ethernet with an external WiFi router. Make sure:
+- Router is powered on and in AP mode
+- Router is connected to USB-LAN adapter
+- Router DHCP is disabled
 
-# Check interface configuration
-ip addr show wlan0
-```
-
-#### **2. Clients Can't Get IP Address**
+#### **2. Portal Not Redirecting**
 ```bash
-# Check DHCP service
+# Check dnsmasq is running
 sudo systemctl status dnsmasq
+
+# Check nginx is running
+sudo systemctl status nginx
+
+# Test DNS hijacking
+nslookup google.com 192.168.100.1
+# Should return 192.168.100.1
+
+# Test HTTP redirect
+curl -I http://192.168.100.1/
+# Should show 302 redirect
+```
+
+#### **3. Express App Not Starting**
+```bash
+# Check logs
+pm2 logs pisowifi
+
+# Make sure you're in the right directory
+cd ~/pisowifi-nextjs
+
+# Restart the app
+pm2 restart pisowifi
+```
+
+#### **4. Port 53 Already in Use**
+```bash
+# Check what's using port 53
+sudo ss -tlnup | grep :53
+
+# Stop systemd-resolved if running
+sudo systemctl stop systemd-resolved
+sudo systemctl disable systemd-resolved
+
+# Restart dnsmasq
 sudo systemctl restart dnsmasq
-
-# Check DHCP leases
-sudo cat /var/lib/dhcp/dhcpd.leases
 ```
 
-#### **3. Portal Not Redirecting**
+#### **5. Network Interface Not Found**
 ```bash
-# Check nginx configuration
-sudo nginx -t
-sudo systemctl restart nginx
+# List all interfaces
+ip link show
 
-# Check iptables rules
-sudo iptables -t nat -L CAPTIVE_PORTAL -n -v
-```
-
-#### **4. App Won't Start**
-```bash
-# Check logs for errors
-pm2 logs pisowifi-app
-npm run build  # Rebuild if needed
-
-# Check port availability
-netstat -tlnp | grep :3000
-```
-
-#### **5. GPIO Service Issues**
-```bash
-# Check GPIO service logs
-pm2 logs pisowifi-gpio
-
-# Test GPIO manually
-python3 -c "import OPi.GPIO as GPIO; print('GPIO OK')"
-```
-
-### **Reset Network Configuration**
-```bash
-# Stop all services
-sudo systemctl stop hostapd dnsmasq nginx
-
-# Clear iptables rules
-sudo iptables -F
-sudo iptables -X
-sudo iptables -t nat -F
-sudo iptables -t nat -X
-
-# Re-run setup script
-sudo bash scripts/setup-captive-portal.sh
+# Find your USB-LAN adapter (usually starts with enx)
+# Update all configurations with the correct interface name
 ```
 
 ---
@@ -420,20 +471,30 @@ sudo bash scripts/setup-captive-portal.sh
 ### **Network Configuration**
 - **Gateway IP:** 192.168.100.1
 - **Client Range:** 192.168.100.10 - 192.168.100.100
-- **WiFi Network:** PISOWifi-Free (Open)
 - **Portal URL:** http://192.168.100.1:3000/portal
 - **Admin Panel:** http://192.168.100.1:3000/admin
+
+### **Network Topology**
+```
+Internet → [end0/eth0] Orange Pi [enx...] → WiFi Router → Clients
+              ↓                        ↓
+         (WAN Interface)        (LAN Interface)
+                              192.168.100.1/24
+```
 
 ### **Default Credentials**
 - **Admin Username:** admin
 - **Admin Password:** admin123
-- **Admin Email:** admin@pisowifi.local
+- **Database User:** pisowifi_user
+- **Database Password:** pisowifi123
 
 ### **Service Ports**
-- **Next.js App:** 3000
+- **Express App:** 3000
 - **GPIO Service:** 3001
 - **PostgreSQL:** 5432
 - **Nginx:** 80
+- **DNS (dnsmasq):** 53
+- **DHCP (dnsmasq):** 67
 - **SSH:** 22
 
 ---
@@ -445,30 +506,51 @@ sudo bash scripts/setup-captive-portal.sh
 3. **Enable SSH key authentication** and disable password login
 4. **Setup firewall rules** for external access if needed
 5. **Regular system updates:** `sudo apt update && sudo apt upgrade`
+6. **Secure PostgreSQL** with strong passwords
+7. **Monitor access logs** regularly
 
 ---
 
 ## 🎯 Next Steps
 
-1. **Customize portal branding** and themes
-2. **Configure coin denominations** and rates  
-3. **Setup voucher system** for prepaid codes
-4. **Install monitoring** and reporting tools
-5. **Setup backup system** for database and configuration
+1. **Install real coin acceptor** hardware on GPIO pins
+2. **Customize portal design** and branding
+3. **Configure different rate packages** and pricing
+4. **Implement voucher system** for prepaid codes
+5. **Add usage reporting** and analytics
+6. **Setup automated backups** for database
 
 ---
 
 ## 📞 Support
 
-If you encounter issues during installation:
+If you encounter issues:
 
-1. **Check logs:** `pm2 logs` and `sudo journalctl -f`
-2. **Verify network:** `ping`, `iwconfig`, `iptables -L`
-3. **Review troubleshooting** section above
-4. **Check GitHub issues** for known problems
+1. **Check logs:** 
+   - `pm2 logs pisowifi`
+   - `sudo journalctl -f -u dnsmasq`
+   - `sudo journalctl -f -u nginx`
+2. **Verify network:** 
+   - `ip addr show`
+   - `sudo ss -tlnp`
+   - `ping 192.168.100.1`
+3. **Test services:**
+   - `curl http://localhost:3000/portal`
+   - `dig @192.168.100.1 google.com`
+4. **Review this guide** for troubleshooting steps
 
 ---
 
-**🎉 Installation Complete!** 
+## 🎉 **Installation Complete!**
 
-Your PISOWifi system is now ready to serve clients. Connect devices to "PISOWifi-Free" and they'll be redirected to your coin-operated internet portal.
+Your PISOWifi system is now ready! The captive portal will automatically redirect connected devices to the payment portal where they can purchase internet access with coins.
+
+**Portal Features:**
+- ✅ Automatic portal redirection
+- ✅ Coin detection simulation
+- ✅ Multiple rate packages
+- ✅ Admin dashboard
+- ✅ Real-time client monitoring
+- ✅ ARM architecture compatibility with Express.js
+
+Connect devices to your WiFi router and they'll be redirected to the coin-operated internet portal!
