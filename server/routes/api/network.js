@@ -202,28 +202,50 @@ router.get('/traffic', authenticateToken, async (req, res) => {
 // Restart network services
 router.post('/restart-services', authenticateToken, async (req, res) => {
   try {
-    const { services } = req.body; // ['dnsmasq', 'hostapd', 'nginx']
+    const { services } = req.body; // ['dnsmasq', 'hostapd', 'pisowifi-captive']
     
     const results = {};
     for (const service of services) {
       try {
-        // Simplified: Mock restart for development/testing
-        console.log(`Would restart service: ${service}`);
-        results[service] = 'success (simulated)';
+        console.log(`Restarting service: ${service}`);
         
-        // In production, uncomment this:
-        // await execAsync(`sudo systemctl restart ${service}`);
-        // results[service] = 'success';
+        if (service === 'pisowifi-captive' || service === 'iptables') {
+          // Restart iptables/captive portal rules
+          await execAsync('/etc/iptables/captive-portal.sh 2>/dev/null || /etc/iptables/ethernet-captive.sh 2>/dev/null || echo "No captive portal script found"');
+          results[service] = 'success';
+        } else {
+          // Restart systemd service
+          await execAsync(`sudo systemctl restart ${service}`);
+          results[service] = 'success';
+        }
       } catch (error) {
+        console.error(`Failed to restart ${service}:`, error.message);
         results[service] = `failed: ${error.message}`;
+        
+        // Try alternative methods
+        if (service === 'hostapd') {
+          try {
+            await execAsync('sudo pkill hostapd; sudo hostapd /etc/hostapd/hostapd.conf -B');
+            results[service] = 'success (manual start)';
+          } catch (altError) {
+            results[service] = `failed: ${altError.message}`;
+          }
+        } else if (service === 'dnsmasq') {
+          try {
+            await execAsync('sudo pkill dnsmasq; sudo dnsmasq');
+            results[service] = 'success (manual start)';
+          } catch (altError) {
+            results[service] = `failed: ${altError.message}`;
+          }
+        }
       }
     }
     
-    // Log to file instead of database
+    // Log to file
     const logEntry = {
       timestamp: new Date().toISOString(),
       level: 'INFO',
-      message: `Network services restart requested: ${services.join(', ')}`,
+      message: `Network services restart: ${services.join(', ')}`,
       category: 'network',
       admin: req.user?.username || 'admin',
       results
