@@ -120,14 +120,12 @@ router.get('/', async (req, res) => {
     // Get portal settings
     let portalSettings = {
       coin_timeout: 60,
-      coin_value: 5.00,
-      time_per_peso: 6,
       portal_title: 'PISOWifi Portal',
       portal_subtitle: 'Insert coins for internet access'
     };
     
     try {
-      const settingsResult = await pool.query('SELECT * FROM portal_settings LIMIT 1');
+      const settingsResult = await pool.query('SELECT coin_timeout, portal_title, portal_subtitle FROM portal_settings LIMIT 1');
       if (settingsResult.rows.length > 0) {
         portalSettings = settingsResult.rows[0];
       }
@@ -224,32 +222,36 @@ router.post('/connect', async (req, res) => {
       }
     }
     
-    // Get portal settings for calculation
-    let portalSettings = {
-      coin_value: 5.00,
-      time_per_peso: 6
-    };
-    
-    try {
-      const settingsResult = await pool.query('SELECT coin_value, time_per_peso FROM portal_settings LIMIT 1');
-      if (settingsResult.rows.length > 0) {
-        portalSettings = settingsResult.rows[0];
-      }
-    } catch (settingsError) {
-      console.warn('Failed to load portal settings for calculation, using defaults:', settingsError.message);
-    }
-    
-    // Calculate duration and cost
+    // Calculate duration and cost based on rates
     let sessionDuration = duration || 3600; // Default 1 hour
-    let sessionCost = coinsInserted * portalSettings.coin_value; // Dynamic coin value
+    let sessionCost = 0;
     
     if (selectedRate) {
       sessionDuration = selectedRate.duration;
       sessionCost = selectedRate.price;
     } else if (coinsInserted) {
-      // Calculate based on dynamic coin value and time per peso
-      const timePerCoin = portalSettings.coin_value * portalSettings.time_per_peso; // minutes per coin
-      sessionDuration = coinsInserted * timePerCoin * 60; // Convert to seconds
+      // Get the first active rate as default for coin-based calculation
+      try {
+        const defaultRateResult = await pool.query('SELECT * FROM rates WHERE is_active = true ORDER BY duration LIMIT 1');
+        if (defaultRateResult.rows.length > 0) {
+          const defaultRate = defaultRateResult.rows[0];
+          // Calculate based on coins and rate
+          const coinsNeeded = defaultRate.coins_required;
+          const pricePerCoin = defaultRate.price / coinsNeeded;
+          const timePerCoin = defaultRate.duration / coinsNeeded;
+          
+          sessionCost = coinsInserted * pricePerCoin;
+          sessionDuration = coinsInserted * timePerCoin;
+        } else {
+          // Fallback if no rates exist
+          sessionCost = coinsInserted * 5; // ₱5 per coin
+          sessionDuration = coinsInserted * 30 * 60; // 30 minutes per coin
+        }
+      } catch (rateError) {
+        console.warn('Failed to get rates for calculation, using fallback:', rateError.message);
+        sessionCost = coinsInserted * 5; // ₱5 per coin
+        sessionDuration = coinsInserted * 30 * 60; // 30 minutes per coin
+      }
     }
     
     // Parse device information if provided

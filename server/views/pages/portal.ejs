@@ -39,6 +39,47 @@
             background: linear-gradient(135deg, #007bff, #0056b3);
         }
         
+        .banner-slider {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .banner-slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            transition: opacity 0.8s ease-in-out;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        
+        .banner-slide.active {
+            opacity: 1;
+        }
+        
+        .banner-dots {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .banner-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        
+        .banner-dot.active {
+            background: rgba(255, 255, 255, 0.9);
+        }
+        
         .portal-title-overlay {
             position: absolute;
             bottom: 20px;
@@ -139,10 +180,23 @@
     <div class="content-wrapper">
         <div class="portal-header">
             <div class="banner-carousel">
+                <!-- Banner Images Carousel -->
+                <div class="banner-slider" id="bannerSlider">
+                    <!-- Default banner -->
+                    <div class="banner-slide active" style="background: linear-gradient(135deg, #007bff, #0056b3);">
+                        <!-- Additional banner images can be added here -->
+                    </div>
+                </div>
+                
                 <!-- Portal Title Overlay -->
                 <div class="portal-title-overlay">
                     <h1><%= portalSettings.portal_title %></h1>
                     <p><%= portalSettings.portal_subtitle %></p>
+                </div>
+                
+                <!-- Banner Navigation Dots (if multiple banners) -->
+                <div class="banner-dots" id="bannerDots" style="position: absolute; bottom: 5px; left: 50%; transform: translateX(-50%); display: none;">
+                    <!-- Dots will be added by JavaScript if multiple banners exist -->
                 </div>
             </div>
         </div>
@@ -185,10 +239,28 @@
             <!-- Client Authentication Status -->
             <% if (isAuthenticated && clientInfo) { %>
             <div class="alert alert-success text-center mb-3">
-                <h6 class="mb-2">🎉 Welcome back!</h6>
-                <p class="mb-1">Device: <strong><%= clientInfo.device_name || 'Your Device' %></strong></p>
-                <p class="mb-1">Time remaining: <strong><%= Math.floor(clientInfo.time_remaining / 60) %> minutes</strong></p>
-                <p class="mb-0">Status: <strong>Connected</strong></p>
+                <h6 class="mb-3">🎉 Welcome back!</h6>
+                <div class="row text-center">
+                    <div class="col-6">
+                        <div class="text-success mb-1">
+                            <strong>⏱️ Time Remaining</strong>
+                        </div>
+                        <div class="h5 text-primary mb-0">
+                            <%= Math.floor(clientInfo.time_remaining / 60) %> minutes
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-info mb-1">
+                            <strong>💰 Rate</strong>
+                        </div>
+                        <div class="h5 text-success mb-0">
+                            ₱<%= (clientInfo.total_amount_paid || 5).toFixed(2) %>
+                        </div>
+                    </div>
+                </div>
+                <hr class="my-3">
+                <p class="mb-1"><strong>Device:</strong> <%= clientInfo.device_name || 'Your Device' %></p>
+                <p class="mb-0"><strong>Status:</strong> <span class="badge bg-success">Connected</span></p>
             </div>
             <% } %>
         </div>
@@ -264,7 +336,7 @@
                             </div>
                             <div class="col-4">
                                 <strong>Rate:</strong><br>
-                                <span id="currentRate" class="text-info">₱<%= portalSettings.coin_value %>/<%=portalSettings.coin_value * portalSettings.time_per_peso %>min</span>
+                                <span id="currentRate" class="text-info">Per rates</span>
                             </div>
                         </div>
                     </div>
@@ -423,9 +495,14 @@
         
         // Portal settings from database
         const portalSettings = {
-            coinTimeout: <%= portalSettings.coin_timeout %>,
-            coinValue: <%= portalSettings.coin_value %>,
-            timePerPeso: <%= portalSettings.time_per_peso %>
+            coinTimeout: <%= portalSettings.coin_timeout %>
+        };
+        
+        // Default rate values (will be updated when rates are loaded)
+        let defaultRate = {
+            price: 5.00,
+            duration: 1800, // 30 minutes in seconds
+            coins_required: 1
         };
         
         // GPIO Service Connection
@@ -493,11 +570,20 @@
         
         // Initialize GPIO connection
         initGPIOConnection();
+        
+        // Initialize banner carousel
+        initBannerCarousel();
 
         async function loadRates() {
             try {
                 const response = await fetch('/api/rates');
                 const rates = await response.json();
+                
+                // Set default rate from the first active rate
+                if (rates.length > 0) {
+                    defaultRate = rates[0];
+                    updateCoinDisplay(); // Update display with new rate
+                }
                 
                 const container = document.getElementById('ratesContainer');
                 if (rates.length === 0) {
@@ -616,13 +702,17 @@
                 setTimeout(() => coinIcon.classList.remove('coin-animation'), 600);
             }
             
-            // Calculate available time using dynamic settings
-            availableTime = coinsInserted * portalSettings.coinValue * portalSettings.timePerPeso;
+            // Calculate available time using rates
+            const coinsNeeded = defaultRate.coins_required;
+            const timePerCoin = defaultRate.duration / coinsNeeded; // seconds per coin
+            availableTime = Math.floor((coinsInserted * timePerCoin) / 60); // convert to minutes
             
             updateCoinDisplay();
             
             // Show brief coin added notification
-            showCoinNotification(portalSettings.coinValue);
+            const coinsNeeded = defaultRate.coins_required;
+            const pricePerCoin = defaultRate.price / coinsNeeded;
+            showCoinNotification(pricePerCoin);
             
             // Enable connect button if coins are available
             if (coinsInserted > 0) {
@@ -641,7 +731,9 @@
         }
 
         function updateCoinDisplay() {
-            document.getElementById('totalCoins').textContent = '₱' + (coinsInserted * portalSettings.coinValue).toFixed(2);
+            const coinsNeeded = defaultRate.coins_required;
+            const pricePerCoin = defaultRate.price / coinsNeeded;
+            document.getElementById('totalCoins').textContent = '₱' + (coinsInserted * pricePerCoin).toFixed(2);
             document.getElementById('availableTime').textContent = availableTime + ' minutes';
         }
 
@@ -797,6 +889,45 @@
         }, 60000); // Update every minute
         <% } %>
 
+        // Banner carousel functionality
+        function initBannerCarousel() {
+            const slides = document.querySelectorAll('.banner-slide');
+            const dotsContainer = document.getElementById('bannerDots');
+            
+            if (slides.length <= 1) {
+                return; // No carousel needed for single slide
+            }
+            
+            // Create navigation dots
+            slides.forEach((_, index) => {
+                const dot = document.createElement('div');
+                dot.className = `banner-dot ${index === 0 ? 'active' : ''}`;
+                dot.onclick = () => goToSlide(index);
+                dotsContainer.appendChild(dot);
+            });
+            
+            dotsContainer.style.display = 'flex';
+            
+            let currentSlide = 0;
+            
+            function goToSlide(index) {
+                // Remove active class from current slide and dot
+                slides[currentSlide].classList.remove('active');
+                document.querySelectorAll('.banner-dot')[currentSlide].classList.remove('active');
+                
+                // Add active class to new slide and dot
+                currentSlide = index;
+                slides[currentSlide].classList.add('active');
+                document.querySelectorAll('.banner-dot')[currentSlide].classList.add('active');
+            }
+            
+            // Auto-advance carousel every 5 seconds
+            setInterval(() => {
+                const nextSlide = (currentSlide + 1) % slides.length;
+                goToSlide(nextSlide);
+            }, 5000);
+        }
+        
         // Clean up intervals when coin modal is closed
         document.getElementById('insertCoinModal').addEventListener('hidden.bs.modal', function () {
             if (countdownTimer) clearInterval(countdownTimer);

@@ -89,68 +89,37 @@
                     <!-- Settings Panel -->
                     <div class="lg:col-span-2">
                         
-                        <!-- Timer & Coin Settings -->
+                        <!-- Timer Configuration -->
                         <div class="settings-card">
-                            <h3 class="text-lg font-semibold text-gray-800 mb-4">⏱️ Timer & Coin Configuration</h3>
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">⏱️ Timer Configuration</h3>
                             
                             <div class="settings-section">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="form-label" for="coin_timeout">
-                                            Coin Insertion Timeout (seconds)
-                                            <span class="text-xs text-gray-500 ml-1">- How long to wait for coins</span>
-                                        </label>
+                                <div class="max-w-md">
+                                    <label class="form-label" for="coin_timeout">
+                                        Coin Insertion Timeout
+                                    </label>
+                                    <div class="flex items-center space-x-3">
                                         <input 
-                                            type="number" 
+                                            type="range" 
                                             id="coin_timeout" 
                                             name="coin_timeout" 
                                             value="<%= settings.coin_timeout || 60 %>"
                                             min="30" 
                                             max="300"
-                                            class="form-input"
+                                            step="10"
+                                            class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                                             onchange="updatePreview()"
+                                            oninput="updateTimeoutDisplay(this.value)"
                                         >
+                                        <span id="timeoutValue" class="text-lg font-semibold text-blue-600 min-w-[80px]">
+                                            <%= settings.coin_timeout || 60 %>s
+                                        </span>
                                     </div>
-                                    
-                                    <div>
-                                        <label class="form-label" for="coin_value">
-                                            Coin Value (₱)
-                                            <span class="text-xs text-gray-500 ml-1">- Value per coin inserted</span>
-                                        </label>
-                                        <input 
-                                            type="number" 
-                                            id="coin_value" 
-                                            name="coin_value" 
-                                            value="<%= settings.coin_value || 5.00 %>"
-                                            min="1" 
-                                            max="50"
-                                            step="0.25"
-                                            class="form-input"
-                                            onchange="updatePreview()"
-                                        >
+                                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                        <span>30s</span>
+                                        <span class="text-gray-700">How long to wait for coin insertion</span>
+                                        <span>5min</span>
                                     </div>
-                                </div>
-                            </div>
-                            
-                            <div class="settings-section">
-                                <div>
-                                    <label class="form-label" for="time_per_peso">
-                                        Time per Peso (minutes)
-                                        <span class="text-xs text-gray-500 ml-1">- Internet time per peso spent</span>
-                                    </label>
-                                    <input 
-                                        type="number" 
-                                        id="time_per_peso" 
-                                        name="time_per_peso" 
-                                        value="<%= settings.time_per_peso || 6 %>"
-                                        min="1" 
-                                        max="60"
-                                        class="form-input"
-                                        onchange="updatePreview()"
-                                    >
-                                    <p class="text-xs text-gray-500 mt-1">
-                                        Current: <span id="rate-display">₱5 = 30 minutes</span>
-                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -159,7 +128,7 @@
                         <div class="settings-card">
                             <h3 class="text-lg font-semibold text-gray-800 mb-4">🎨 Portal Display</h3>
                             
-                            <div class="settings-section">
+                            <div class="grid grid-cols-1 gap-4">
                                 <div>
                                     <label class="form-label" for="portal_title">
                                         Portal Title
@@ -171,12 +140,11 @@
                                         value="<%= settings.portal_title || 'PISOWifi Portal' %>"
                                         maxlength="50"
                                         class="form-input"
+                                        placeholder="Enter portal title..."
                                         onchange="updatePreview()"
                                     >
                                 </div>
-                            </div>
-                            
-                            <div class="settings-section">
+                                
                                 <div>
                                     <label class="form-label" for="portal_subtitle">
                                         Portal Subtitle
@@ -188,8 +156,53 @@
                                         value="<%= settings.portal_subtitle || 'Insert coins for internet access' %>"
                                         maxlength="100"
                                         class="form-input"
+                                        placeholder="Enter portal subtitle..."
                                         onchange="updatePreview()"
                                     >
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Banner Management -->
+                        <div class="settings-card">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">🖼️ Banner Carousel</h3>
+                            
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <p class="text-sm text-gray-600">Manage banner images for the portal carousel</p>
+                                    <button type="button" onclick="addBannerImage()" class="px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors">
+                                        + Add Banner
+                                    </button>
+                                </div>
+                                
+                                <div id="bannerList" class="space-y-3">
+                                    <!-- Banner items will be populated here -->
+                                    <div class="flex items-center justify-between p-4 border border-gray-200 rounded-lg bg-gray-50">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-16 h-10 bg-gradient-to-r from-blue-500 to-blue-700 rounded flex items-center justify-center">
+                                                <span class="text-white text-xs">Default</span>
+                                            </div>
+                                            <div>
+                                                <p class="text-sm font-medium text-gray-700">Default Banner</p>
+                                                <p class="text-xs text-gray-500">Blue gradient background</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center space-x-2">
+                                            <span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">Active</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="p-4 bg-blue-50 border border-blue-200 rounded-md">
+                                    <div class="text-blue-800 text-sm">
+                                        <h4 class="font-medium mb-1">📌 Banner Requirements</h4>
+                                        <ul class="text-xs space-y-1">
+                                            <li>• Recommended size: 1200x300 pixels</li>
+                                            <li>• Supported formats: JPG, PNG, WebP</li>
+                                            <li>• Maximum file size: 2MB</li>
+                                            <li>• Images will be automatically resized if needed</li>
+                                        </ul>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -231,9 +244,9 @@
                                 
                                 <div style="background: rgba(255,255,255,0.1); border-radius: 8px; padding: 15px; margin: 15px 0;">
                                     <div style="font-size: 0.9rem; opacity: 0.9;">
-                                        <div style="margin-bottom: 8px;">🪙 <strong>Coin Value:</strong> <span id="preview-coin-value">₱5.00</span></div>
                                         <div style="margin-bottom: 8px;">⏱️ <strong>Timeout:</strong> <span id="preview-timeout">60</span> seconds</div>
-                                        <div>💡 <strong>Rate:</strong> <span id="preview-rate">₱5 = 30 min</span></div>
+                                        <div style="margin-bottom: 8px;">🖼️ <strong>Banner:</strong> <span class="text-yellow-200">Default gradient</span></div>
+                                        <div>⚙️ <strong>Status:</strong> <span class="text-green-200">Ready for coins</span></div>
                                     </div>
                                 </div>
                                 
@@ -264,35 +277,56 @@
     </div>
 
     <script>
+        function updateTimeoutDisplay(value) {
+            document.getElementById('timeoutValue').textContent = value + 's';
+        }
+        
         function updatePreview() {
             // Update title and subtitle
             const title = document.getElementById('portal_title').value || 'PISOWifi Portal';
             const subtitle = document.getElementById('portal_subtitle').value || 'Insert coins for internet access';
-            const coinValue = parseFloat(document.getElementById('coin_value').value) || 5.00;
             const timeout = parseInt(document.getElementById('coin_timeout').value) || 60;
-            const timePerPeso = parseInt(document.getElementById('time_per_peso').value) || 6;
             
             document.getElementById('preview-title').textContent = title;
             document.getElementById('preview-subtitle').textContent = subtitle;
-            document.getElementById('preview-coin-value').textContent = '₱' + coinValue.toFixed(2);
-            document.getElementById('preview-timeout').textContent = timeout;
-            
-            // Calculate and display rate
-            const timeForCoin = coinValue * timePerPeso;
-            const rateText = `₱${coinValue.toFixed(2)} = ${timeForCoin} min`;
-            document.getElementById('preview-rate').textContent = rateText;
-            document.getElementById('rate-display').textContent = rateText;
+            document.getElementById('preview-timeout').textContent = timeout + ' seconds';
         }
         
         function resetToDefaults() {
             if (confirm('Reset all settings to default values? This will overwrite your current configuration.')) {
                 document.getElementById('coin_timeout').value = 60;
-                document.getElementById('coin_value').value = 5.00;
-                document.getElementById('time_per_peso').value = 6;
                 document.getElementById('portal_title').value = 'PISOWifi Portal';
                 document.getElementById('portal_subtitle').value = 'Insert coins for internet access';
+                updateTimeoutDisplay(60);
                 updatePreview();
             }
+        }
+        
+        function addBannerImage() {
+            // Create file input for banner upload
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/jpeg,image/png,image/webp';
+            input.style.display = 'none';
+            
+            input.onchange = function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    // Validate file size
+                    if (file.size > 2 * 1024 * 1024) {
+                        alert('File size must be less than 2MB');
+                        return;
+                    }
+                    
+                    // Here you would typically upload the file
+                    // For now, show a placeholder
+                    alert('Banner upload functionality will be implemented. Selected: ' + file.name);
+                }
+            };
+            
+            document.body.appendChild(input);
+            input.click();
+            document.body.removeChild(input);
         }
         
         // Initialize preview on page load

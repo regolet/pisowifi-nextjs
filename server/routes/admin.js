@@ -136,8 +136,6 @@ router.get('/portal-settings', authenticateToken, async (req, res) => {
     const settingsResult = await pool.query('SELECT * FROM portal_settings LIMIT 1');
     const settings = settingsResult.rows[0] || {
       coin_timeout: 60,
-      coin_value: 5.00,
-      time_per_peso: 6,
       portal_title: 'PISOWifi Portal',
       portal_subtitle: 'Insert coins for internet access'
     };
@@ -157,20 +155,18 @@ router.get('/portal-settings', authenticateToken, async (req, res) => {
 // Update Portal Settings
 router.post('/portal-settings', authenticateToken, async (req, res) => {
   try {
-    const { coin_timeout, coin_value, time_per_peso, portal_title, portal_subtitle } = req.body;
+    const { coin_timeout, portal_title, portal_subtitle } = req.body;
     
     // Create or update portal settings
     await pool.query(`
-      INSERT INTO portal_settings (coin_timeout, coin_value, time_per_peso, portal_title, portal_subtitle, updated_at)
-      VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+      INSERT INTO portal_settings (coin_timeout, portal_title, portal_subtitle, updated_at)
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
       ON CONFLICT (id) DO UPDATE SET
         coin_timeout = EXCLUDED.coin_timeout,
-        coin_value = EXCLUDED.coin_value,
-        time_per_peso = EXCLUDED.time_per_peso,
         portal_title = EXCLUDED.portal_title,
         portal_subtitle = EXCLUDED.portal_subtitle,
         updated_at = CURRENT_TIMESTAMP
-    `, [coin_timeout, coin_value, time_per_peso, portal_title, portal_subtitle]);
+    `, [coin_timeout, portal_title, portal_subtitle]);
     
     res.redirect('/admin/portal-settings?updated=true');
   } catch (error) {
