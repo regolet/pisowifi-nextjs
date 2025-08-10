@@ -229,21 +229,33 @@ server=8.8.4.4
     
     // Check iptables/firewall
     try {
-      const { stdout } = await execAsync('sudo iptables -t nat -L PREROUTING -n');
-      const hasRedirectRules = stdout.includes('DNAT') && stdout.includes('3000');
-      const { stdout2 } = await execAsync('sudo iptables -L INPUT -n');
-      const hasInputRules = stdout2.includes('tcp dpt:3000') || stdout.includes('dpt:3000');
+      // Check for DNAT rules (captive portal redirects)
+      const { stdout: natRules } = await execAsync('sudo iptables -t nat -L PREROUTING -n 2>/dev/null || echo ""');
+      const hasRedirectRules = natRules.includes('DNAT') && natRules.includes('3000');
+      
+      // Check for INPUT rules (allow web server access)
+      const { stdout: inputRules } = await execAsync('sudo iptables -L INPUT -n 2>/dev/null || echo ""');
+      const hasInputRules = inputRules.includes('tcp') && inputRules.includes('3000');
+      
+      // Check for any iptables rules at all
+      const { stdout: allRules } = await execAsync('sudo iptables -L -n 2>/dev/null || echo ""');
+      const hasAnyRules = allRules.length > 100; // Basic rules should have some content
+      
+      console.log(`Firewall check: DNAT=${hasRedirectRules}, INPUT=${hasInputRules}, ANY=${hasAnyRules}`);
       
       status.iptables = {
-        active: hasRedirectRules,
-        status: hasRedirectRules ? 'active' : 'inactive',
-        info: hasRedirectRules ? 'Captive portal rules active' : 'No captive portal rules'
+        active: hasRedirectRules || hasInputRules,
+        status: (hasRedirectRules || hasInputRules) ? 'active' : 'inactive',
+        info: hasRedirectRules ? 'Captive portal rules active' : 
+              hasInputRules ? 'Partial rules active' :
+              hasAnyRules ? 'Basic rules only' : 'No rules detected'
       };
     } catch (error) {
+      console.error('Iptables check error:', error.message);
       status.iptables = {
         active: false,
-        status: 'inactive',
-        info: 'Cannot check iptables rules'
+        status: 'error',
+        info: `Check failed: ${error.message}`
       };
     }
     
