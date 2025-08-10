@@ -34,6 +34,9 @@ app.use('/api', require('./routes/api'));
 app.use('/admin', require('./routes/admin'));
 app.use('/portal', require('./routes/portal'));
 
+// Captive portal detection routes (must be before catch-all)
+app.use('/', require('./routes/captive'));
+
 // Socket.io for real-time coin detection
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
