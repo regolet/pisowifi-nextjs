@@ -1,6 +1,6 @@
 # PISOWifi Express.js - Current Development State
 
-> **📅 Last Updated:** `January 2025` | **🔄 Status:** `Phase 3 Advanced Admin Features Complete`
+> **📅 Last Updated:** `January 2025` | **🔄 Status:** `Portal Settings & GPIO Integration Complete`
 
 ---
 
@@ -8,17 +8,19 @@
 
 ### ✅ **What's Working Now:**
 - **🏗️ Express.js Foundation** - ARM-compatible with EJS templating
-- **🔌 Real-time GPIO Integration** - WebSocket coin detection with Orange Pi
+- **🔌 Complete GPIO Integration** - Hardware coin detection with Orange Pi GPIO service
 - **🎨 Modern UI Components** - Responsive portal and comprehensive admin dashboard
 - **💾 PostgreSQL Database** - ARM-compatible database system with full schema
-- **🪙 INSERT COIN Portal** - Django-style coin insertion modal with countdown timer
+- **🪙 Dynamic INSERT COIN Portal** - Database-driven settings with GPIO integration
 - **📊 Complete Admin Dashboard** - Client management, network settings, GPIO config
 - **🌐 Captive Portal** - Full redirection system with dnsmasq + nginx
 - **⚡ WebSocket Events** - Real-time coin detection and client monitoring
-- **🪙 Coin Rates Management** - Comprehensive pulse-based coin configuration
+- **🪙 Dynamic Coin Rates Management** - Database-driven pulse configuration
 - **🔧 Advanced Network Management** - DHCP configuration, bandwidth control, interface monitoring
 - **👥 Advanced Client Management** - Device detection, usage analytics, whitelist/block system
 - **📈 Real-time Monitoring** - Unauthenticated device detection, connection history tracking
+- **⚙️ Portal Settings System** - Complete configuration interface with live preview
+- **🔌 GPIO Status Monitoring** - Hardware connection status with fallback modes
 
 ### ❌ **What's Missing (Priority Order):**
 
@@ -49,8 +51,8 @@ pisowifi-nextjs/
 ├── ✅ server/                  # Express.js Application
 │   ├── ✅ app.js              # Main server with Socket.IO (complete)
 │   ├── ✅ routes/             # API and page routes
-│   │   ├── ✅ admin.js        # Admin dashboard routes (complete)
-│   │   ├── ✅ portal.js       # Enhanced portal with device detection (complete)
+│   │   ├── ✅ admin.js        # Admin dashboard routes with Portal Settings (complete)
+│   │   ├── ✅ portal.js       # GPIO-integrated portal with dynamic settings (complete)
 │   │   ├── ✅ api.js          # General API endpoints (complete)
 │   │   └── ✅ api/            # Specialized API modules
 │   │       ├── ✅ clients.js  # Advanced client management API (complete)
@@ -58,12 +60,14 @@ pisowifi-nextjs/
 │   │       └── ✅ settings.js # Settings management API (complete)
 │   └── ✅ views/              # EJS Templates
 │       ├── ✅ pages/          # Main pages
-│       │   ├── ✅ portal.ejs  # Enhanced INSERT COIN portal (complete)
+│       │   ├── ✅ portal.ejs  # GPIO-integrated INSERT COIN portal (complete)
 │       │   ├── ✅ admin-clients.ejs # Advanced client management (complete)
 │       │   ├── ✅ admin-network.ejs # Network management dashboard (complete)
-│       │   └── ✅ admin-rates.ejs # Coin rates management (complete)
-│       └── ✅ partials/       # Reusable components (complete)
+│       │   ├── ✅ admin-rates.ejs # Coin rates management (complete)
+│       │   └── ✅ admin-portal-settings.ejs # Portal configuration interface (complete)
+│       └── ✅ partials/       # Reusable components with Portal Settings menu (complete)
 ├── ✅ scripts/                # Database and GPIO scripts (complete)
+├── ✅ services/               # GPIO bridge service (complete)
 ├── ✅ SETUP.md                # Complete Orange Pi setup guide (complete)
 └── 📝 Documentation files    # Updated project status files
 ```
@@ -106,6 +110,7 @@ pisowifi-nextjs/
 - **Whitelist/Blocklist** - Device management (implemented)
 - **SystemLog** - Event logging
 - **NetworkConfig** - DHCP/DNS settings (implemented)
+- **PortalSettings** - Portal configuration with dynamic settings (implemented)
 - **ClientBandwidthLogs** - Traffic monitoring
 - **NetworkTrafficLogs** - Interface statistics
 
@@ -120,10 +125,14 @@ pisowifi-nextjs/
 ## 🔌 **GPIO Integration Status**
 
 ### ✅ **Working Features:**
-- **🪙 Coin Detection** - Real-time GPIO monitoring
-- **💡 LED Control** - Coin insertion feedback  
-- **🌐 WebSocket Events** - Instant UI updates
+- **🪙 Coin Detection** - Real-time GPIO monitoring with debouncing
+- **💡 LED Control** - Coin insertion feedback with pulse timing
+- **🌐 WebSocket Events** - Instant UI updates and status monitoring
 - **🧪 Mock Mode** - Development testing without hardware
+- **📡 GPIO Bridge Service** - Dedicated service on port 3001
+- **🔧 Status Monitoring** - Hardware connection status in portal
+- **🔄 Fallback Modes** - Graceful degradation when GPIO unavailable
+- **⚙️ Portal Integration** - Dynamic settings from database
 
 ### ⏳ **TODO Features:**
 - **Multiple Coin Slots** - Different denominations
@@ -211,15 +220,19 @@ psql $DATABASE_URL       # Direct database access
 - **Client Management:** http://localhost:3000/admin/clients
 - **Network Management:** http://localhost:3000/admin/network
 - **Rates Management:** http://localhost:3000/admin/rates
+- **Portal Settings:** http://localhost:3000/admin/portal-settings
 - **GPIO Status:** http://localhost:3001/status
 - **Test Coin:** http://localhost:3001/test-coin
 
 ### **📊 Features Available:**
-- **Complete Rate Management** - Pulse-based coin configuration
-- **Advanced Client Management** - Device detection, analytics, history
-- **Network Management** - DHCP config, bandwidth control, monitoring
-- **Real-time Monitoring** - WebSocket events, live statistics
+- **Complete Rate Management** - Pulse-based coin configuration with database storage
+- **Advanced Client Management** - Device detection, analytics, history tracking
+- **Network Management** - DHCP config, bandwidth control, interface monitoring
+- **Real-time Monitoring** - WebSocket events, live statistics, GPIO status
 - **Device Intelligence** - OS/browser detection, vendor identification
+- **Portal Settings System** - Dynamic configuration with live preview
+- **GPIO Integration** - Hardware coin detection with Orange Pi GPIO service
+- **Database-driven Portal** - All settings configurable via admin interface
 
 ---
 

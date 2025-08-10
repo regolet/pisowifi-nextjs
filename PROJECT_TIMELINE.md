@@ -77,13 +77,24 @@
 
 ### ✅ **2.4 INSERT COIN Portal (DONE)**
 - [x] **Django-style coin insertion modal**
-- [x] **60-second countdown timer with progress bar**
-- [x] **Real-time coin detection and feedback**
-- [x] **Automatic time calculation system**
-- [x] **Connection status display**
-- [x] **WiFi rates modal display**
-- [x] **Test coin functionality for development**
+- [x] **Dynamic countdown timer with configurable timeout**
+- [x] **Real-time GPIO coin detection and feedback**
+- [x] **Automatic time calculation system with database settings**
+- [x] **Connection status display with MAC/IP detection**
+- [x] **WiFi rates modal display with database integration**
+- [x] **GPIO status monitoring and fallback modes**
+- [x] **Test coin functionality with hardware integration**
 - [x] **Responsive mobile-friendly design**
+
+### ✅ **2.5 Portal Settings & Configuration (DONE)**
+- [x] **Portal Settings admin page with real-time preview**
+- [x] **Dynamic portal configuration from database**
+- [x] **Configurable coin timeout (30-300 seconds)**
+- [x] **Adjustable coin value (₱1-50)**
+- [x] **Customizable time per peso rates**
+- [x] **Portal title and subtitle customization**
+- [x] **Settings preview panel with live updates**
+- [x] **Database-driven portal behavior**
 
 ---
 
@@ -192,10 +203,14 @@
 ## 🔌 **Phase 6: Hardware & Integration** 🔄 **PARTIAL**
 
 ### ✅ **6.1 GPIO Integration (DONE)**
-- [x] **Orange Pi GPIO support**
-- [x] **Coin slot detection (Pin 3)**
-- [x] **LED indicator control (Pin 5)**
-- [x] **Real-time hardware events**
+- [x] **Orange Pi GPIO support with OPi.GPIO library**
+- [x] **Coin slot detection (Pin 3) with debouncing**
+- [x] **LED indicator control (Pin 5) with pulse feedback**
+- [x] **Real-time hardware events via WebSocket**
+- [x] **GPIO service bridge on port 3001**
+- [x] **Mock GPIO mode for development**
+- [x] **Hardware status monitoring and fallback**
+- [x] **Portal integration with GPIO events**
 
 ### ⏳ **6.2 Advanced Hardware Features**
 - [ ] **Multiple coin slot support**
@@ -401,19 +416,20 @@
 
 ## 📊 **Progress Tracking**
 
-- **✅ Completed Features:** 35/78 (44.9%)
-- **🔄 In Progress Features:** 3/78 (3.8%)
-- **⏳ Pending Features:** 40/78 (51.3%)
+- **✅ Completed Features:** 43/78 (55.1%)
+- **🔄 In Progress Features:** 0/78 (0%)
+- **⏳ Pending Features:** 35/78 (44.9%)
 
 ### **Current Development Status:**
 - **Phase 1:** ✅ **100% Complete**
-- **Phase 2:** ✅ **100% Complete**
+- **Phase 2:** ✅ **100% Complete** (Including Portal Settings System)
 - **Phase 3:** ✅ **85% Complete** (3.1 & 3.2 done, 3.3 & 3.4 pending)
-- **Phase 4-10:** ❌ **0% Complete**
+- **Phase 6:** ✅ **65% Complete** (6.1 GPIO Integration complete)
+- **Phase 4-5, 7-10:** ❌ **0% Complete**
 
 ---
 
 *This document will be updated as development progresses. Each completed feature should be marked with ✅ and dated.*
 
-**Last Updated:** Phase 3 Advanced Admin Features Complete - January 2025
+**Last Updated:** Portal Settings & GPIO Integration Complete - January 2025
 **Next Update:** After Security & Authentication Implementation
