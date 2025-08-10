@@ -96,8 +96,8 @@
                                 Access Point (hostapd)
                             </span>
                             <div class="flex items-center space-x-2">
-                                <span id="hostapd-status" class="text-xs text-gray-600 font-medium">Checking...</span>
-                                <button id="hostapd-restart" onclick="restartService('hostapd')" class="text-xs text-blue-600 hover:text-blue-700 px-2 py-1 border border-blue-300 rounded" style="display:none;">Restart</button>
+                                <span id="hostapd-status" class="text-xs text-gray-600 font-medium">WiFi not available</span>
+                                <span class="text-xs text-gray-500">N/A</span>
                             </div>
                         </div>
                         <div class="px-4 py-3 flex justify-between items-center">
@@ -216,18 +216,30 @@
             // Update dnsmasq
             updateServiceIndicator('dnsmasq', status.dnsmasq);
             
-            // Update hostapd
-            updateServiceIndicator('hostapd', status.hostapd);
+            // Update hostapd - handle WiFi not available
+            if (status.hostapd) {
+                const hostIndicator = document.getElementById('hostapd-indicator');
+                const hostStatus = document.getElementById('hostapd-status');
+                if (hostIndicator && hostStatus) {
+                    if (status.hostapd.info && status.hostapd.info.includes('not available')) {
+                        hostIndicator.className = 'inline-block w-2 h-2 rounded-full bg-gray-400 mr-2';
+                        hostStatus.className = 'text-xs text-gray-500 font-medium';
+                        hostStatus.textContent = 'WiFi not available';
+                    } else {
+                        updateServiceIndicator('hostapd', status.hostapd);
+                    }
+                }
+            }
             
             // Update iptables
             updateServiceIndicator('iptables', status.iptables);
             
-            // Update captive portal (based on iptables)
-            const captiveActive = status.iptables?.active || false;
+            // Update captive portal (based on iptables and pisowifi service)
+            const captiveActive = (status.iptables?.active || false) && (status.pisowifi?.active || false);
             updateServiceIndicator('captive', {
                 active: captiveActive,
                 status: captiveActive ? 'active' : 'inactive',
-                info: captiveActive ? 'Redirecting unauthenticated devices' : 'Not configured'
+                info: captiveActive ? 'Ethernet captive portal active' : 'Not configured'
             });
         }
         

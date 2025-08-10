@@ -192,34 +192,72 @@ server=8.8.4.4
   }
 
   async getServiceStatus() {
-    const services = ['dnsmasq', 'hostapd', 'iptables'];
     const status = {};
     
-    for (const service of services) {
+    // Check dnsmasq
+    try {
+      const { stdout } = await execAsync('systemctl is-active dnsmasq');
+      status.dnsmasq = {
+        active: stdout.trim() === 'active',
+        status: stdout.trim(),
+        info: `DHCP & DNS Server ${stdout.trim()}`
+      };
+    } catch (error) {
+      // Check if dnsmasq process is running even if systemctl fails
       try {
-        if (service === 'iptables') {
-          // Check if iptables rules are loaded
-          const { stdout } = await execAsync('sudo iptables -L -n | head -5');
-          status[service] = {
-            active: stdout.includes('Chain'),
-            status: 'active',
-            info: 'Firewall rules loaded'
-          };
-        } else {
-          const { stdout } = await execAsync(`systemctl is-active ${service}`);
-          status[service] = {
-            active: stdout.trim() === 'active',
-            status: stdout.trim(),
-            info: `Service ${stdout.trim()}`
-          };
-        }
-      } catch (error) {
-        status[service] = {
+        const { stdout } = await execAsync('pgrep dnsmasq');
+        status.dnsmasq = {
+          active: true,
+          status: 'running',
+          info: `Running (PID: ${stdout.trim()})`
+        };
+      } catch (processError) {
+        status.dnsmasq = {
           active: false,
           status: 'inactive',
-          info: error.message
+          info: 'Not running'
         };
       }
+    }
+    
+    // Check hostapd (we know it won't work without WiFi)
+    status.hostapd = {
+      active: false,
+      status: 'disabled',
+      info: 'WiFi not available'
+    };
+    
+    // Check iptables/firewall
+    try {
+      const { stdout } = await execAsync('sudo iptables -L -n | head -5');
+      const hasRules = stdout.includes('Chain') && stdout.includes('192.168.100.1');
+      status.iptables = {
+        active: hasRules,
+        status: hasRules ? 'active' : 'inactive',
+        info: hasRules ? 'PISOWifi rules loaded' : 'No PISOWifi rules'
+      };
+    } catch (error) {
+      status.iptables = {
+        active: false,
+        status: 'inactive',
+        info: 'Cannot check iptables'
+      };
+    }
+    
+    // Check pisowifi-final service
+    try {
+      const { stdout } = await execAsync('systemctl is-active pisowifi-final');
+      status.pisowifi = {
+        active: stdout.trim() === 'active',
+        status: stdout.trim(),
+        info: `Captive portal ${stdout.trim()}`
+      };
+    } catch (error) {
+      status.pisowifi = {
+        active: false,
+        status: 'inactive',
+        info: 'Service not found'
+      };
     }
     
     return status;
