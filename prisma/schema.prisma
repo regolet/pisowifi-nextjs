@@ -1,0 +1,212 @@
+// PISOWifi Database Schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User management
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  role      UserRole @default(ADMIN)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  OPERATOR
+}
+
+// Client sessions and management
+model Client {
+  id              String        @id @default(cuid())
+  macAddress      String        @unique
+  ipAddress       String?
+  deviceName      String?
+  status          ClientStatus  @default(DISCONNECTED)
+  timeRemaining   Int           @default(0) // seconds
+  totalPaid       Float         @default(0) // total amount paid
+  sessionStart    DateTime?
+  sessionEnd      DateTime?
+  lastSeen        DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  // Relations
+  transactions    Transaction[]
+  sessions        Session[]
+
+  @@map("clients")
+}
+
+enum ClientStatus {
+  CONNECTED
+  DISCONNECTED
+  EXPIRED
+  BLOCKED
+}
+
+// Payment rates and packages
+model Rate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Float    // price in currency
+  duration    Int      // duration in seconds
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  transactions Transaction[]
+
+  @@map("rates")
+}
+
+// Transaction history
+model Transaction {
+  id        String            @id @default(cuid())
+  clientId  String
+  rateId    String
+  amount    Float
+  duration  Int               // duration purchased in seconds
+  method    TransactionMethod @default(COIN)
+  status    TransactionStatus @default(COMPLETED)
+  createdAt DateTime          @default(now())
+
+  // Relations
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  rate   Rate   @relation(fields: [rateId], references: [id])
+
+  @@map("transactions")
+}
+
+enum TransactionMethod {
+  COIN
+  VOUCHER
+  CARD
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+// Active user sessions
+model Session {
+  id           String    @id @default(cuid())
+  clientId     String
+  macAddress   String
+  ipAddress    String
+  startTime    DateTime  @default(now())
+  endTime      DateTime?
+  duration     Int       // total session duration in seconds
+  timeUsed     Int       @default(0) // time used in seconds
+  bytesUp      BigInt    @default(0)
+  bytesDown    BigInt    @default(0)
+  status       SessionStatus @default(ACTIVE)
+  disconnectReason String?
+
+  // Relations
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+enum SessionStatus {
+  ACTIVE
+  EXPIRED
+  TERMINATED
+  COMPLETED
+}
+
+// System settings
+model Setting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+  type  SettingType @default(STRING)
+  description String?
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+enum SettingType {
+  STRING
+  NUMBER
+  BOOLEAN
+  JSON
+}
+
+// Voucher system
+model Voucher {
+  id          String        @id @default(cuid())
+  code        String        @unique
+  value       Float         // voucher value
+  duration    Int           // duration in seconds
+  isUsed      Boolean       @default(false)
+  usedBy      String?       // client MAC address
+  usedAt      DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime      @default(now())
+
+  @@map("vouchers")
+}
+
+// Device whitelist (free access)
+model Whitelist {
+  id          String   @id @default(cuid())
+  macAddress  String   @unique
+  deviceName  String?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("whitelists")
+}
+
+// Blocked devices
+model Blocklist {
+  id          String   @id @default(cuid())
+  macAddress  String   @unique
+  reason      String?
+  blockedBy   String?  // admin username
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("blocklists")
+}
+
+// System logs
+model SystemLog {
+  id        String    @id @default(cuid())
+  level     LogLevel  @default(INFO)
+  message   String
+  category  String?   // e.g., "coin", "network", "auth"
+  metadata  String?   // JSON string for additional data
+  createdAt DateTime  @default(now())
+
+  @@map("system_logs")
+}
+
+enum LogLevel {
+  DEBUG
+  INFO
+  WARN
+  ERROR
+  CRITICAL
+}
