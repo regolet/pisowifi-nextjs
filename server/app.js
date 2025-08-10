@@ -12,25 +12,16 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-// Middleware
+// Middleware - Minimal helmet for local PISOWifi network
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "https://kit.fontawesome.com"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "https://kit.fontawesome.com"],
-      imgSrc: ["'self'", "data:", "https:", "blob:"],
-      connectSrc: ["'self'", "ws:", "wss:", "https://ka-f.fontawesome.com"],
-      fontSrc: ["'self'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com", "https://kit.fontawesome.com", "data:"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'none'"],
-      baseUri: ["'self'"],
-      formAction: ["'self'"]
-    }
-  },
+  contentSecurityPolicy: false,  // Disable CSP completely for local network
   hsts: false,  // Disable HTTP Strict Transport Security
-  forceHTTPS: false  // Disable HTTPS enforcement
+  crossOriginOpenerPolicy: false,  // Disable COOP header
+  crossOriginResourcePolicy: false,  // Disable CORP header
+  crossOriginEmbedderPolicy: false,  // Disable COEP header
+  originAgentCluster: false,  // Disable Origin-Agent-Cluster header
+  referrerPolicy: false,  // Disable referrer policy
+  noSniff: false  // Allow content type sniffing for local development
 }));
 app.use(compression());
 app.use(morgan('combined'));
@@ -41,8 +32,15 @@ app.use(cookieParser());
 
 // Force HTTP for local PISOWifi network (prevent HTTPS redirects)
 app.use((req, res, next) => {
-  // Remove any HTTPS enforcement
+  // Remove any HTTPS enforcement headers
   res.removeHeader('Strict-Transport-Security');
+  res.removeHeader('Cross-Origin-Opener-Policy');
+  res.removeHeader('Cross-Origin-Resource-Policy');
+  res.removeHeader('Cross-Origin-Embedder-Policy');
+  res.removeHeader('Origin-Agent-Cluster');
+  
+  // Set headers to prefer HTTP
+  res.setHeader('X-Force-HTTP', 'true');
   next();
 });
 
