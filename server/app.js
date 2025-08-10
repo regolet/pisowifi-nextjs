@@ -39,8 +39,17 @@ app.use((req, res, next) => {
   res.removeHeader('Cross-Origin-Embedder-Policy');
   res.removeHeader('Origin-Agent-Cluster');
   
-  // Set headers to prefer HTTP
+  // Set headers to prefer HTTP and disable HTTPS caching
   res.setHeader('X-Force-HTTP', 'true');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  
+  // If someone tries HTTPS, redirect to HTTP
+  if (req.headers['x-forwarded-proto'] === 'https' || req.secure) {
+    return res.redirect(301, `http://${req.headers.host}${req.originalUrl}`);
+  }
+  
   next();
 });
 
