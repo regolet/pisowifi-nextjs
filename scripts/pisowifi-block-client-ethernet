@@ -1,0 +1,36 @@
+#!/bin/bash
+# PISOWifi - Block client internet access (Ethernet-based setup)
+# Usage: pisowifi-block-client-ethernet <MAC_ADDRESS> [reason]
+
+MAC_ADDRESS=$1
+REASON=${2:-"manual_disconnect"}
+INTERFACE="enx00e04c68276e"  # Ethernet interface for clients
+
+if [ -z "$MAC_ADDRESS" ]; then
+    echo "Usage: $0 <MAC_ADDRESS> [reason]"
+    exit 1
+fi
+
+echo "[INFO] Blocking internet access for client $MAC_ADDRESS on interface $INTERFACE"
+
+# Remove authentication mark
+iptables -t mangle -D pisowifi_auth -m mac --mac-source $MAC_ADDRESS -j MARK --set-mark 0x1 2>/dev/null || true
+
+# Remove forwarding rule
+iptables -D pisowifi_forward -m mac --mac-source $MAC_ADDRESS -j ACCEPT 2>/dev/null || true
+
+# Remove portal bypass rule
+iptables -t nat -D pisowifi_portal -m mac --mac-source $MAC_ADDRESS -j RETURN 2>/dev/null || true
+
+# Remove input rule (optional - keep for local network access)
+# iptables -D INPUT -i $INTERFACE -m mac --mac-source $MAC_ADDRESS -j ACCEPT 2>/dev/null || true
+
+# Kill any background deauth processes for this MAC
+pkill -f "pisowifi-block-client-ethernet $MAC_ADDRESS"
+
+# Log the disconnection
+logger "PISOWifi: Blocked client $MAC_ADDRESS (reason: $REASON)"
+
+echo "[SUCCESS] Client $MAC_ADDRESS has been disconnected from internet access"
+echo "Reason: $REASON"
+echo "Interface: $INTERFACE"

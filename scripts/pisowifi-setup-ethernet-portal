@@ -1,0 +1,124 @@
+#!/bin/bash
+# PISOWifi - Setup Ethernet-based Captive Portal
+# This script configures iptables rules for captive portal on Ethernet interface
+
+INTERFACE="enx00e04c68276e"  # Client Ethernet interface
+WAN_INTERFACE="eth0"         # WAN interface (adjust as needed)
+PORTAL_IP="192.168.100.1"   # Portal IP address
+PORTAL_PORT="3000"           # Portal web server port
+CLIENT_NETWORK="192.168.100.0/24"  # Client network range
+
+echo "[INFO] Setting up PISOWifi Ethernet Captive Portal"
+echo "Interface: $INTERFACE"
+echo "WAN Interface: $WAN_INTERFACE" 
+echo "Portal: $PORTAL_IP:$PORTAL_PORT"
+echo "Client Network: $CLIENT_NETWORK"
+
+# Enable IP forwarding
+echo 1 > /proc/sys/net/ipv4/ip_forward
+sysctl -w net.ipv4.ip_forward=1
+
+# Ensure the setting persists after reboot
+if ! grep -q "net.ipv4.ip_forward=1" /etc/sysctl.conf; then
+    echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+fi
+
+# Create custom iptables chains
+echo "[INFO] Creating iptables chains..."
+
+# Mangle table - for marking authenticated clients
+iptables -t mangle -N pisowifi_auth 2>/dev/null || iptables -t mangle -F pisowifi_auth
+
+# NAT table - for portal redirection
+iptables -t nat -N pisowifi_portal 2>/dev/null || iptables -t nat -F pisowifi_portal
+
+# Filter table - for forwarding control
+iptables -N pisowifi_forward 2>/dev/null || iptables -F pisowifi_forward
+
+echo "[INFO] Setting up portal redirection rules..."
+
+# Redirect HTTP traffic to portal (for unauthenticated clients)
+iptables -t nat -A pisowifi_portal -i $INTERFACE -p tcp --dport 80 -j DNAT --to-destination $PORTAL_IP:$PORTAL_PORT
+
+# Redirect HTTPS traffic to portal (captive portal detection)
+iptables -t nat -A pisowifi_portal -i $INTERFACE -p tcp --dport 443 -j DNAT --to-destination $PORTAL_IP:$PORTAL_PORT
+
+# Hook the portal chain into PREROUTING
+iptables -t nat -C PREROUTING -i $INTERFACE -j pisowifi_portal 2>/dev/null || \
+iptables -t nat -I PREROUTING -i $INTERFACE -j pisowifi_portal
+
+echo "[INFO] Setting up authentication marking..."
+
+# Hook the auth marking chain into PREROUTING 
+iptables -t mangle -C PREROUTING -i $INTERFACE -j pisowifi_auth 2>/dev/null || \
+iptables -t mangle -I PREROUTING -i $INTERFACE -j pisowifi_auth
+
+echo "[INFO] Setting up forwarding rules..."
+
+# Hook the forward chain into FORWARD
+iptables -C FORWARD -i $INTERFACE -j pisowifi_forward 2>/dev/null || \
+iptables -I FORWARD -i $INTERFACE -j pisowifi_forward
+
+# Drop unauthenticated traffic by default
+iptables -C pisowifi_forward -m mark ! --mark 0x1 -j DROP 2>/dev/null || \
+iptables -A pisowifi_forward -m mark ! --mark 0x1 -j DROP
+
+# Allow marked (authenticated) traffic to be forwarded
+iptables -C pisowifi_forward -m mark --mark 0x1 -j ACCEPT 2>/dev/null || \
+iptables -A pisowifi_forward -m mark --mark 0x1 -j ACCEPT
+
+echo "[INFO] Setting up essential services access..."
+
+# Allow DNS queries (needed for captive portal detection)
+iptables -C INPUT -i $INTERFACE -p udp --dport 53 -j ACCEPT 2>/dev/null || \
+iptables -I INPUT -i $INTERFACE -p udp --dport 53 -j ACCEPT
+
+iptables -C INPUT -i $INTERFACE -p tcp --dport 53 -j ACCEPT 2>/dev/null || \
+iptables -I INPUT -i $INTERFACE -p tcp --dport 53 -j ACCEPT
+
+# Allow DHCP (if using DHCP server on this interface)
+iptables -C INPUT -i $INTERFACE -p udp --sport 68 --dport 67 -j ACCEPT 2>/dev/null || \
+iptables -I INPUT -i $INTERFACE -p udp --sport 68 --dport 67 -j ACCEPT
+
+# Allow access to portal web server
+iptables -C INPUT -i $INTERFACE -p tcp --dport $PORTAL_PORT -j ACCEPT 2>/dev/null || \
+iptables -I INPUT -i $INTERFACE -p tcp --dport $PORTAL_PORT -j ACCEPT
+
+# Allow SSH access (for management) - be careful with this!
+iptables -C INPUT -i $INTERFACE -p tcp --dport 22 -j ACCEPT 2>/dev/null || \
+iptables -I INPUT -i $INTERFACE -p tcp --dport 22 -j ACCEPT
+
+echo "[INFO] Setting up NAT for internet access..."
+
+# NAT for outgoing traffic (masquerading)
+iptables -t nat -C POSTROUTING -s $CLIENT_NETWORK -o $WAN_INTERFACE -j MASQUERADE 2>/dev/null || \
+iptables -t nat -A POSTROUTING -s $CLIENT_NETWORK -o $WAN_INTERFACE -j MASQUERADE
+
+echo "[INFO] Setting up captive portal detection responses..."
+
+# Allow traffic to common captive portal detection URLs
+# These need to reach the portal, not be blocked
+PORTAL_DOMAINS=(
+    "connectivitycheck.gstatic.com"
+    "connectivitycheck.android.com" 
+    "captive.apple.com"
+    "www.msftconnecttest.com"
+    "detectportal.firefox.com"
+)
+
+for domain in "${PORTAL_DOMAINS[@]}"; do
+    # These should be resolved by DNS to point to the portal
+    echo "[INFO] Captive portal detection: $domain should resolve to $PORTAL_IP"
+done
+
+echo "[SUCCESS] PISOWifi Ethernet Captive Portal setup completed!"
+echo ""
+echo "Next steps:"
+echo "1. Ensure your DHCP server is configured for network $CLIENT_NETWORK"
+echo "2. Configure DNS server to resolve captive portal domains to $PORTAL_IP"
+echo "3. Start your PISOWifi web server on $PORTAL_IP:$PORTAL_PORT"
+echo "4. Test client connection and portal redirection"
+echo ""
+echo "To allow a client: ./pisowifi-allow-client-ethernet <MAC_ADDRESS>"
+echo "To block a client:  ./pisowifi-block-client-ethernet <MAC_ADDRESS>"
+echo "To list authenticated clients: ./pisowifi-list-clients-ethernet"

@@ -4,8 +4,10 @@ const { Pool } = require('pg');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const UAParser = require('ua-parser-js');
+const NetworkManager = require('../services/network-manager');
 
 const execAsync = promisify(exec);
+const networkManager = new NetworkManager();
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://pisowifi_user:admin123@localhost:5432/pisowifi'
@@ -14,39 +16,194 @@ const pool = new Pool({
 // Portal page
 router.get('/', async (req, res) => {
   try {
+    // Get client IP
+    const clientIP = req.headers['x-forwarded-for'] || 
+                     req.connection.remoteAddress || 
+                     req.socket.remoteAddress ||
+                     (req.connection.socket ? req.connection.socket.remoteAddress : null);
+
+    console.log(`Portal access from IP: ${clientIP}`);
+    
+    // Try to detect MAC address from multiple sources
+    let detectedMac = null;
+    let clientInfo = null;
+    
+    try {
+      // First try ARP table for Ethernet interface
+      const { stdout: arpOutput } = await execAsync(`arp -n ${clientIP} 2>/dev/null || echo ""`);
+      if (arpOutput) {
+        const arpMatch = arpOutput.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
+        if (arpMatch) {
+          detectedMac = arpMatch[0].toUpperCase();
+          console.log(`Detected MAC from ARP: ${detectedMac} for IP: ${clientIP}`);
+        }
+      }
+      
+      // Try DHCP leases if no ARP entry
+      if (!detectedMac) {
+        const { stdout: dhcpLeases } = await execAsync(`cat /var/lib/dhcp/dhcpd.leases /var/lib/misc/dnsmasq.leases 2>/dev/null || echo ""`);
+        const leaseLines = dhcpLeases.split('\n');
+        for (const line of leaseLines) {
+          if (line.includes(clientIP)) {
+            const parts = line.split(' ');
+            if (parts.length >= 2) {
+              detectedMac = parts[1].toUpperCase();
+              console.log(`Found MAC in DHCP leases: ${detectedMac}`);
+              break;
+            }
+          }
+        }
+      }
+      
+      // Try getting MAC from ethernet interface neighbor table
+      if (!detectedMac) {
+        const { stdout: neighborOutput } = await execAsync(`ip neighbor show dev enx00e04c68276e 2>/dev/null || echo ""`);
+        const neighborLines = neighborOutput.split('\n');
+        for (const line of neighborLines) {
+          if (line.includes(clientIP)) {
+            const macMatch = line.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
+            if (macMatch) {
+              detectedMac = macMatch[0].toUpperCase();
+              console.log(`Found MAC from neighbor table: ${detectedMac}`);
+              break;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('MAC detection failed:', error.message);
+    }
+
+    // Check if client is already authenticated
+    let isAuthenticated = false;
+    if (detectedMac) {
+      try {
+        const authCheck = await pool.query(
+          'SELECT * FROM clients WHERE mac_address = $1 AND status = $2 AND time_remaining > 0',
+          [detectedMac, 'CONNECTED']
+        );
+        
+        if (authCheck.rows.length > 0) {
+          isAuthenticated = true;
+          clientInfo = authCheck.rows[0];
+          console.log(`Client ${detectedMac} is already authenticated`);
+        }
+      } catch (dbError) {
+        console.warn('Database auth check failed:', dbError.message);
+      }
+    }
+
     // Get active rates
     const result = await pool.query('SELECT * FROM rates WHERE is_active = true ORDER BY duration');
     const rates = result.rows;
     
+    // Get WAN connectivity status
+    let wanStatus = 'unknown';
+    try {
+      await execAsync('ping -c 1 -W 2 8.8.8.8');
+      wanStatus = 'connected';
+    } catch (pingError) {
+      wanStatus = 'disconnected';
+    }
+    
     res.render('portal', {
       title: 'PISOWifi Portal',
-      rates: rates
+      rates: rates,
+      clientIP: clientIP,
+      clientMAC: detectedMac || 'Unknown',
+      isAuthenticated: isAuthenticated,
+      clientInfo: clientInfo,
+      wanStatus: wanStatus
     });
   } catch (error) {
     console.error('Portal error:', error);
-    res.status(500).render('error', { error: 'Database connection failed' });
+    res.status(500).render('error', { error: 'Portal service unavailable' });
   }
 });
 
 // Connect endpoint
 router.post('/connect', async (req, res) => {
   try {
-    const { coinsInserted, duration, macAddress, deviceInfo } = req.body;
-    const clientIP = req.ip || req.connection.remoteAddress;
+    const { coinsInserted, duration, rateId, macAddress, deviceInfo } = req.body;
+    const clientIP = req.headers['x-forwarded-for'] || 
+                     req.connection.remoteAddress || 
+                     req.socket.remoteAddress ||
+                     (req.connection.socket ? req.connection.socket.remoteAddress : null);
+    
+    console.log(`Connection request from IP: ${clientIP}, Rate: ${rateId}, Duration: ${duration}, Coins: ${coinsInserted}`);
     
     // Auto-detect MAC address if not provided
     let detectedMac = macAddress;
     if (!detectedMac || detectedMac === 'auto-detect') {
       try {
-        const { stdout } = await execAsync(`arp -n | grep ${clientIP}`);
-        const arpEntry = stdout.trim().split(/\s+/);
-        if (arpEntry.length >= 3) {
-          detectedMac = arpEntry[2];
+        // Try multiple methods to detect MAC address
+        const { stdout: arpOutput } = await execAsync(`arp -n ${clientIP} 2>/dev/null || echo ""`);
+        if (arpOutput) {
+          const arpMatch = arpOutput.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
+          if (arpMatch) {
+            detectedMac = arpMatch[0].toUpperCase();
+          }
+        }
+        
+        // Try DHCP leases
+        if (!detectedMac) {
+          const { stdout: dhcpLeases } = await execAsync(`cat /var/lib/dhcp/dhcpd.leases /var/lib/misc/dnsmasq.leases 2>/dev/null || echo ""`);
+          const leaseLines = dhcpLeases.split('\n');
+          for (const line of leaseLines) {
+            if (line.includes(clientIP)) {
+              const parts = line.split(' ');
+              if (parts.length >= 2) {
+                detectedMac = parts[1].toUpperCase();
+                break;
+              }
+            }
+          }
+        }
+        
+        // Try neighbor table
+        if (!detectedMac) {
+          const { stdout: neighborOutput } = await execAsync(`ip neighbor show ${clientIP} 2>/dev/null || echo ""`);
+          const macMatch = neighborOutput.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
+          if (macMatch) {
+            detectedMac = macMatch[0].toUpperCase();
+          }
+        }
+        
+        if (!detectedMac) {
+          throw new Error('MAC address not detected');
         }
       } catch (err) {
         console.warn('Could not auto-detect MAC address:', err.message);
-        detectedMac = 'unknown-' + Date.now();
+        return res.status(400).json({ 
+          success: false,
+          error: 'Unable to detect device MAC address. Please ensure you are connected to the network.' 
+        });
       }
+    }
+    
+    // Get rate information if rateId is provided
+    let selectedRate = null;
+    if (rateId) {
+      try {
+        const rateResult = await pool.query('SELECT * FROM rates WHERE id = $1 AND is_active = true', [rateId]);
+        if (rateResult.rows.length > 0) {
+          selectedRate = rateResult.rows[0];
+        }
+      } catch (rateError) {
+        console.warn('Rate lookup failed:', rateError.message);
+      }
+    }
+    
+    // Calculate duration and cost
+    let sessionDuration = duration || 3600; // Default 1 hour
+    let sessionCost = coinsInserted * 5; // ₱5 per coin
+    
+    if (selectedRate) {
+      sessionDuration = selectedRate.duration;
+      sessionCost = selectedRate.price;
+    } else if (coinsInserted) {
+      // Calculate based on coin value (₱5 per coin = 30 minutes)
+      sessionDuration = coinsInserted * 30 * 60; // 30 minutes per coin
     }
     
     // Parse device information if provided
@@ -97,7 +254,7 @@ router.post('/connect', async (req, res) => {
         parsedDeviceInfo.os, parsedDeviceInfo.browser, parsedDeviceInfo.user_agent,
         parsedDeviceInfo.platform, parsedDeviceInfo.language,
         parsedDeviceInfo.screen_resolution, parsedDeviceInfo.timezone,
-        'CONNECTED', duration || 3600
+        'CONNECTED', sessionDuration
       ]
     );
     
@@ -108,21 +265,30 @@ router.post('/connect', async (req, res) => {
       `INSERT INTO sessions (client_id, mac_address, ip_address, duration, status, started_at)
        VALUES ($1, $2, $3, $4, 'ACTIVE', CURRENT_TIMESTAMP)
        RETURNING id`,
-      [clientId, detectedMac.toUpperCase(), clientIP, duration || 3600]
+      [clientId, detectedMac.toUpperCase(), clientIP, sessionDuration]
     );
     
     // Create transaction record
     await pool.query(
       `INSERT INTO transactions (client_id, session_id, amount, coins_used, payment_method, status, created_at)
        VALUES ($1, $2, $3, $4, 'COIN', 'COMPLETED', CURRENT_TIMESTAMP)`,
-      [clientId, sessionResult.rows[0].id, coinsInserted * 5, coinsInserted]
+      [clientId, sessionResult.rows[0].id, sessionCost, coinsInserted || 0]
     );
     
-    // Allow internet access (placeholder for iptables integration)
+    // Authenticate client using NetworkManager
     try {
-      await execAsync(`echo "Allowing client ${detectedMac} internet access for ${duration} seconds"`);
+      const authResult = await networkManager.authenticateClient(detectedMac, clientIP, sessionDuration);
+      if (!authResult.success) {
+        throw new Error(authResult.error || 'Authentication failed');
+      }
+      
+      console.log(`Client ${detectedMac} authenticated for ${sessionDuration} seconds`);
+      
+      // Also run the allow script
+      await execAsync(`sudo ${__dirname}/../../scripts/pisowifi-allow-client ${detectedMac}`);
     } catch (err) {
-      console.warn('Internet access setup failed:', err);
+      console.error('Internet access setup failed:', err.message);
+      // Don't fail the entire operation, but log it
     }
     
     // Log the connection
@@ -136,8 +302,13 @@ router.post('/connect', async (req, res) => {
       success: true,
       message: 'Connection successful! You now have internet access.',
       session_id: sessionResult.rows[0].id,
-      duration: duration,
-      expires_at: new Date(Date.now() + (duration * 1000))
+      client_id: clientId,
+      mac_address: detectedMac,
+      ip_address: clientIP,
+      duration: sessionDuration,
+      amount_paid: sessionCost,
+      coins_used: coinsInserted || 0,
+      expires_at: new Date(Date.now() + (sessionDuration * 1000))
     });
     
   } catch (error) {
@@ -146,6 +317,55 @@ router.post('/connect', async (req, res) => {
       success: false,
       error: 'Connection failed. Please try again.' 
     });
+  }
+});
+
+// Session status endpoint for authenticated clients
+router.get('/session-status', async (req, res) => {
+  try {
+    const clientIP = req.headers['x-forwarded-for'] || 
+                     req.connection.remoteAddress || 
+                     req.socket.remoteAddress ||
+                     (req.connection.socket ? req.connection.socket.remoteAddress : null);
+    
+    // Try to get MAC address
+    let detectedMac = null;
+    try {
+      const { stdout: arpOutput } = await execAsync(`arp -n ${clientIP} 2>/dev/null || echo ""`);
+      if (arpOutput) {
+        const arpMatch = arpOutput.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
+        if (arpMatch) {
+          detectedMac = arpMatch[0].toUpperCase();
+        }
+      }
+    } catch (error) {
+      console.warn('MAC detection failed for session status:', error.message);
+    }
+    
+    if (!detectedMac) {
+      return res.json({ authenticated: false, time_remaining: 0 });
+    }
+    
+    // Check client status in database
+    const clientResult = await pool.query(
+      'SELECT * FROM clients WHERE mac_address = $1 AND status = $2 AND time_remaining > 0',
+      [detectedMac, 'CONNECTED']
+    );
+    
+    if (clientResult.rows.length > 0) {
+      const client = clientResult.rows[0];
+      res.json({
+        authenticated: true,
+        time_remaining: client.time_remaining,
+        device_name: client.device_name,
+        last_seen: client.last_seen
+      });
+    } else {
+      res.json({ authenticated: false, time_remaining: 0 });
+    }
+  } catch (error) {
+    console.error('Session status error:', error);
+    res.json({ authenticated: false, time_remaining: 0 });
   }
 });
 

@@ -1,0 +1,54 @@
+#!/bin/bash
+# PISOWifi - Allow client internet access (Ethernet-based setup)
+# Usage: pisowifi-allow-client-ethernet <MAC_ADDRESS> [duration_seconds]
+
+MAC_ADDRESS=$1
+DURATION=${2:-3600}  # Default 1 hour
+INTERFACE="enx00e04c68276e"  # Ethernet interface for clients
+WAN_INTERFACE="eth0"  # WAN interface (adjust as needed)
+
+if [ -z "$MAC_ADDRESS" ]; then
+    echo "Usage: $0 <MAC_ADDRESS> [duration_seconds]"
+    exit 1
+fi
+
+echo "[INFO] Allowing internet access for client $MAC_ADDRESS on interface $INTERFACE"
+
+# Ensure iptables chains exist
+iptables -t mangle -N pisowifi_auth 2>/dev/null || true
+iptables -t nat -N pisowifi_portal 2>/dev/null || true
+iptables -N pisowifi_forward 2>/dev/null || true
+
+# Mark authenticated client packets
+iptables -t mangle -C pisowifi_auth -m mac --mac-source $MAC_ADDRESS -j MARK --set-mark 0x1 2>/dev/null || \
+iptables -t mangle -A pisowifi_auth -m mac --mac-source $MAC_ADDRESS -j MARK --set-mark 0x1
+
+# Allow forwarding for authenticated client
+iptables -C pisowifi_forward -m mac --mac-source $MAC_ADDRESS -j ACCEPT 2>/dev/null || \
+iptables -I pisowifi_forward -m mac --mac-source $MAC_ADDRESS -j ACCEPT
+
+# Skip portal redirection for authenticated client
+iptables -t nat -C pisowifi_portal -m mac --mac-source $MAC_ADDRESS -j RETURN 2>/dev/null || \
+iptables -t nat -I pisowifi_portal -m mac --mac-source $MAC_ADDRESS -j RETURN
+
+# Allow client access to local services (DNS, DHCP, etc.)
+iptables -C INPUT -i $INTERFACE -m mac --mac-source $MAC_ADDRESS -j ACCEPT 2>/dev/null || \
+iptables -I INPUT -i $INTERFACE -m mac --mac-source $MAC_ADDRESS -j ACCEPT
+
+# Log the authentication
+logger "PISOWifi: Authenticated client $MAC_ADDRESS for $DURATION seconds"
+
+# Schedule automatic deauthentication if duration is specified and > 0
+if [ "$DURATION" -gt 0 ]; then
+    echo "[INFO] Client will be automatically deauthenticated after $DURATION seconds"
+    # Create a background process to deauthenticate after duration
+    (
+        sleep $DURATION
+        /scripts/pisowifi-block-client-ethernet $MAC_ADDRESS "session_expired"
+        logger "PISOWifi: Auto-deauthenticated client $MAC_ADDRESS (session expired)"
+    ) &
+fi
+
+echo "[SUCCESS] Client $MAC_ADDRESS has been authenticated and granted internet access"
+echo "Duration: $DURATION seconds"
+echo "Interface: $INTERFACE"

@@ -7,7 +7,8 @@
       "Bash(npm install:*)",
       "Bash(touch:*)",
       "Bash(mv:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(chmod:*)"
     ],
     "deny": []
   }

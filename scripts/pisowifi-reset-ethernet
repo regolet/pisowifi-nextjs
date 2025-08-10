@@ -1,0 +1,48 @@
+#!/bin/bash
+# PISOWifi - Reset/Clean Ethernet Captive Portal Rules
+# This script removes all PISOWifi iptables rules and chains
+
+echo "[INFO] Resetting PISOWifi Ethernet Captive Portal rules..."
+
+# Remove rules that reference our custom chains
+echo "[INFO] Removing chain references..."
+
+# Remove from PREROUTING
+iptables -t nat -D PREROUTING -i enx00e04c68276e -j pisowifi_portal 2>/dev/null || true
+iptables -t mangle -D PREROUTING -i enx00e04c68276e -j pisowifi_auth 2>/dev/null || true
+
+# Remove from FORWARD 
+iptables -D FORWARD -i enx00e04c68276e -j pisowifi_forward 2>/dev/null || true
+
+# Remove INPUT rules
+iptables -D INPUT -i enx00e04c68276e -p udp --dport 53 -j ACCEPT 2>/dev/null || true
+iptables -D INPUT -i enx00e04c68276e -p tcp --dport 53 -j ACCEPT 2>/dev/null || true
+iptables -D INPUT -i enx00e04c68276e -p udp --sport 68 --dport 67 -j ACCEPT 2>/dev/null || true
+iptables -D INPUT -i enx00e04c68276e -p tcp --dport 3000 -j ACCEPT 2>/dev/null || true
+iptables -D INPUT -i enx00e04c68276e -p tcp --dport 22 -j ACCEPT 2>/dev/null || true
+
+# Remove POSTROUTING NAT rule
+iptables -t nat -D POSTROUTING -s 192.168.100.0/24 -o eth0 -j MASQUERADE 2>/dev/null || true
+
+echo "[INFO] Flushing and removing custom chains..."
+
+# Flush and remove custom chains
+iptables -t mangle -F pisowifi_auth 2>/dev/null || true
+iptables -t mangle -X pisowifi_auth 2>/dev/null || true
+
+iptables -t nat -F pisowifi_portal 2>/dev/null || true  
+iptables -t nat -X pisowifi_portal 2>/dev/null || true
+
+iptables -F pisowifi_forward 2>/dev/null || true
+iptables -X pisowifi_forward 2>/dev/null || true
+
+echo "[INFO] Killing background processes..."
+
+# Kill any background authentication timeout processes
+pkill -f "pisowifi-block-client-ethernet" 2>/dev/null || true
+
+echo "[SUCCESS] PISOWifi Ethernet Captive Portal rules have been reset"
+echo ""
+echo "All clients are now disconnected from internet access"
+echo "Portal redirection has been disabled"
+echo "To re-enable the captive portal, run: ./pisowifi-setup-ethernet-portal"

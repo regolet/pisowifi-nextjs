@@ -35,50 +35,22 @@ class NetworkManager {
   }
 
   async setupCaptivePortal() {
-    // Setup iptables rules for captive portal
-    const rules = `
-#!/bin/bash
-# PISOWifi Captive Portal Rules
-
-# Enable IP forwarding
-echo 1 > /proc/sys/net/ipv4/ip_forward
-
-# Clear existing rules
-iptables -t nat -F
-iptables -t mangle -F
-iptables -F
-
-# Mark authenticated clients
-iptables -t mangle -N pisowifi_auth 2>/dev/null || iptables -t mangle -F pisowifi_auth
-
-# Redirect unauthenticated HTTP traffic to portal
-iptables -t nat -A PREROUTING -i wlan0 -p tcp --dport 80 -j DNAT --to-destination 192.168.100.1:3000
-iptables -t nat -A PREROUTING -i wlan0 -p tcp --dport 443 -j DNAT --to-destination 192.168.100.1:3000
-
-# Allow DNS for all clients (needed for captive portal detection)
-iptables -t nat -A PREROUTING -i wlan0 -p udp --dport 53 -j ACCEPT
-iptables -t nat -A PREROUTING -i wlan0 -p tcp --dport 53 -j ACCEPT
-
-# Allow DHCP
-iptables -A INPUT -i wlan0 -p udp --dport 67:68 -j ACCEPT
-
-# Allow portal access
-iptables -A INPUT -i wlan0 -p tcp --dport 3000 -j ACCEPT
-
-# Drop all other traffic from unauthenticated clients
-iptables -A FORWARD -i wlan0 -m mark ! --mark 0x1 -j DROP
-
-# NAT for authenticated clients
-iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-`;
-
+    // Setup iptables rules for ethernet-based captive portal
     try {
-      await fs.writeFile('/tmp/captive-portal.sh', rules);
-      await execAsync('sudo chmod +x /tmp/captive-portal.sh');
-      await execAsync('sudo /tmp/captive-portal.sh');
-      console.log('Captive portal rules applied');
+      // Use the dedicated ethernet setup script
+      const scriptsPath = path.join(__dirname, '../../scripts');
+      await execAsync(`sudo ${scriptsPath}/pisowifi-setup-ethernet-portal`);
+      console.log('Ethernet captive portal rules applied');
     } catch (error) {
-      console.error('Failed to setup captive portal:', error);
+      console.error('Failed to setup ethernet captive portal:', error);
+      
+      // Fallback: try basic setup
+      try {
+        await execAsync('sudo sysctl -w net.ipv4.ip_forward=1');
+        console.log('IP forwarding enabled as fallback');
+      } catch (fallbackError) {
+        console.error('Failed to enable IP forwarding:', fallbackError);
+      }
     }
   }
 
@@ -130,13 +102,11 @@ server=8.8.4.4
 
   async authenticateClient(macAddress, ipAddress, duration) {
     try {
-      // Add iptables rule to mark authenticated client
-      await execAsync(`sudo iptables -t mangle -A pisowifi_auth -m mac --mac-source ${macAddress} -j MARK --set-mark 0x1`);
+      // Use the dedicated ethernet allow script
+      const scriptsPath = path.join(__dirname, '../../scripts');
+      await execAsync(`sudo ${scriptsPath}/pisowifi-allow-client-ethernet ${macAddress} ${duration}`);
       
-      // Allow forwarding for authenticated client
-      await execAsync(`sudo iptables -I FORWARD -m mac --mac-source ${macAddress} -j ACCEPT`);
-      
-      // Track authenticated client
+      // Track authenticated client in file
       const authFile = '/tmp/authenticated-clients.json';
       let clients = [];
       try {
@@ -146,20 +116,21 @@ server=8.8.4.4
         // File doesn't exist yet
       }
       
+      // Remove any existing entry for this MAC
+      clients = clients.filter(c => c.mac !== macAddress);
+      
+      // Add new entry
       clients.push({
         mac: macAddress,
         ip: ipAddress,
         authenticated_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + duration * 1000).toISOString()
+        expires_at: new Date(Date.now() + duration * 1000).toISOString(),
+        duration: duration
       });
       
       await fs.writeFile(authFile, JSON.stringify(clients, null, 2));
       
-      // Schedule deauthentication
-      setTimeout(() => {
-        this.deauthenticateClient(macAddress);
-      }, duration * 1000);
-      
+      console.log(`Authenticated client ${macAddress} for ${duration} seconds`);
       return { success: true };
     } catch (error) {
       console.error('Failed to authenticate client:', error);
@@ -169,9 +140,9 @@ server=8.8.4.4
 
   async deauthenticateClient(macAddress) {
     try {
-      // Remove iptables rules
-      await execAsync(`sudo iptables -t mangle -D pisowifi_auth -m mac --mac-source ${macAddress} -j MARK --set-mark 0x1`).catch(() => {});
-      await execAsync(`sudo iptables -D FORWARD -m mac --mac-source ${macAddress} -j ACCEPT`).catch(() => {});
+      // Use the dedicated ethernet block script
+      const scriptsPath = path.join(__dirname, '../../scripts');
+      await execAsync(`sudo ${scriptsPath}/pisowifi-block-client-ethernet ${macAddress} "api_disconnect"`);
       
       // Update authenticated clients file
       const authFile = '/tmp/authenticated-clients.json';
@@ -184,6 +155,7 @@ server=8.8.4.4
         // Ignore if file doesn't exist
       }
       
+      console.log(`Deauthenticated client ${macAddress}`);
       return { success: true };
     } catch (error) {
       console.error('Failed to deauthenticate client:', error);
@@ -302,20 +274,60 @@ server=8.8.4.4
 
   async getConnectedClients() {
     try {
-      // Get DHCP leases
-      const { stdout } = await execAsync('cat /var/lib/misc/dnsmasq.leases 2>/dev/null || echo ""');
-      const lines = stdout.trim().split('\n').filter(l => l);
+      const clients = [];
       
-      const clients = lines.map(line => {
-        const parts = line.split(' ');
-        return {
-          timestamp: parts[0],
-          mac_address: parts[1],
-          ip_address: parts[2],
-          hostname: parts[3] || 'Unknown',
-          client_id: parts[4] || ''
-        };
-      });
+      // Try multiple sources for client information
+      
+      // Method 1: DHCP leases from dnsmasq
+      try {
+        const { stdout: dhcpOutput } = await execAsync('cat /var/lib/misc/dnsmasq.leases /var/lib/dhcp/dhcpd.leases 2>/dev/null || echo ""');
+        const dhcpLines = dhcpOutput.trim().split('\n').filter(l => l && l.includes('192.168.100.'));
+        
+        dhcpLines.forEach(line => {
+          const parts = line.split(' ');
+          if (parts.length >= 3) {
+            clients.push({
+              timestamp: parts[0],
+              mac_address: parts[1],
+              ip_address: parts[2], 
+              hostname: parts[3] || 'Unknown',
+              client_id: parts[4] || '',
+              source: 'dhcp'
+            });
+          }
+        });
+      } catch (dhcpError) {
+        console.warn('DHCP lease parsing failed:', dhcpError.message);
+      }
+      
+      // Method 2: ARP/Neighbor table for ethernet interface
+      try {
+        const { stdout: arpOutput } = await execAsync('ip neighbor show dev enx00e04c68276e | grep 192.168.100');
+        const arpLines = arpOutput.trim().split('\n').filter(l => l);
+        
+        arpLines.forEach(line => {
+          const parts = line.split(' ');
+          if (parts.length >= 5) {
+            const ip = parts[0];
+            const mac = parts[4];
+            
+            // Check if we already have this client from DHCP
+            const existing = clients.find(c => c.mac_address === mac);
+            if (!existing) {
+              clients.push({
+                timestamp: Date.now(),
+                mac_address: mac,
+                ip_address: ip,
+                hostname: 'Unknown',
+                client_id: '',
+                source: 'arp'
+              });
+            }
+          }
+        });
+      } catch (arpError) {
+        console.warn('ARP table parsing failed:', arpError.message);
+      }
       
       // Check authentication status
       let authClients = [];
@@ -332,10 +344,12 @@ server=8.8.4.4
         return {
           ...client,
           authenticated: !!authInfo,
-          expires_at: authInfo?.expires_at || null
+          expires_at: authInfo?.expires_at || null,
+          auth_duration: authInfo?.duration || null
         };
       });
       
+      console.log(`Found ${enrichedClients.length} connected clients (${enrichedClients.filter(c => c.authenticated).length} authenticated)`);
       return enrichedClients;
     } catch (error) {
       console.error('Failed to get connected clients:', error);

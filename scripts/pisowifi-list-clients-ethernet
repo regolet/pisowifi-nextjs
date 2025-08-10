@@ -1,0 +1,96 @@
+#!/bin/bash
+# PISOWifi - List connected and authenticated clients (Ethernet-based setup)
+
+INTERFACE="enx00e04c68276e"  # Ethernet interface for clients
+
+echo "PISOWifi Client Status - Ethernet Interface: $INTERFACE"
+echo "================================================================"
+
+# Function to get device info from ARP/neighbor table
+get_device_info() {
+    local ip=$1
+    local mac=$2
+    
+    # Try to get hostname from ARP table or reverse DNS
+    hostname=$(getent hosts $ip 2>/dev/null | awk '{print $2}' | head -1)
+    if [ -z "$hostname" ]; then
+        hostname="Unknown"
+    fi
+    
+    echo "$hostname"
+}
+
+# Function to check if MAC is authenticated
+is_authenticated() {
+    local mac=$1
+    # Check if MAC has authentication mark in iptables
+    iptables -t mangle -L pisowifi_auth -n 2>/dev/null | grep -q "$mac"
+}
+
+echo "CONNECTED CLIENTS:"
+echo "=================="
+
+# Get ARP table for the client network
+arp_entries=$(ip neighbor show dev $INTERFACE 2>/dev/null | grep -E "192\.168\.100\.[0-9]+" | grep REACHABLE)
+
+if [ -z "$arp_entries" ]; then
+    echo "No clients found in ARP table for interface $INTERFACE"
+    echo ""
+    echo "Alternative check - All ARP entries:"
+    arp -a | grep -E "192\.168\.100\.[0-9]+"
+    echo ""
+else
+    printf "%-15s %-18s %-20s %-12s\n" "IP Address" "MAC Address" "Hostname" "Status"
+    printf "%-15s %-18s %-20s %-12s\n" "----------" "-----------" "--------" "------"
+    
+    echo "$arp_entries" | while read line; do
+        ip=$(echo $line | awk '{print $1}')
+        mac=$(echo $line | awk '{print $5}')
+        
+        hostname=$(get_device_info $ip $mac)
+        
+        if is_authenticated $mac; then
+            status="AUTH"
+        else
+            status="UNAUTH"
+        fi
+        
+        printf "%-15s %-18s %-20s %-12s\n" "$ip" "$mac" "$hostname" "$status"
+    done
+fi
+
+echo ""
+echo "AUTHENTICATED CLIENTS:"
+echo "====================="
+
+# List all authentication rules
+auth_rules=$(iptables -t mangle -L pisowifi_auth -n 2>/dev/null | grep "MAC" | grep "MARK")
+
+if [ -z "$auth_rules" ]; then
+    echo "No authenticated clients found"
+else
+    echo "$auth_rules" | while read rule; do
+        mac=$(echo $rule | grep -o '[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]:[0-9a-fA-F][0-9a-fA-F]')
+        echo "  MAC: $mac (marked for internet access)"
+    done
+fi
+
+echo ""
+echo "IPTABLES STATISTICS:"
+echo "===================="
+
+# Show packet counts for portal redirection
+echo "Portal Redirections:"
+iptables -t nat -L pisowifi_portal -n -v 2>/dev/null | grep -E "(DNAT|chain)"
+
+echo ""
+echo "Authentication Marks:"
+iptables -t mangle -L pisowifi_auth -n -v 2>/dev/null | grep -E "(MARK|chain)"
+
+echo ""
+echo "Forwarding Rules:"
+iptables -L pisowifi_forward -n -v 2>/dev/null | grep -E "(ACCEPT|DROP|chain)"
+
+echo ""
+echo "Current time: $(date)"
+echo "Use 'watch -n 5 $0' for live monitoring"

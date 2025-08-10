@@ -142,7 +142,11 @@
         <div class="status-card text-center">
             <div class="mb-4">
                 <div style="font-size: 2.5rem; font-weight: bold;">
-                    <span style="color: #dc3545;">⛔ Disconnected</span>
+                    <% if (isAuthenticated) { %>
+                        <span style="color: #28a745;">✅ Connected</span>
+                    <% } else { %>
+                        <span style="color: #dc3545;">⛔ Disconnected</span>
+                    <% } %>
                 </div>
             </div>
             
@@ -153,9 +157,15 @@
                         🌐 Internet
                     </div>
                     <div>
-                        <span class="badge bg-success" style="font-size: 0.75rem;">
-                            ✅ Online
-                        </span>
+                        <% if (wanStatus === 'connected') { %>
+                            <span class="badge bg-success" style="font-size: 0.75rem;">
+                                ✅ Online
+                            </span>
+                        <% } else { %>
+                            <span class="badge bg-danger" style="font-size: 0.75rem;">
+                                ❌ Offline
+                            </span>
+                        <% } %>
                     </div>
                 </div>
             </div>
@@ -163,27 +173,52 @@
             <!-- Client MAC and IP Address Section -->
             <div class="text-center mb-3">
                 <span style="font-size: 0.9rem; font-family: 'Courier New', monospace; color: #6c757d;">
-                    MAC:AUTO-DETECT || IP:AUTO-DETECT
+                    MAC:<%= clientMAC %> || IP:<%= clientIP %>
                 </span>
             </div>
+            
+            <!-- Client Authentication Status -->
+            <% if (isAuthenticated && clientInfo) { %>
+            <div class="alert alert-success text-center mb-3">
+                <h6 class="mb-2">🎉 Welcome back!</h6>
+                <p class="mb-1">Device: <strong><%= clientInfo.device_name || 'Your Device' %></strong></p>
+                <p class="mb-1">Time remaining: <strong><%= Math.floor(clientInfo.time_remaining / 60) %> minutes</strong></p>
+                <p class="mb-0">Status: <strong>Connected</strong></p>
+            </div>
+            <% } %>
         </div>
 
         <div class="d-grid gap-2">
-            <!-- INSERT COIN Button - Main Feature -->
-            <button class="btn btn-primary btn-portal" onclick="insertCoin()">
-                🪙 INSERT COIN
-            </button>
-            
-            <!-- WiFi Rates Button -->
-            <button class="btn btn-outline-info btn-sm mt-2" onclick="showRates()" style="font-size: 0.85rem; margin: 0 20px;">
-                📋 View WiFi Rates
-            </button>
+            <% if (isAuthenticated && clientInfo) { %>
+                <!-- Already Connected - Show Options -->
+                <button class="btn btn-success btn-portal" onclick="redirectToInternet()">
+                    🌐 ACCESS INTERNET
+                </button>
+                
+                <button class="btn btn-outline-secondary btn-sm mt-2" onclick="showClientInfo()" style="font-size: 0.85rem; margin: 0 20px;">
+                    📊 View Session Info
+                </button>
+            <% } else { %>
+                <!-- Not Connected - Show Coin Insert -->
+                <button class="btn btn-primary btn-portal" onclick="insertCoin()">
+                    🪙 INSERT COIN
+                </button>
+                
+                <!-- WiFi Rates Button -->
+                <button class="btn btn-outline-info btn-sm mt-2" onclick="showRates()" style="font-size: 0.85rem; margin: 0 20px;">
+                    📋 View WiFi Rates
+                </button>
+            <% } %>
         </div>
 
         <!-- Portal Text Content -->
         <div class="text-center mt-3 p-3 bg-light rounded" style="margin: 20px;">
             <div>
-                Welcome to our WiFi service! Select your package and insert coins to get started.
+                <% if (isAuthenticated) { %>
+                    You are connected to PISOWifi! Enjoy your internet access.
+                <% } else { %>
+                    Welcome to PISOWifi! Insert coins to get internet access.
+                <% } %>
             </div>
         </div>
         
@@ -214,13 +249,17 @@
                     
                     <div class="coin-status-info bg-light p-3 rounded mb-4">
                         <div class="row">
-                            <div class="col-6">
-                                <strong>Total Coins:</strong><br>
+                            <div class="col-4">
+                                <strong>Coins:</strong><br>
                                 <span id="totalCoins" class="text-success">₱0.00</span>
                             </div>
-                            <div class="col-6">
-                                <strong>Available Time:</strong><br>
-                                <span id="availableTime" class="text-primary">0 minutes</span>
+                            <div class="col-4">
+                                <strong>Time:</strong><br>
+                                <span id="availableTime" class="text-primary">0 min</span>
+                            </div>
+                            <div class="col-4">
+                                <strong>Rate:</strong><br>
+                                <span id="currentRate" class="text-info">₱5/30min</span>
                             </div>
                         </div>
                     </div>
@@ -291,6 +330,71 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                         <i class="fas fa-times me-2"></i>Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Client Info Modal -->
+    <div class="modal fade" id="clientInfoModal" tabindex="-1" aria-labelledby="clientInfoModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="clientInfoModalLabel">
+                        📊 Session Information
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <% if (isAuthenticated && clientInfo) { %>
+                    <div class="session-info">
+                        <h6 class="text-success mb-3">🎉 You are connected!</h6>
+                        
+                        <div class="info-grid">
+                            <div class="row mb-2">
+                                <div class="col-5"><strong>Device:</strong></div>
+                                <div class="col-7"><%= clientInfo.device_name || 'Unknown Device' %></div>
+                            </div>
+                            
+                            <div class="row mb-2">
+                                <div class="col-5"><strong>MAC Address:</strong></div>
+                                <div class="col-7" style="font-family: monospace; font-size: 0.85rem;"><%= clientInfo.mac_address %></div>
+                            </div>
+                            
+                            <div class="row mb-2">
+                                <div class="col-5"><strong>IP Address:</strong></div>
+                                <div class="col-7" style="font-family: monospace; font-size: 0.85rem;"><%= clientInfo.ip_address %></div>
+                            </div>
+                            
+                            <div class="row mb-2">
+                                <div class="col-5"><strong>Time Remaining:</strong></div>
+                                <div class="col-7 text-primary"><strong id="sessionTimeRemaining"><%= Math.floor(clientInfo.time_remaining / 60) %> minutes</strong></div>
+                            </div>
+                            
+                            <div class="row mb-2">
+                                <div class="col-5"><strong>Status:</strong></div>
+                                <div class="col-7">
+                                    <span class="badge bg-success">Connected</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4 p-3 bg-light rounded">
+                            <h6 class="text-primary mb-2">💡 Tips</h6>
+                            <ul class="mb-0" style="font-size: 0.9rem;">
+                                <li>Keep this window open to monitor your session</li>
+                                <li>Time remaining updates automatically</li>
+                                <li>Insert more coins to extend your session</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <% } %>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="insertCoin(); $('#clientInfoModal').modal('hide');">
+                        🪙 Add More Time
                     </button>
                 </div>
             </div>
@@ -562,6 +666,41 @@
             const modal = new bootstrap.Modal(document.getElementById('ratesModal'));
             modal.show();
         }
+        
+        function showClientInfo() {
+            // Show client info modal using Bootstrap 5 API
+            const modal = new bootstrap.Modal(document.getElementById('clientInfoModal'));
+            modal.show();
+        }
+        
+        function redirectToInternet() {
+            // Redirect authenticated users to internet
+            window.location.href = 'http://www.google.com';
+        }
+        
+        // Auto-refresh session info for authenticated users
+        <% if (isAuthenticated && clientInfo) { %>
+        setInterval(function() {
+            // Update time remaining every minute
+            fetch('/portal/session-status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.time_remaining !== undefined) {
+                        const minutes = Math.floor(data.time_remaining / 60);
+                        const sessionTimeElement = document.getElementById('sessionTimeRemaining');
+                        if (sessionTimeElement) {
+                            sessionTimeElement.textContent = minutes + ' minutes';
+                        }
+                        
+                        // If time is up, reload page
+                        if (data.time_remaining <= 0) {
+                            window.location.reload();
+                        }
+                    }
+                })
+                .catch(error => console.warn('Failed to update session status:', error));
+        }, 60000); // Update every minute
+        <% } %>
 
         // Clean up intervals when coin modal is closed
         document.getElementById('insertCoinModal').addEventListener('hidden.bs.modal', function () {
