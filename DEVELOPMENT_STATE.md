@@ -1,6 +1,6 @@
 # PISOWifi Express.js - Current Development State
 
-> **📅 Last Updated:** `January 2025` | **🔄 Status:** `Portal Settings & GPIO Integration Complete`
+> **📅 Last Updated:** `January 2025` | **🔄 Status:** `Portal UX Redesign & Connection Fixes Complete`
 
 ---
 
@@ -11,16 +11,16 @@
 - **🔌 Complete GPIO Integration** - Hardware coin detection with Orange Pi GPIO service
 - **🎨 Modern UI Components** - Responsive portal and comprehensive admin dashboard
 - **💾 PostgreSQL Database** - ARM-compatible database system with full schema
-- **🪙 Dynamic INSERT COIN Portal** - Database-driven settings with GPIO integration
+- **🪙 Clean Minimalistic Portal** - Simplified UX with Socket.IO coin detection
 - **📊 Complete Admin Dashboard** - Client management, network settings, GPIO config
-- **🌐 Captive Portal** - Full redirection system with dnsmasq + nginx
-- **⚡ WebSocket Events** - Real-time coin detection and client monitoring
+- **🌐 Captive Portal** - Full redirection system with enhanced connection flow
+- **⚡ Real-time Socket.IO Events** - Instant coin detection and client monitoring
 - **🪙 Dynamic Coin Rates Management** - Database-driven pulse configuration
 - **🔧 Advanced Network Management** - DHCP configuration, bandwidth control, interface monitoring
 - **👥 Advanced Client Management** - Device detection, usage analytics, whitelist/block system
 - **📈 Real-time Monitoring** - Unauthenticated device detection, connection history tracking
-- **⚙️ Portal Settings System** - Complete configuration interface with live preview
-- **🔌 GPIO Status Monitoring** - Hardware connection status with fallback modes
+- **⚙️ Streamlined Portal Settings** - Essential configuration without bloat
+- **🔌 Enhanced Connection Handling** - Improved MAC detection and error handling
 
 ### ❌ **What's Missing (Priority Order):**
 
@@ -52,7 +52,7 @@ pisowifi-nextjs/
 │   ├── ✅ app.js              # Main server with Socket.IO (complete)
 │   ├── ✅ routes/             # API and page routes
 │   │   ├── ✅ admin.js        # Admin dashboard routes with Portal Settings (complete)
-│   │   ├── ✅ portal.js       # GPIO-integrated portal with dynamic settings (complete)
+│   │   ├── ✅ portal.js       # Enhanced portal with improved connection handling (complete)
 │   │   ├── ✅ api.js          # General API endpoints (complete)
 │   │   └── ✅ api/            # Specialized API modules
 │   │       ├── ✅ clients.js  # Advanced client management API (complete)
@@ -60,7 +60,7 @@ pisowifi-nextjs/
 │   │       └── ✅ settings.js # Settings management API (complete)
 │   └── ✅ views/              # EJS Templates
 │       ├── ✅ pages/          # Main pages
-│       │   ├── ✅ portal.ejs  # GPIO-integrated INSERT COIN portal (complete)
+│       │   ├── ✅ portal.ejs  # Clean minimalistic portal with enhanced connection handling (complete)
 │       │   ├── ✅ admin-clients.ejs # Advanced client management (complete)
 │       │   ├── ✅ admin-network.ejs # Network management dashboard (complete)
 │       │   ├── ✅ admin-rates.ejs # Coin rates management (complete)
@@ -146,8 +146,10 @@ pisowifi-nextjs/
 
 ### ✅ **Implemented:**
 ```typescript
-// Portal & Connection
-POST /portal/connect              # Enhanced client connection with device detection
+// Portal & Connection  
+POST /portal/connect              # Fixed connection with improved MAC detection and error handling
+POST /portal/test-coin            # Test coin detection endpoint for debugging
+GET  /portal/session-status       # Check authenticated client session status
 GET  /api/rates                   # Get pricing rates
 
 // Advanced Client Management
@@ -228,11 +230,12 @@ psql $DATABASE_URL       # Direct database access
 - **Complete Rate Management** - Pulse-based coin configuration with database storage
 - **Advanced Client Management** - Device detection, analytics, history tracking
 - **Network Management** - DHCP config, bandwidth control, interface monitoring
-- **Real-time Monitoring** - WebSocket events, live statistics, GPIO status
+- **Real-time Monitoring** - Socket.IO events, live statistics, connection status
 - **Device Intelligence** - OS/browser detection, vendor identification
-- **Portal Settings System** - Dynamic configuration with live preview
-- **GPIO Integration** - Hardware coin detection with Orange Pi GPIO service
-- **Database-driven Portal** - All settings configurable via admin interface
+- **Streamlined Portal Settings** - Essential configuration without complexity
+- **Enhanced Connection Flow** - Improved MAC detection with fallback generation
+- **Minimalistic Portal UX** - Clean design focused on core functionality
+- **Real-time Coin Detection** - Socket.IO integration with test endpoints
 
 ---
 
@@ -240,9 +243,9 @@ psql $DATABASE_URL       # Direct database access
 
 ### **🐛 Current Bugs:**
 1. **Admin Authentication** - No login system yet (critical security issue)
-2. **iptables Integration** - Actual internet access control not implemented
+2. **iptables Integration** - Actual internet access control not implemented  
 3. **Session Timeout** - Automatic disconnection not implemented
-4. **GPIO Service** - Windows compatibility issues with Python GPIO
+4. **GPIO Service** - Windows compatibility issues with Python GPIO (resolved for Orange Pi)
 
 ### **⚠️ Missing Critical Features:**
 1. **Admin Authentication** - Login system and JWT-based auth

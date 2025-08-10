@@ -76,25 +76,27 @@
 - [x] **Live network status monitoring**
 
 ### ✅ **2.4 INSERT COIN Portal (DONE)**
-- [x] **Django-style coin insertion modal**
+- [x] **Clean minimalistic portal design with centered card layout**
 - [x] **Dynamic countdown timer with configurable timeout**
-- [x] **Real-time GPIO coin detection and feedback**
+- [x] **Real-time Socket.IO coin detection and feedback**
 - [x] **Automatic time calculation system with database settings**
-- [x] **Connection status display with MAC/IP detection**
+- [x] **Connection status display with enhanced MAC/IP detection**
 - [x] **WiFi rates modal display with database integration**
 - [x] **GPIO status monitoring and fallback modes**
 - [x] **Test coin functionality with hardware integration**
-- [x] **Responsive mobile-friendly design**
+- [x] **Fully responsive mobile-friendly design**
+- [x] **Enhanced error handling and user feedback**
+- [x] **Simplified UX without external dependencies**
 
 ### ✅ **2.5 Portal Settings & Configuration (DONE)**
-- [x] **Portal Settings admin page with real-time preview**
+- [x] **Simplified Portal Settings admin page without banner management**
 - [x] **Dynamic portal configuration from database**
 - [x] **Configurable coin timeout (30-300 seconds)**
-- [x] **Adjustable coin value (₱1-50)**
-- [x] **Customizable time per peso rates**
 - [x] **Portal title and subtitle customization**
 - [x] **Settings preview panel with live updates**
 - [x] **Database-driven portal behavior**
+- [x] **Removed multer dependency for Orange Pi compatibility**
+- [x] **Streamlined settings interface for core functionality**
 
 ---
 
@@ -431,5 +433,5 @@
 
 *This document will be updated as development progresses. Each completed feature should be marked with ✅ and dated.*
 
-**Last Updated:** Portal Settings & GPIO Integration Complete - January 2025
+**Last Updated:** Portal UX Redesign & Connection Fixes Complete - January 2025
 **Next Update:** After Security & Authentication Implementation
