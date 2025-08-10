@@ -14,16 +14,11 @@ model User {
   email     String   @unique
   username  String   @unique
   password  String
-  role      UserRole @default(ADMIN)
+  role      String   @default("ADMIN") // ADMIN, OPERATOR
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("users")
-}
-
-enum UserRole {
-  ADMIN
-  OPERATOR
 }
 
 // Client sessions and management
@@ -32,7 +27,7 @@ model Client {
   macAddress      String        @unique
   ipAddress       String?
   deviceName      String?
-  status          ClientStatus  @default(DISCONNECTED)
+  status          String        @default("DISCONNECTED") // CONNECTED, DISCONNECTED, EXPIRED, BLOCKED
   timeRemaining   Int           @default(0) // seconds
   totalPaid       Float         @default(0) // total amount paid
   sessionStart    DateTime?
@@ -46,13 +41,6 @@ model Client {
   sessions        Session[]
 
   @@map("clients")
-}
-
-enum ClientStatus {
-  CONNECTED
-  DISCONNECTED
-  EXPIRED
-  BLOCKED
 }
 
 // Payment rates and packages
@@ -74,33 +62,20 @@ model Rate {
 
 // Transaction history
 model Transaction {
-  id        String            @id @default(cuid())
+  id        String   @id @default(cuid())
   clientId  String
   rateId    String
   amount    Float
-  duration  Int               // duration purchased in seconds
-  method    TransactionMethod @default(COIN)
-  status    TransactionStatus @default(COMPLETED)
-  createdAt DateTime          @default(now())
+  duration  Int      // duration purchased in seconds
+  method    String   @default("COIN") // COIN, VOUCHER, CARD
+  status    String   @default("COMPLETED") // PENDING, COMPLETED, FAILED, REFUNDED
+  createdAt DateTime @default(now())
 
   // Relations
   client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
   rate   Rate   @relation(fields: [rateId], references: [id])
 
   @@map("transactions")
-}
-
-enum TransactionMethod {
-  COIN
-  VOUCHER
-  CARD
-}
-
-enum TransactionStatus {
-  PENDING
-  COMPLETED
-  FAILED
-  REFUNDED
 }
 
 // Active user sessions
@@ -115,7 +90,7 @@ model Session {
   timeUsed     Int       @default(0) // time used in seconds
   bytesUp      BigInt    @default(0)
   bytesDown    BigInt    @default(0)
-  status       SessionStatus @default(ACTIVE)
+  status       String    @default("ACTIVE") // ACTIVE, EXPIRED, TERMINATED, COMPLETED
   disconnectReason String?
 
   // Relations
@@ -124,30 +99,16 @@ model Session {
   @@map("sessions")
 }
 
-enum SessionStatus {
-  ACTIVE
-  EXPIRED
-  TERMINATED
-  COMPLETED
-}
-
 // System settings
 model Setting {
   id    String @id @default(cuid())
   key   String @unique
   value String
-  type  SettingType @default(STRING)
+  type  String @default("STRING") // STRING, NUMBER, BOOLEAN, JSON
   description String?
   updatedAt DateTime @updatedAt
 
   @@map("settings")
-}
-
-enum SettingType {
-  STRING
-  NUMBER
-  BOOLEAN
-  JSON
 }
 
 // Voucher system
@@ -194,19 +155,11 @@ model Blocklist {
 // System logs
 model SystemLog {
   id        String    @id @default(cuid())
-  level     LogLevel  @default(INFO)
+  level     String    @default("INFO") // DEBUG, INFO, WARN, ERROR, CRITICAL
   message   String
   category  String?   // e.g., "coin", "network", "auth"
   metadata  String?   // JSON string for additional data
   createdAt DateTime  @default(now())
 
   @@map("system_logs")
-}
-
-enum LogLevel {
-  DEBUG
-  INFO
-  WARN
-  ERROR
-  CRITICAL
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Users, 
   Activity, 
@@ -11,8 +12,11 @@ import {
   BarChart3,
   Shield,
   Coins,
-  Zap
+  Zap,
+  LogOut,
+  User as UserIcon
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 interface DashboardStats {
   totalClients: number;
@@ -30,6 +34,13 @@ interface Client {
   status: string;
   timeRemaining: number;
   lastSeen: string;
+}
+
+interface User {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
 }
 
 const MOCK_STATS: DashboardStats = {
@@ -72,10 +83,32 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats>(MOCK_STATS);
   const [clients, setClients] = useState<Client[]>(MOCK_CLIENTS);
   const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
-    // Simulate loading
-    setTimeout(() => setIsLoading(false), 1000);
+    // Verify authentication
+    const verifyAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/verify');
+        if (response.ok) {
+          const data = await response.json();
+          setUser(data.user);
+        } else {
+          router.push('/admin/login');
+          return;
+        }
+      } catch (error) {
+        console.error('Auth verification failed:', error);
+        router.push('/admin/login');
+        return;
+      }
+      
+      // Simulate loading
+      setTimeout(() => setIsLoading(false), 1000);
+    };
+
+    verifyAuth();
 
     // Simulate real-time updates
     const interval = setInterval(() => {
@@ -87,7 +120,7 @@ export default function AdminDashboard() {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [router]);
 
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -105,6 +138,24 @@ export default function AdminDashboard() {
       case 'EXPIRED': return 'text-red-600 bg-red-100';
       case 'DISCONNECTED': return 'text-gray-600 bg-gray-100';
       default: return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        toast.success('Logged out successfully');
+        router.push('/admin/login');
+      } else {
+        toast.error('Logout failed');
+      }
+    } catch (error) {
+      toast.error('Network error during logout');
+      console.error('Logout error:', error);
     }
   };
 
@@ -134,6 +185,21 @@ export default function AdminDashboard() {
                 <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
                 System Online
               </div>
+              {user && (
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center text-sm text-gray-600">
+                    <UserIcon className="h-4 w-4 mr-1" />
+                    {user.username}
+                  </div>
+                  <button 
+                    onClick={handleLogout}
+                    className="p-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
+                    title="Logout"
+                  >
+                    <LogOut className="h-5 w-5" />
+                  </button>
+                </div>
+              )}
               <button className="p-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100">
                 <Settings className="h-5 w-5" />
               </button>

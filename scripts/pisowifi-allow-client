@@ -1,0 +1,12 @@
+#!/bin/bash
+# Mock script for development - allows client internet access
+MAC_ADDRESS=$1
+if [ -z "$MAC_ADDRESS" ]; then
+    echo "Usage: $0 <MAC_ADDRESS>"
+    exit 1
+fi
+
+echo " [DEV] Client $MAC_ADDRESS authenticated and allowed internet access"
+# In production, this would execute iptables commands
+# iptables -t nat -I CAPTIVE_PORTAL -m mac --mac-source $MAC_ADDRESS -j RETURN
+# iptables -t mangle -I CAPTIVE_PORTAL -m mac --mac-source $MAC_ADDRESS -j RETURN

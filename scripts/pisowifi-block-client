@@ -1,0 +1,12 @@
+#!/bin/bash
+# Mock script for development - blocks client internet access
+MAC_ADDRESS=$1
+if [ -z "$MAC_ADDRESS" ]; then
+    echo "Usage: $0 <MAC_ADDRESS>"
+    exit 1
+fi
+
+echo "L [DEV] Client $MAC_ADDRESS blocked from internet access"
+# In production, this would execute iptables commands
+# iptables -t nat -D CAPTIVE_PORTAL -m mac --mac-source $MAC_ADDRESS -j RETURN 2>/dev/null || true
+# iptables -t mangle -D CAPTIVE_PORTAL -m mac --mac-source $MAC_ADDRESS -j RETURN 2>/dev/null || true
