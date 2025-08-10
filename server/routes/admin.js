@@ -3,9 +3,46 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://pisowifi_user:admin123@localhost:5432/pisowifi'
+});
+
+// Multer configuration for banner uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, '../../public/uploads/banners');
+    // Create directory if it doesn't exist
+    fs.mkdirSync(uploadDir, { recursive: true });
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'banner-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 2 * 1024 * 1024 // 2MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    // Check file type
+    const allowedTypes = /jpeg|jpg|png|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only JPEG, PNG, and WebP images are allowed'));
+    }
+  }
 });
 
 // Auth middleware
@@ -172,6 +209,83 @@ router.post('/portal-settings', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Portal settings update error:', error);
     res.redirect('/admin/portal-settings?error=true');
+  }
+});
+
+// Banner Upload
+router.post('/upload-banner', authenticateToken, upload.single('bannerImage'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No file uploaded' });
+    }
+    
+    const filename = req.file.filename;
+    const filepath = `/uploads/banners/${filename}`;
+    const originalName = req.file.originalname;
+    
+    // TODO: Save banner info to database if you want to store banner metadata
+    // For now, just return the file path
+    
+    res.json({
+      success: true,
+      message: 'Banner uploaded successfully',
+      filename: filename,
+      filepath: filepath,
+      originalName: originalName
+    });
+    
+  } catch (error) {
+    console.error('Banner upload error:', error);
+    res.status(500).json({ success: false, error: 'Upload failed' });
+  }
+});
+
+// Get Banners
+router.get('/banners', authenticateToken, (req, res) => {
+  try {
+    const bannerDir = path.join(__dirname, '../../public/uploads/banners');
+    
+    // Check if directory exists
+    if (!fs.existsSync(bannerDir)) {
+      return res.json({ success: true, banners: [] });
+    }
+    
+    // Read banner files
+    const files = fs.readdirSync(bannerDir);
+    const banners = files
+      .filter(file => /\.(jpg|jpeg|png|webp)$/i.test(file))
+      .map(file => ({
+        filename: file,
+        filepath: `/uploads/banners/${file}`,
+        size: fs.statSync(path.join(bannerDir, file)).size,
+        created: fs.statSync(path.join(bannerDir, file)).mtime
+      }));
+    
+    res.json({ success: true, banners });
+  } catch (error) {
+    console.error('Get banners error:', error);
+    res.status(500).json({ success: false, error: 'Failed to get banners' });
+  }
+});
+
+// Delete Banner
+router.delete('/banners/:filename', authenticateToken, (req, res) => {
+  try {
+    const filename = req.params.filename;
+    const filepath = path.join(__dirname, '../../public/uploads/banners', filename);
+    
+    // Check if file exists
+    if (!fs.existsSync(filepath)) {
+      return res.status(404).json({ success: false, error: 'Banner not found' });
+    }
+    
+    // Delete file
+    fs.unlinkSync(filepath);
+    
+    res.json({ success: true, message: 'Banner deleted successfully' });
+  } catch (error) {
+    console.error('Delete banner error:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete banner' });
   }
 });
 
