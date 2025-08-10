@@ -6,38 +6,35 @@
     <title>Coin Rates - PISOWifi Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
-        .glass {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
         .coin-preview {
-            width: 80px;
-            height: 80px;
+            width: 60px;
+            height: 60px;
             border-radius: 50%;
             background: linear-gradient(145deg, #ffd700, #ffed4e);
-            border: 3px solid #b8860b;
+            border: 2px solid #b8860b;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
             color: #8b4513;
-            box-shadow: 0 4px 8px rgba(255, 215, 0, 0.3);
+            box-shadow: 0 2px 4px rgba(255, 215, 0, 0.3);
         }
     </style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
-    <%- include('../partials/admin-nav') %>
+<body class="bg-gray-50 flex h-screen">
+    <%- include('../partials/admin-sidebar') %>
     
-    <div class="container mx-auto px-4 py-8">
-        <div class="mb-8">
-            <h1 class="text-3xl font-bold text-white mb-2">Coin Rates Management</h1>
-            <p class="text-white/70">Configure coin denominations, pulse counts, and time packages</p>
-        </div>
+    <!-- Main Content -->
+    <div class="flex-1 overflow-y-auto">
+        <div class="p-8">
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-gray-800">Coin Rates Management</h2>
+                <p class="text-gray-600">Configure coin denominations, pulse counts, and time packages</p>
+            </div>
 
-        <!-- Coin Configuration Overview -->
-        <div class="glass rounded-2xl p-6 mb-8">
-            <h2 class="text-xl font-semibold text-white mb-4">Coin Acceptor Configuration</h2>
+            <!-- Coin Configuration Overview -->
+            <div class="bg-white rounded-xl shadow-sm border p-6 mb-8">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Coin Acceptor Configuration</h3>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div>
                     <h3 class="text-white/80 font-medium mb-2">Pulse Detection</h3>

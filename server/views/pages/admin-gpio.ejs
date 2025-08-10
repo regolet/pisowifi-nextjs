@@ -6,11 +6,6 @@
     <title>GPIO Settings - PISOWifi Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
-        .glass {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
         .pin-diagram {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -29,14 +24,16 @@
         .pin.selected { ring: 2px ring-yellow-400; }
     </style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
-    <%- include('../partials/admin-nav') %>
+<body class="bg-gray-50 flex h-screen">
+    <%- include('../partials/admin-sidebar') %>
     
-    <div class="container mx-auto px-4 py-8">
-        <div class="mb-8">
-            <h1 class="text-3xl font-bold text-white mb-2">GPIO Configuration</h1>
-            <p class="text-white/70">Configure coin acceptor and LED pins for Orange Pi</p>
-        </div>
+    <!-- Main Content -->
+    <div class="flex-1 overflow-y-auto">
+        <div class="p-8">
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-gray-800">GPIO Configuration</h2>
+                <p class="text-gray-600">Configure coin acceptor and LED pins for Orange Pi</p>
+            </div>
 
         <!-- GPIO Status -->
         <div class="glass rounded-2xl p-6 mb-8">

@@ -6,58 +6,53 @@
     <title>Client Management - PISOWifi Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="/socket.io/socket.io.js"></script>
-    <style>
-        .glass {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-    </style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
-    <%- include('../partials/admin-nav') %>
+<body class="bg-gray-50 flex h-screen">
+    <%- include('../partials/admin-sidebar') %>
     
-    <div class="container mx-auto px-4 py-8">
-        <div class="mb-8">
-            <h1 class="text-3xl font-bold text-white mb-2">Client Management</h1>
-            <p class="text-white/70">Monitor and manage connected clients</p>
-        </div>
+    <!-- Main Content -->
+    <div class="flex-1 overflow-y-auto">
+        <div class="p-8">
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-gray-800">Client Management</h2>
+                <p class="text-gray-600">Monitor and manage connected clients</p>
+            </div>
 
-        <!-- Stats Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-            <div class="glass rounded-xl p-4">
-                <div class="text-2xl font-bold text-white" id="total-clients">0</div>
-                <div class="text-white/70 text-sm">Total Clients</div>
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+                <div class="bg-white rounded-xl shadow-sm border p-4">
+                    <div class="text-2xl font-bold text-gray-800" id="total-clients">0</div>
+                    <div class="text-gray-600 text-sm">Total Clients</div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border p-4">
+                    <div class="text-2xl font-bold text-green-600" id="connected-clients">0</div>
+                    <div class="text-gray-600 text-sm">Connected</div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border p-4">
+                    <div class="text-2xl font-bold text-yellow-600" id="paused-clients">0</div>
+                    <div class="text-gray-600 text-sm">Paused</div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border p-4">
+                    <div class="text-2xl font-bold text-red-600" id="disconnected-clients">0</div>
+                    <div class="text-gray-600 text-sm">Disconnected</div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border p-4">
+                    <div class="text-2xl font-bold text-orange-600" id="unauthenticated-clients">0</div>
+                    <div class="text-gray-600 text-sm">Unauthenticated</div>
+                </div>
             </div>
-            <div class="glass rounded-xl p-4">
-                <div class="text-2xl font-bold text-green-400" id="connected-clients">0</div>
-                <div class="text-white/70 text-sm">Connected</div>
-            </div>
-            <div class="glass rounded-xl p-4">
-                <div class="text-2xl font-bold text-yellow-400" id="paused-clients">0</div>
-                <div class="text-white/70 text-sm">Paused</div>
-            </div>
-            <div class="glass rounded-xl p-4">
-                <div class="text-2xl font-bold text-red-400" id="disconnected-clients">0</div>
-                <div class="text-white/70 text-sm">Disconnected</div>
-            </div>
-            <div class="glass rounded-xl p-4">
-                <div class="text-2xl font-bold text-orange-400" id="unauthenticated-clients">0</div>
-                <div class="text-white/70 text-sm">Unauthenticated</div>
-            </div>
-        </div>
 
-        <!-- Tab Navigation -->
-        <div class="glass rounded-t-2xl p-6 mb-0">
-            <div class="flex space-x-4 border-b border-white/20 pb-4">
-                <button onclick="showTab('authenticated')" id="tab-authenticated" class="px-4 py-2 text-white font-medium border-b-2 border-blue-500">
-                    Authenticated Clients
-                </button>
-                <button onclick="showTab('unauthenticated')" id="tab-unauthenticated" class="px-4 py-2 text-white/70 font-medium hover:text-white">
-                    Unauthenticated Devices
-                </button>
+            <!-- Tab Navigation -->
+            <div class="bg-white rounded-t-xl shadow-sm border p-6 mb-0">
+                <div class="flex space-x-4 border-b border-gray-200 pb-4">
+                    <button onclick="showTab('authenticated')" id="tab-authenticated" class="px-4 py-2 text-blue-600 font-medium border-b-2 border-blue-500">
+                        Authenticated Clients
+                    </button>
+                    <button onclick="showTab('unauthenticated')" id="tab-unauthenticated" class="px-4 py-2 text-gray-600 font-medium hover:text-blue-600">
+                        Unauthenticated Devices
+                    </button>
+                </div>
             </div>
-        </div>
         
         <!-- Authenticated Clients Tab -->
         <div id="authenticated-tab" class="glass rounded-b-2xl p-6 mb-8">
