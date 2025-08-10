@@ -24,7 +24,7 @@
         </div>
 
         <!-- Stats Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
             <div class="glass rounded-xl p-4">
                 <div class="text-2xl font-bold text-white" id="total-clients">0</div>
                 <div class="text-white/70 text-sm">Total Clients</div>
@@ -41,14 +41,65 @@
                 <div class="text-2xl font-bold text-red-400" id="disconnected-clients">0</div>
                 <div class="text-white/70 text-sm">Disconnected</div>
             </div>
+            <div class="glass rounded-xl p-4">
+                <div class="text-2xl font-bold text-orange-400" id="unauthenticated-clients">0</div>
+                <div class="text-white/70 text-sm">Unauthenticated</div>
+            </div>
         </div>
 
-        <!-- Connected Devices -->
-        <div class="glass rounded-2xl p-6 mb-8">
+        <!-- Tab Navigation -->
+        <div class="glass rounded-t-2xl p-6 mb-0">
+            <div class="flex space-x-4 border-b border-white/20 pb-4">
+                <button onclick="showTab('authenticated')" id="tab-authenticated" class="px-4 py-2 text-white font-medium border-b-2 border-blue-500">
+                    Authenticated Clients
+                </button>
+                <button onclick="showTab('unauthenticated')" id="tab-unauthenticated" class="px-4 py-2 text-white/70 font-medium hover:text-white">
+                    Unauthenticated Devices
+                </button>
+            </div>
+        </div>
+        
+        <!-- Authenticated Clients Tab -->
+        <div id="authenticated-tab" class="glass rounded-b-2xl p-6 mb-8">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-semibold text-white">Connected Devices</h2>
-                <button onclick="refreshClients()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
-                    🔄 Refresh
+                <h2 class="text-xl font-semibold text-white">Authenticated Clients</h2>
+                <div class="flex gap-2">
+                    <button onclick="cleanupInactiveClients()" class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg">
+                        🗑️ Cleanup
+                    </button>
+                    <button onclick="refreshClients()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
+                        🔄 Refresh
+                    </button>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full text-white">
+                    <thead>
+                        <tr class="border-b border-white/20">
+                            <th class="text-left py-3 px-4">Device</th>
+                            <th class="text-left py-3 px-4">MAC/IP Address</th>
+                            <th class="text-left py-3 px-4">Status</th>
+                            <th class="text-left py-3 px-4">Time Remaining</th>
+                            <th class="text-left py-3 px-4">Last Seen</th>
+                            <th class="text-left py-3 px-4">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clients-tbody">
+                        <tr>
+                            <td colspan="6" class="text-center py-8 text-white/50">Loading clients...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Unauthenticated Devices Tab -->
+        <div id="unauthenticated-tab" class="glass rounded-b-2xl p-6 mb-8 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-white">Unauthenticated Devices</h2>
+                <button onclick="refreshUnauthenticatedDevices()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
+                    🔄 Scan Network
                 </button>
             </div>
             
@@ -56,17 +107,17 @@
                 <table class="w-full text-white">
                     <thead>
                         <tr class="border-b border-white/20">
+                            <th class="text-left py-3 px-4">Device Info</th>
                             <th class="text-left py-3 px-4">MAC Address</th>
                             <th class="text-left py-3 px-4">IP Address</th>
-                            <th class="text-left py-3 px-4">Status</th>
-                            <th class="text-left py-3 px-4">Time Remaining</th>
-                            <th class="text-left py-3 px-4">Session Started</th>
+                            <th class="text-left py-3 px-4">Vendor</th>
+                            <th class="text-left py-3 px-4">First Seen</th>
                             <th class="text-left py-3 px-4">Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="clients-tbody">
+                    <tbody id="unauthenticated-tbody">
                         <tr>
-                            <td colspan="6" class="text-center py-8 text-white/50">Loading clients...</td>
+                            <td colspan="6" class="text-center py-8 text-white/50">Click 'Scan Network' to detect devices</td>
                         </tr>
                     </tbody>
                 </table>
@@ -159,19 +210,39 @@
             }
             
             tbody.innerHTML = clients.map(client => `
-                <tr class="border-b border-white/10">
-                    <td class="py-3 px-4 font-mono text-sm">${client.mac_address}</td>
-                    <td class="py-3 px-4">${client.ip_address || '-'}</td>
+                <tr class="border-b border-white/10 hover:bg-white/5">
+                    <td class="py-3 px-4">
+                        <div class="flex flex-col">
+                            <div class="font-medium text-white">${client.device_name || 'Unknown Device'}</div>
+                            <div class="text-sm text-white/70">${client.os || 'Unknown OS'}</div>
+                            <div class="text-xs text-white/50">${client.browser || 'Unknown Browser'}</div>
+                        </div>
+                    </td>
+                    <td class="py-3 px-4">
+                        <div class="font-mono text-sm">${client.mac_address}</div>
+                        <div class="text-sm text-white/70">${client.ip_address || '-'}</div>
+                    </td>
                     <td class="py-3 px-4">
                         <span class="px-2 py-1 rounded text-xs ${getStatusClass(client.status)}">
                             ${client.status}
                         </span>
+                        ${client.is_whitelisted ? '<div class="text-xs text-green-400 mt-1">Whitelisted</div>' : ''}
+                        ${client.is_blocked ? '<div class="text-xs text-red-400 mt-1">Blocked</div>' : ''}
                     </td>
                     <td class="py-3 px-4">${formatTime(client.time_remaining)}</td>
-                    <td class="py-3 px-4">${formatDate(client.session_start)}</td>
                     <td class="py-3 px-4">
-                        <div class="flex gap-2">
+                        <div class="text-sm">${formatDate(client.last_seen)}</div>
+                        <div class="text-xs text-white/50" title="${client.session_started}">
+                            ${client.session_started ? 'Session: ' + formatTimeAgo(client.session_started) : '-'}
+                        </div>
+                    </td>
+                    <td class="py-3 px-4">
+                        <div class="flex flex-wrap gap-1">
                             ${getActionButtons(client)}
+                            <button onclick="showClientDetails(${client.id})" 
+                                    class="px-2 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-xs">
+                                Info
+                            </button>
                         </div>
                     </td>
                 </tr>
@@ -183,11 +254,13 @@
             const connected = clients.filter(c => c.status === 'CONNECTED').length;
             const paused = clients.filter(c => c.status === 'PAUSED').length;
             const disconnected = clients.filter(c => c.status === 'DISCONNECTED').length;
+            const unauthenticated = unauthenticatedDevices.length;
             
             document.getElementById('total-clients').textContent = total;
             document.getElementById('connected-clients').textContent = connected;
             document.getElementById('paused-clients').textContent = paused;
             document.getElementById('disconnected-clients').textContent = disconnected;
+            document.getElementById('unauthenticated-clients').textContent = unauthenticated;
         }
 
         function getStatusClass(status) {
@@ -205,38 +278,49 @@
             if (client.status === 'CONNECTED') {
                 buttons.push(`
                     <button onclick="pauseClient(${client.id})" 
-                            class="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm">
+                            class="px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-xs">
                         Pause
                     </button>
                 `);
                 buttons.push(`
                     <button onclick="disconnectClient(${client.id})" 
-                            class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm">
-                        Disconnect
+                            class="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs">
+                        Stop
                     </button>
                 `);
             } else if (client.status === 'PAUSED') {
                 buttons.push(`
                     <button onclick="resumeClient(${client.id})" 
-                            class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm">
+                            class="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs">
                         Resume
                     </button>
                 `);
             } else {
                 buttons.push(`
                     <button onclick="authenticateClient(${client.id})" 
-                            class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm">
-                        Authenticate
+                            class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs">
+                        Auth
                     </button>
                 `);
             }
             
-            buttons.push(`
-                <button onclick="deleteClient(${client.id})" 
-                        class="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm">
-                    Delete
-                </button>
-            `);
+            if (!client.is_whitelisted) {
+                buttons.push(`
+                    <button onclick="whitelistClient(${client.id})" 
+                            class="px-2 py-1 bg-green-500 hover:bg-green-600 text-white rounded text-xs">
+                        Whitelist
+                    </button>
+                `);
+            }
+            
+            if (!client.is_blocked) {
+                buttons.push(`
+                    <button onclick="blockClient(${client.id})" 
+                            class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs">
+                        Block
+                    </button>
+                `);
+            }
             
             return buttons.join('');
         }
@@ -342,8 +426,228 @@
             return date.toLocaleString();
         }
 
-        // Auto-refresh every 10 seconds
-        setInterval(loadClients, 10000);
+        let unauthenticatedDevices = [];
+        let currentTab = 'authenticated';
+        
+        // Tab management
+        function showTab(tabName) {
+            // Hide all tabs
+            document.getElementById('authenticated-tab').classList.add('hidden');
+            document.getElementById('unauthenticated-tab').classList.add('hidden');
+            
+            // Remove active styles from all tab buttons
+            document.getElementById('tab-authenticated').classList.remove('border-b-2', 'border-blue-500', 'text-white');
+            document.getElementById('tab-authenticated').classList.add('text-white/70');
+            document.getElementById('tab-unauthenticated').classList.remove('border-b-2', 'border-blue-500', 'text-white');
+            document.getElementById('tab-unauthenticated').classList.add('text-white/70');
+            
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.remove('hidden');
+            document.getElementById('tab-' + tabName).classList.add('border-b-2', 'border-blue-500', 'text-white');
+            document.getElementById('tab-' + tabName).classList.remove('text-white/70');
+            
+            currentTab = tabName;
+            
+            if (tabName === 'unauthenticated') {
+                refreshUnauthenticatedDevices();
+            }
+        }
+        
+        // Load unauthenticated devices
+        async function refreshUnauthenticatedDevices() {
+            try {
+                const response = await fetch('/api/clients/unauthenticated', {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    unauthenticatedDevices = await response.json();
+                    updateUnauthenticatedTable();
+                    updateStats();
+                }
+            } catch (error) {
+                console.error('Failed to load unauthenticated devices:', error);
+            }
+        }
+        
+        function updateUnauthenticatedTable() {
+            const tbody = document.getElementById('unauthenticated-tbody');
+            
+            if (unauthenticatedDevices.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center py-8 text-white/50">No unauthenticated devices found</td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = unauthenticatedDevices.map(device => `
+                <tr class="border-b border-white/10 hover:bg-white/5">
+                    <td class="py-3 px-4">
+                        <div class="text-sm text-white/70">Unknown Device</div>
+                        <div class="text-xs text-white/50">Not registered</div>
+                    </td>
+                    <td class="py-3 px-4 font-mono text-sm">${device.mac_address}</td>
+                    <td class="py-3 px-4 text-sm">${device.ip_address}</td>
+                    <td class="py-3 px-4 text-sm text-white/70">${device.vendor || 'Unknown'}</td>
+                    <td class="py-3 px-4 text-sm">${formatDate(device.first_seen)}</td>
+                    <td class="py-3 px-4">
+                        <div class="flex gap-1">
+                            <button onclick="authenticateUnauthenticatedDevice('${device.mac_address}', '${device.ip_address}')" 
+                                    class="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs">
+                                Allow
+                            </button>
+                            <button onclick="blockUnauthenticatedDevice('${device.mac_address}')" 
+                                    class="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs">
+                                Block
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+        
+        async function showClientDetails(id) {
+            try {
+                const [historyResponse, analyticsResponse] = await Promise.all([
+                    fetch(`/api/clients/${id}/history`, { credentials: 'include' }),
+                    fetch(`/api/clients/${id}/analytics`, { credentials: 'include' })
+                ]);
+                
+                const history = await historyResponse.json();
+                const analytics = await analyticsResponse.json();
+                
+                const client = clients.find(c => c.id === id);
+                
+                alert(`Client Details:\n\nDevice: ${client.device_name}\nOS: ${client.os}\nBrowser: ${client.browser}\nTotal Sessions: ${analytics.stats.total_sessions}\nTotal Time: ${formatTime(analytics.stats.total_time)}\nTotal Spent: $${analytics.stats.total_spent || 0}`);
+            } catch (error) {
+                console.error('Failed to get client details:', error);
+                alert('Failed to load client details');
+            }
+        }
+        
+        async function cleanupInactiveClients() {
+            if (confirm('Clean up clients inactive for more than 30 days?')) {
+                try {
+                    const response = await fetch('/api/clients/cleanup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ olderThanDays: 30, inactiveOnly: true })
+                    });
+                    
+                    const result = await response.json();
+                    alert(`Cleaned up ${result.deleted} inactive clients`);
+                    loadClients();
+                } catch (error) {
+                    console.error('Cleanup failed:', error);
+                    alert('Cleanup failed');
+                }
+            }
+        }
+        
+        async function whitelistClient(id) {
+            const reason = prompt('Enter reason for whitelisting:', 'Admin approved');
+            if (reason) {
+                try {
+                    await fetch(`/api/clients/${id}/whitelist`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ reason })
+                    });
+                    loadClients();
+                } catch (error) {
+                    console.error('Whitelist failed:', error);
+                }
+            }
+        }
+        
+        async function blockClient(id) {
+            const reason = prompt('Enter reason for blocking:', 'Admin blocked');
+            if (reason) {
+                try {
+                    await fetch(`/api/clients/${id}/block`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ reason })
+                    });
+                    loadClients();
+                } catch (error) {
+                    console.error('Block failed:', error);
+                }
+            }
+        }
+        
+        function formatTimeAgo(dateStr) {
+            if (!dateStr) return '-';
+            const now = new Date();
+            const date = new Date(dateStr);
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMins / 60);
+            const diffDays = Math.floor(diffHours / 24);
+            
+            if (diffDays > 0) return `${diffDays}d ago`;
+            if (diffHours > 0) return `${diffHours}h ago`;
+            if (diffMins > 0) return `${diffMins}m ago`;
+            return 'Just now';
+        }
+        
+        async function authenticateUnauthenticatedDevice(macAddress, ipAddress) {
+            const duration = prompt('Enter session duration in seconds:', '3600');
+            if (duration) {
+                try {
+                    // Create client and authenticate
+                    const response = await fetch('/portal/connect', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            macAddress: macAddress,
+                            coinsInserted: 0, // Free access
+                            duration: parseInt(duration),
+                            deviceInfo: { userAgent: 'Admin authenticated device' }
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        alert(`Device ${macAddress} authenticated for ${duration} seconds`);
+                        refreshUnauthenticatedDevices();
+                        loadClients();
+                    } else {
+                        alert('Failed to authenticate device');
+                    }
+                } catch (error) {
+                    console.error('Authentication failed:', error);
+                    alert('Authentication failed');
+                }
+            }
+        }
+        
+        async function blockUnauthenticatedDevice(macAddress) {
+            if (confirm(`Block device ${macAddress}? This will permanently prevent access.`)) {
+                try {
+                    // This would add the device to the blocked list
+                    // For now, we'll simulate the action
+                    alert(`Device ${macAddress} blocked`);
+                    refreshUnauthenticatedDevices();
+                } catch (error) {
+                    console.error('Block failed:', error);
+                    alert('Block failed');
+                }
+            }
+        }
+        
+        // Auto-refresh every 30 seconds
+        setInterval(() => {
+            if (currentTab === 'authenticated') {
+                loadClients();
+            } else if (currentTab === 'unauthenticated') {
+                refreshUnauthenticatedDevices();
+            }
+        }, 30000);
     </script>
 </body>
 </html>

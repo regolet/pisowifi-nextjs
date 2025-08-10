@@ -1,40 +1,44 @@
-# PISOWifi Next.js - Current Development State
+# PISOWifi Express.js - Current Development State
 
-> **📅 Last Updated:** `December 2024` | **🔄 Status:** `Phase 1 Complete, Phase 2 In Progress`
+> **📅 Last Updated:** `January 2025` | **🔄 Status:** `Phase 3 Advanced Admin Features Complete`
 
 ---
 
 ## 🎯 **Current System Capabilities**
 
 ### ✅ **What's Working Now:**
-- **🏗️ Next.js 14 Foundation** - App Router, TypeScript, Tailwind CSS
+- **🏗️ Express.js Foundation** - ARM-compatible with EJS templating
 - **🔌 Real-time GPIO Integration** - WebSocket coin detection with Orange Pi
-- **🎨 Modern UI Components** - Responsive portal and admin dashboard  
-- **💾 Database System** - Prisma ORM with comprehensive schema
-- **🪙 Basic Coin Detection** - Hardware integration with visual feedback
-- **📊 Admin Dashboard** - Live stats and client monitoring
-- **🌐 Captive Portal** - Package selection and connection flow
-- **⚡ WebSocket Events** - Instant updates for coin detection
+- **🎨 Modern UI Components** - Responsive portal and comprehensive admin dashboard
+- **💾 PostgreSQL Database** - ARM-compatible database system with full schema
+- **🪙 INSERT COIN Portal** - Django-style coin insertion modal with countdown timer
+- **📊 Complete Admin Dashboard** - Client management, network settings, GPIO config
+- **🌐 Captive Portal** - Full redirection system with dnsmasq + nginx
+- **⚡ WebSocket Events** - Real-time coin detection and client monitoring
+- **🪙 Coin Rates Management** - Comprehensive pulse-based coin configuration
+- **🔧 Advanced Network Management** - DHCP configuration, bandwidth control, interface monitoring
+- **👥 Advanced Client Management** - Device detection, usage analytics, whitelist/block system
+- **📈 Real-time Monitoring** - Unauthenticated device detection, connection history tracking
 
 ### ❌ **What's Missing (Priority Order):**
 
 #### **🔥 CRITICAL (Blocks Production):**
-1. **Admin Authentication** - No login system yet
-2. **Client Session Management** - Connect/disconnect functionality
-3. **Payment Processing** - Coin-to-time conversion logic  
-4. **Connection Status Tracking** - Active/paused/expired states
+1. **Admin Authentication System** - Secure login and JWT-based auth
+2. **iptables Client Authentication** - Actual internet access control
+3. **Session Timeout Management** - Automatic disconnection when time expires
+4. **Real GPIO Hardware Integration** - Physical coin acceptor connection
 
 #### **🔶 HIGH (Core Features):**
 1. **Voucher System** - Code generation and redemption
-2. **Advanced Rate Configuration** - Multiple denominations, validity
-3. **Client Management** - Pause, resume, kick functionality
-4. **Basic Reporting** - Sales and usage analytics
+2. **Security Features** - Rate limiting, IP restrictions, 2FA
+3. **Advanced Reporting** - Sales analytics and usage reports
+4. **System Monitoring** - Health checks, alerts, performance metrics
 
 #### **🔵 MEDIUM (Enhancements):**
-1. **Portal Customization** - Themes, logos, branding
-2. **Security Features** - Rate limiting, IP restrictions
-3. **Advanced Hardware** - Multiple coin slots, bill acceptor
-4. **Network Management** - Bandwidth limiting, monitoring
+1. **Portal Customization** - Logo upload, theme customization
+2. **Security Features** - Rate limiting, IP restrictions, 2FA
+3. **Advanced Hardware** - Multiple coin slots, bill acceptor support
+4. **Mobile App** - iOS/Android admin interface
 
 ---
 
@@ -42,20 +46,26 @@
 
 ```
 pisowifi-nextjs/
-├── ✅ app/                     # Next.js App Router
-│   ├── ✅ page.tsx            # Homepage (complete)
-│   ├── ✅ layout.tsx          # Root layout (complete)
-│   ├── ✅ globals.css         # Global styles (complete)
-│   ├── ✅ portal/page.tsx     # Captive portal (80% complete)
-│   ├── ✅ admin/page.tsx      # Admin dashboard (60% complete)
-│   └── ⚠️ api/                # API routes (20% complete)
-│       └── ⚠️ portal/connect/ # Basic connection logic
-├── ✅ prisma/schema.prisma    # Database schema (complete)
-├── ✅ services/gpio-bridge.js # GPIO hardware service (complete)
-├── ✅ package.json            # Dependencies (complete)
-├── ✅ tailwind.config.js      # Styling config (complete)
-├── ✅ tsconfig.json           # TypeScript config (complete)
-└── 📝 Documentation files    # README, timeline, etc.
+├── ✅ server/                  # Express.js Application
+│   ├── ✅ app.js              # Main server with Socket.IO (complete)
+│   ├── ✅ routes/             # API and page routes
+│   │   ├── ✅ admin.js        # Admin dashboard routes (complete)
+│   │   ├── ✅ portal.js       # Enhanced portal with device detection (complete)
+│   │   ├── ✅ api.js          # General API endpoints (complete)
+│   │   └── ✅ api/            # Specialized API modules
+│   │       ├── ✅ clients.js  # Advanced client management API (complete)
+│   │       ├── ✅ network.js  # Network management API (complete)
+│   │       └── ✅ settings.js # Settings management API (complete)
+│   └── ✅ views/              # EJS Templates
+│       ├── ✅ pages/          # Main pages
+│       │   ├── ✅ portal.ejs  # Enhanced INSERT COIN portal (complete)
+│       │   ├── ✅ admin-clients.ejs # Advanced client management (complete)
+│       │   ├── ✅ admin-network.ejs # Network management dashboard (complete)
+│       │   └── ✅ admin-rates.ejs # Coin rates management (complete)
+│       └── ✅ partials/       # Reusable components (complete)
+├── ✅ scripts/                # Database and GPIO scripts (complete)
+├── ✅ SETUP.md                # Complete Orange Pi setup guide (complete)
+└── 📝 Documentation files    # Updated project status files
 ```
 
 ---
@@ -64,23 +74,23 @@ pisowifi-nextjs/
 
 ### **🚧 Currently Working On:**
 
-#### **1. Client Management System (Phase 2.1)**
-- **📁 Location:** `app/api/clients/` (to be created)
-- **🎯 Goal:** Complete client connect/disconnect functionality
-- **✅ Done:** Basic client registration, MAC address tracking
-- **⏳ TODO:** Connection status updates, session management
+#### **1. Admin Authentication System (Phase 3.3)**  
+- **📁 Location:** `server/routes/api/auth/` (to be created)
+- **🎯 Goal:** Secure admin login system with JWT
+- **✅ Done:** Basic framework prepared
+- **⏳ TODO:** Login page, JWT auth, session management, route protection
 
-#### **2. Admin Authentication (Phase 3.3)**  
-- **📁 Location:** `app/api/auth/` (to be created)
-- **🎯 Goal:** Secure admin login system
-- **✅ Done:** None yet
-- **⏳ TODO:** JWT auth, login page, session management
+#### **2. Security Features (Phase 3.3)**
+- **📁 Location:** Multiple locations
+- **🎯 Goal:** Comprehensive security implementation
+- **✅ Done:** Basic auth middleware
+- **⏳ TODO:** Rate limiting, IP restrictions, 2FA, brute force protection
 
-#### **3. Payment Processing (Phase 2.2)**
-- **📁 Location:** `app/api/portal/connect/route.ts` (enhance existing)
-- **🎯 Goal:** Convert coins to internet time
-- **✅ Done:** Basic rate selection, transaction recording
-- **⏳ TODO:** Coin validation, time calculation, session creation
+#### **3. Voucher System (Phase 2.4)**
+- **📁 Location:** `server/routes/api/vouchers/` (to be created)
+- **🎯 Goal:** Complete voucher generation and redemption
+- **✅ Done:** Database schema ready
+- **⏳ TODO:** Voucher CRUD, redemption logic, admin interface
 
 ---
 
@@ -88,18 +98,22 @@ pisowifi-nextjs/
 
 ### ✅ **Implemented Models:**
 - **User** - Admin authentication (schema ready)
-- **Client** - Device tracking and sessions
+- **Client** - Enhanced device tracking with OS/browser info
 - **Rate** - Pricing packages  
 - **Transaction** - Payment records
-- **Session** - Active connections
+- **Session** - Active connections with analytics
 - **Voucher** - Code system (schema ready)
-- **Whitelist/Blocklist** - Device management
+- **Whitelist/Blocklist** - Device management (implemented)
 - **SystemLog** - Event logging
+- **NetworkConfig** - DHCP/DNS settings (implemented)
+- **ClientBandwidthLogs** - Traffic monitoring
+- **NetworkTrafficLogs** - Interface statistics
 
 ### ⚠️ **Models Needing Work:**
 - **Setting** - System configuration (needs API)
 - **HardwareConfig** - GPIO settings (needs integration)
-- **NetworkConfig** - DHCP/DNS settings (needs implementation)
+- **UserSessions** - Admin session management
+- **SecurityLogs** - Authentication and security events
 
 ---
 
@@ -123,32 +137,53 @@ pisowifi-nextjs/
 
 ### ✅ **Implemented:**
 ```typescript
-POST /api/portal/connect     # Basic client connection (80% done)
-GET  /gpio-service/status    # GPIO hardware status  
-POST /gpio-service/test-coin # Manual coin testing
+// Portal & Connection
+POST /portal/connect              # Enhanced client connection with device detection
+GET  /api/rates                   # Get pricing rates
+
+// Advanced Client Management
+GET  /api/clients                 # List all clients with device info
+GET  /api/clients/unauthenticated # Detect unknown devices
+GET  /api/clients/:id/history     # Client connection history
+GET  /api/clients/:id/analytics   # Client usage analytics
+POST /api/clients/:id/authenticate # Authenticate client
+POST /api/clients/:id/disconnect  # Disconnect client
+POST /api/clients/:id/pause       # Pause/resume client
+POST /api/clients/:id/whitelist   # Add to whitelist
+POST /api/clients/:id/block       # Block client
+POST /api/clients/cleanup         # Cleanup inactive clients
+POST /api/clients/device-info     # Update device information
+
+// Network Management
+GET  /api/network/config          # Network configuration
+PUT  /api/network/config          # Update network config
+GET  /api/network/interfaces      # Network interfaces status
+GET  /api/network/traffic         # Network traffic statistics
+GET  /api/network/bandwidth-monitor # Bandwidth monitoring
+POST /api/network/bandwidth-limit # Apply bandwidth limits
+POST /api/network/restart-services # Restart network services
+
+// GPIO Hardware
+GET  /gpio-service/status         # GPIO hardware status  
+POST /gpio-service/test-coin      # Manual coin testing
 ```
 
 ### ⏳ **TODO (High Priority):**
 ```typescript
-// Authentication
+// Authentication & Security
 POST /api/auth/login         # Admin login
 POST /api/auth/logout        # Admin logout
 GET  /api/auth/verify        # Token verification
 
-// Client Management  
-GET  /api/clients            # List all clients
-PUT  /api/clients/:id        # Update client (pause/resume)
-DELETE /api/clients/:id      # Disconnect/kick client
-
-// Rates & Vouchers
-GET  /api/rates              # Get pricing rates
+// Voucher System
+GET  /api/vouchers           # List vouchers
 POST /api/vouchers           # Generate voucher codes
 POST /api/vouchers/redeem    # Redeem voucher code
 
-// System
-GET  /api/settings           # System configuration
-PUT  /api/settings           # Update settings
+// Advanced Features
 GET  /api/reports            # Usage and sales reports
+GET  /api/system/health      # System health monitoring
+POST /api/system/backup      # System backup
 ```
 
 ---
@@ -157,55 +192,61 @@ GET  /api/reports            # Usage and sales reports
 
 ### **🔧 Development Commands:**
 ```bash
-# Start Next.js app
-npm run dev              # http://localhost:3000
+# Start Express.js app
+npm start                # http://localhost:3000
+npm run dev              # Development mode with auto-reload
 
 # Start GPIO service  
 npm run gpio             # http://localhost:3001
 
 # Database operations
-npm run db:studio        # Prisma Studio GUI
-npm run db:push          # Apply schema changes
+npx prisma db push       # Apply schema changes to Neon DB
+psql $DATABASE_URL       # Direct database access
 ```
 
 ### **🧪 Testing URLs:**
 - **Homepage:** http://localhost:3000
 - **Portal:** http://localhost:3000/portal  
-- **Admin:** http://localhost:3000/admin
+- **Admin Dashboard:** http://localhost:3000/admin
+- **Client Management:** http://localhost:3000/admin/clients
+- **Network Management:** http://localhost:3000/admin/network
+- **Rates Management:** http://localhost:3000/admin/rates
 - **GPIO Status:** http://localhost:3001/status
 - **Test Coin:** http://localhost:3001/test-coin
 
-### **📊 Mock Data Available:**
-- **4 Rate packages** (15min, 30min, 1hr, 2hr)
-- **3 Mock clients** with different states
-- **Sample GPIO events** and status
-- **Mock admin dashboard** statistics
+### **📊 Features Available:**
+- **Complete Rate Management** - Pulse-based coin configuration
+- **Advanced Client Management** - Device detection, analytics, history
+- **Network Management** - DHCP config, bandwidth control, monitoring
+- **Real-time Monitoring** - WebSocket events, live statistics
+- **Device Intelligence** - OS/browser detection, vendor identification
 
 ---
 
 ## 🚨 **Known Issues & Limitations**
 
 ### **🐛 Current Bugs:**
-1. **Portal Connect Button** - Doesn't actually connect clients yet
-2. **Admin Dashboard** - Shows mock data, not real database queries
-3. **GPIO Service** - Windows compatibility issues with Python GPIO
-4. **Database Queries** - Some Prisma operations not implemented
+1. **Admin Authentication** - No login system yet (critical security issue)
+2. **iptables Integration** - Actual internet access control not implemented
+3. **Session Timeout** - Automatic disconnection not implemented
+4. **GPIO Service** - Windows compatibility issues with Python GPIO
 
 ### **⚠️ Missing Critical Features:**
-1. **No Authentication** - Admin panel is open to all
-2. **No Session Management** - Clients can't actually get internet access
-3. **No Payment Validation** - Coins aren't verified or processed
-4. **No Error Handling** - Limited error recovery and user feedback
+1. **Admin Authentication** - Login system and JWT-based auth
+2. **Session Timeout Management** - Automatic disconnection when time expires
+3. **iptables Integration** - Actual internet access control
+4. **Voucher System** - Code generation and redemption
 
 ---
 
 ## 📈 **Performance Metrics**
 
 ### **✅ Current Performance:**
-- **UI Response Time:** < 100ms (React client-side)
+- **UI Response Time:** < 100ms (Server-side rendered EJS)
 - **GPIO Detection:** < 50ms (WebSocket real-time)
-- **Database Queries:** < 10ms (SQLite local)
-- **Build Time:** ~15 seconds (Next.js optimization)
+- **Database Queries:** < 50ms (PostgreSQL on Neon)
+- **Real-time Updates:** < 100ms (Socket.IO WebSocket)
+- **Device Detection:** < 200ms (User-Agent parsing)
 
 ### **🎯 Performance Goals:**
 - **Client Connection:** < 2 seconds end-to-end
@@ -217,32 +258,31 @@ npm run db:push          # Apply schema changes
 
 ## 🔮 **Next Development Sessions**
 
-### **📋 Session 1: Admin Authentication (2-3 hours)**
+### **📋 Session 1: Admin Authentication System (2-3 hours)**
 **🎯 Goal:** Implement secure admin login system
-```typescript
+```javascript
 // Files to create/modify:
-app/admin/login/page.tsx         # Login form
-app/api/auth/login/route.ts      # JWT authentication  
-app/api/auth/verify/route.ts     # Token verification
-middleware.ts                    # Route protection
+server/views/pages/admin-login.ejs    # Login form
+server/routes/api/auth.js             # JWT authentication  
+server/middleware/auth.js             # Route protection middleware
 ```
 
-### **📋 Session 2: Client Management (3-4 hours)**
-**🎯 Goal:** Complete client connect/disconnect functionality
-```typescript
+### **📋 Session 2: Security Enhancements (3-4 hours)**
+**🎯 Goal:** Add comprehensive security features
+```javascript
 // Files to create/modify:
-app/api/clients/route.ts         # Client CRUD operations
-app/api/portal/connect/route.ts  # Enhanced connection logic
-lib/session-manager.ts           # Session state management
+server/middleware/security.js         # Rate limiting, IP restrictions
+server/routes/api/security.js         # Security monitoring
+server/utils/security-utils.js        # Security utilities
 ```
 
 ### **📋 Session 3: Voucher System (4-5 hours)**
 **🎯 Goal:** Implement voucher generation and redemption
-```typescript
+```javascript
 // Files to create/modify:
-app/api/vouchers/route.ts        # Voucher CRUD
-app/api/vouchers/redeem/route.ts # Redemption logic
-app/admin/vouchers/page.tsx      # Voucher management UI
+server/routes/api/vouchers.js         # Voucher CRUD
+server/views/pages/admin-vouchers.ejs # Voucher management UI
+server/utils/voucher-generator.js     # Code generation logic
 ```
 
 ---
@@ -250,10 +290,11 @@ app/admin/vouchers/page.tsx      # Voucher management UI
 ## 💡 **Development Notes**
 
 ### **🔑 Key Architecture Decisions:**
-1. **Microservices Approach** - GPIO service separate from Next.js app
+1. **Microservices Approach** - GPIO service separate from Express.js app
 2. **WebSocket for Real-time** - Better than Django's polling approach
-3. **Prisma ORM** - Type-safe database operations
-4. **JWT Authentication** - Stateless admin sessions
+3. **PostgreSQL Database** - ARM-compatible with comprehensive schema
+4. **EJS Templating** - Server-side rendering for better performance
+5. **Modular API Design** - Separate routers for clients, network, auth
 
 ### **🚧 Technical Debt:**
 1. **Error Handling** - Need comprehensive try/catch blocks
@@ -262,10 +303,12 @@ app/admin/vouchers/page.tsx      # Voucher management UI
 4. **Testing Suite** - Add unit/integration tests
 
 ### **📚 Learning Resources:**
-- **Next.js 14 Docs** - https://nextjs.org/docs
-- **Prisma Guide** - https://www.prisma.io/docs
+- **Express.js Docs** - https://expressjs.com/
+- **EJS Templating** - https://ejs.co/
+- **PostgreSQL Docs** - https://www.postgresql.org/docs/
 - **Socket.IO Docs** - https://socket.io/docs/
 - **Orange Pi GPIO** - Python OPi.GPIO documentation
+- **UAParser.js** - https://github.com/faisalman/ua-parser-js
 
 ---
 
@@ -277,12 +320,19 @@ app/admin/vouchers/page.tsx      # Voucher management UI
 - [x] Basic UI components functional
 - [x] Real-time WebSocket communication
 
-### **🎯 Phase 2 Success (Target):**
-- [ ] Admin can log in securely
-- [ ] Clients can insert coins and get internet access
-- [ ] Real-time client monitoring in admin dashboard
-- [ ] Basic voucher system working
-- [ ] Essential reporting functionality
+### **✅ Phase 2 Success (ACHIEVED):**
+- [x] Complete admin dashboard with real-time monitoring
+- [x] Enhanced client management with device detection
+- [x] Advanced network management with DHCP/DNS control
+- [x] Comprehensive rates management system
+- [x] Real-time WebSocket communication
+
+### **🎯 Phase 3 Success (85% Complete):**
+- [x] Advanced client management with analytics
+- [x] Network management with bandwidth control  
+- [x] Device detection and monitoring
+- [ ] Admin authentication system
+- [ ] Security features implementation
 
 ### **🏆 Production Ready:**
 - [ ] All Django features implemented

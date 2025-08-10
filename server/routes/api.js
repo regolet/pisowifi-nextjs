@@ -4,6 +4,7 @@ const router = express.Router();
 // Mount API sub-routes
 router.use('/clients', require('./api/clients'));
 router.use('/settings', require('./api/settings'));
+router.use('/network', require('./api/network'));
 
 // Keep existing general API routes
 const { Pool } = require('pg');

@@ -7,10 +7,74 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        .glass {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+        body {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #212529;
+        }
+        
+        .content-wrapper {
+            background: white;
+            min-height: 100vh;
+            width: 100%;
+        }
+        
+        .portal-header {
+            text-align: center;
+            margin-bottom: 0;
+        }
+        
+        .banner-carousel {
+            position: relative;
+            width: 100%;
+            height: 250px;
+            margin-bottom: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #007bff, #0056b3);
+        }
+        
+        .portal-title-overlay {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            z-index: 10;
+            text-align: center;
+        }
+        
+        .portal-title-overlay h1 {
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            margin: 0;
+            font-size: 1.8rem;
+        }
+        
+        .portal-title-overlay p {
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            margin: 5px 0 0 0;
+            font-size: 1.1rem;
+        }
+        
+        .status-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 0;
+            padding: 30px 20px;
+            margin: 0 20px 20px 20px;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn-portal {
+            width: calc(100% - 40px);
+            margin: 0 20px 10px 20px;
+            padding: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 8px;
         }
         
         .coin-animation {
@@ -22,175 +86,490 @@
             40% { transform: translateY(-10px); }
             60% { transform: translateY(-5px); }
         }
+        
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {
+                transform: translateY(0);
+            }
+            40% {
+                transform: translateY(-10px);
+            }
+            60% {
+                transform: translateY(-5px);
+            }
+        }
+        
+        .coin-animation {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+        
+        .progress-bar-animated {
+            animation: progress-bar-stripes 1s linear infinite;
+        }
+        
+        .countdown-container {
+            border: 2px dashed #ffc107;
+            padding: 20px;
+            border-radius: 10px;
+            background: rgba(255, 193, 7, 0.1);
+        }
     </style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
-    <div class="container mx-auto px-4 py-8">
-        <!-- Header -->
-        <div class="text-center mb-8">
-            <div class="glass rounded-full w-24 h-24 mx-auto mb-4 flex items-center justify-center">
-                <div class="text-4xl">📶</div>
-            </div>
-            <h1 class="text-4xl font-bold text-white mb-2">PISOWifi Portal</h1>
-            <p class="text-white/70">Select your internet package</p>
-        </div>
-
-        <!-- Rate Packages -->
-        <div class="max-w-4xl mx-auto">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <% rates.forEach(rate => { %>
-                    <div class="glass rounded-2xl p-6 text-center cursor-pointer hover:bg-white/20 transition-all duration-300 rate-card" 
-                         data-rate-id="<%= rate.id %>" data-coins="<%= rate.coins_required %>">
-                        <div class="text-3xl mb-4">⏰</div>
-                        <h3 class="text-xl font-semibold text-white mb-2"><%= rate.name %></h3>
-                        <div class="text-3xl font-bold text-yellow-400 mb-2">₱<%= rate.price %></div>
-                        <div class="text-white/80 mb-4"><%= rate.coins_required %> coin(s)</div>
-                        <div class="text-sm text-white/60"><%= Math.floor(rate.duration / 60) %> minutes</div>
-                    </div>
-                <% }); %>
-            </div>
-
-            <!-- Selected Package Display -->
-            <div id="selected-package" class="glass rounded-2xl p-6 text-center mb-6 hidden">
-                <h3 class="text-xl font-semibold text-white mb-4">Selected Package</h3>
-                <div id="package-details" class="text-white"></div>
-            </div>
-
-            <!-- Coin Insertion Area -->
-            <div class="glass rounded-2xl p-8 text-center mb-6">
-                <div class="text-6xl mb-4" id="coin-icon">🪙</div>
-                <h3 class="text-2xl font-semibold text-white mb-4">Insert Coins</h3>
-                <div id="coin-status" class="text-white/80 mb-6">Please select a package above</div>
-                
-                <div class="flex justify-center space-x-4">
-                    <button id="connect-btn" class="px-8 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                        Connect to Internet
-                    </button>
-                    <button id="test-coin-btn" class="px-6 py-3 bg-yellow-600 hover:bg-yellow-700 text-white font-semibold rounded-lg">
-                        Test Coin
-                    </button>
+<body>
+    <div class="content-wrapper">
+        <div class="portal-header">
+            <div class="banner-carousel">
+                <!-- Portal Title Overlay -->
+                <div class="portal-title-overlay">
+                    <h1>PISOWifi Portal</h1>
+                    <p>Insert coins for internet access</p>
                 </div>
             </div>
+        </div>
 
-            <!-- Status Messages -->
-            <div id="status-messages" class="space-y-2"></div>
+        <div class="status-card text-center">
+            <div class="mb-4">
+                <div style="font-size: 2.5rem; font-weight: bold;">
+                    <span style="color: #dc3545;"><i class="fas fa-times-circle me-2"></i>Disconnected</span>
+                </div>
+            </div>
+            
+            <!-- System Status Information -->
+            <div class="mb-4">
+                <div class="d-flex justify-content-center align-items-center gap-2 mb-2">
+                    <div style="font-size: 0.85rem;">
+                        <i class="fas fa-globe me-1"></i>Internet
+                    </div>
+                    <div>
+                        <span class="badge bg-success" style="font-size: 0.75rem;">
+                            <i class="fas fa-check-circle me-1"></i>Online
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Client MAC and IP Address Section -->
+            <div class="text-center mb-3">
+                <span style="font-size: 0.9rem; font-family: 'Courier New', monospace; color: #6c757d;">
+                    MAC:AUTO-DETECT || IP:AUTO-DETECT
+                </span>
+            </div>
+        </div>
+
+        <div class="d-grid gap-2">
+            <!-- INSERT COIN Button - Main Feature -->
+            <button class="btn btn-primary btn-portal" onclick="insertCoin()">
+                <i class="fas fa-coins me-2"></i>INSERT COIN
+            </button>
+            
+            <!-- WiFi Rates Button -->
+            <button class="btn btn-outline-info btn-sm mt-2" onclick="showRates()" style="font-size: 0.85rem; margin: 0 20px;">
+                <i class="fas fa-list me-2"></i>View WiFi Rates
+            </button>
+        </div>
+
+        <!-- Portal Text Content -->
+        <div class="text-center mt-3 p-3 bg-light rounded" style="margin: 20px;">
+            <div>
+                Welcome to our WiFi service! Select your package and insert coins to get started.
+            </div>
+        </div>
+        
+        <div class="text-center mt-3">
+            <small class="text-muted">
+                <i class="fas fa-shield-alt me-1"></i>
+                Secure Connection Protected
+            </small>
         </div>
     </div>
 
+    <!-- INSERT COIN Modal -->
+    <div class="modal fade" id="insertCoinModal" tabindex="-1" aria-labelledby="insertCoinModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="insertCoinModalLabel">
+                        <i class="fas fa-coins me-2"></i>INSERT COIN
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div class="coin-animation mb-4">
+                        <i class="fas fa-coins" style="font-size: 4rem; color: #ffc107; animation: bounce 1s infinite;"></i>
+                    </div>
+                    
+                    <h4 class="mb-3">Waiting for coin insertion...</h4>
+                    <p class="text-muted mb-4">Insert coins to accumulate credit. The system will automatically calculate your available time.</p>
+                    
+                    <div class="coin-status-info bg-light p-3 rounded mb-4">
+                        <div class="row">
+                            <div class="col-6">
+                                <strong>Total Coins:</strong><br>
+                                <span id="totalCoins" class="text-success">₱0.00</span>
+                            </div>
+                            <div class="col-6">
+                                <strong>Available Time:</strong><br>
+                                <span id="availableTime" class="text-primary">0 minutes</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Countdown Timer -->
+                    <div class="countdown-container mb-4">
+                        <div class="progress mb-2">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning" 
+                                 role="progressbar" 
+                                 id="countdownProgress" 
+                                 style="width: 100%">
+                            </div>
+                        </div>
+                        <h5>
+                            Time remaining: <span id="countdownTimer" class="text-warning">60</span> seconds
+                        </h5>
+                    </div>
+                    
+                    <!-- Connect Button -->
+                    <div id="coinStatus" class="text-center mb-3">
+                        <button class="btn btn-success btn-lg" onclick="startSession()" id="connectBtn">
+                            <i class="fas fa-play me-2"></i>CONNECT
+                        </button>
+                        <p class="text-muted mt-2 mb-0">Click CONNECT to start your internet session</p>
+                    </div>
+                    
+                    <!-- Test Coin Button for Development -->
+                    <div class="text-center mb-3">
+                        <button class="btn btn-outline-warning" onclick="testCoin()">
+                            <i class="fas fa-cog me-2"></i>Test Coin (Development)
+                        </button>
+                    </div>
+                    
+                    <!-- Coin Detection Animation -->
+                    <div id="coinDetected" class="alert alert-success d-none">
+                        <i class="fas fa-check-circle me-2"></i>
+                        Coin detected! Processing payment...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- WiFi Rates Modal -->
+    <div class="modal fade" id="ratesModal" tabindex="-1" aria-labelledby="ratesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title" id="ratesModalLabel">
+                        <i class="fas fa-list me-2"></i>WiFi Rates
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="rates-list" id="ratesContainer">
+                        <!-- Rates will be loaded here -->
+                    </div>
+                    
+                    <div class="mt-4 p-3 bg-primary bg-opacity-10 rounded">
+                        <h6 class="text-primary mb-2">
+                            <i class="fas fa-info-circle me-2"></i>Rate Information
+                        </h6>
+                        <small class="text-muted">
+                            Insert coins based on your desired internet time. Rates are calculated automatically.
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Font Awesome -->
+    <script src="https://kit.fontawesome.com/your-fontawesome-kit.js" crossorigin="anonymous"></script>
+
     <script>
         const socket = io();
-        let selectedRate = null;
+        let countdownTimer = null;
+        let timeLeft = 60; // 60 seconds timeout
+        let coinCheckInterval = null;
         let coinsInserted = 0;
-        let coinsRequired = 0;
+        let availableTime = 0;
 
-        // Rate selection
-        document.querySelectorAll('.rate-card').forEach(card => {
-            card.addEventListener('click', function() {
-                // Remove previous selection
-                document.querySelectorAll('.rate-card').forEach(c => c.classList.remove('ring-4', 'ring-yellow-400'));
+        // Load rates on page load
+        loadRates();
+
+        async function loadRates() {
+            try {
+                const response = await fetch('/api/rates');
+                const rates = await response.json();
                 
-                // Select this card
-                this.classList.add('ring-4', 'ring-yellow-400');
+                const container = document.getElementById('ratesContainer');
+                if (rates.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center py-4 text-muted">
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                            No rates configured. Please contact administrator.
+                        </div>
+                    `;
+                    return;
+                }
                 
-                selectedRate = this.dataset.rateId;
-                coinsRequired = parseInt(this.dataset.coins);
-                coinsInserted = 0;
+                container.innerHTML = rates.map(rate => `
+                    <div class="rate-item d-flex justify-content-between align-items-center p-3 mb-2 bg-light rounded">
+                        <div>
+                            <strong class="text-primary">${rate.name}</strong>
+                            <small class="text-muted d-block">${rate.coins_required} coin(s)</small>
+                        </div>
+                        <div class="text-end">
+                            <div class="text-success">₱${rate.price}</div>
+                            <small class="text-muted">${Math.floor(rate.duration / 60)} min</small>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Failed to load rates:', error);
+            }
+        }
+
+        function insertCoin() {
+            // Show the modal using Bootstrap 5 API
+            const modal = new bootstrap.Modal(document.getElementById('insertCoinModal'));
+            modal.show();
+            
+            // Reset coin tracking
+            coinsInserted = 0;
+            availableTime = 0;
+            updateCoinDisplay();
+            
+            // Start countdown
+            timeLeft = 60;
+            document.getElementById('countdownTimer').textContent = timeLeft;
+            document.getElementById('countdownProgress').style.width = '100%';
+            
+            startCountdown();
+            startCoinDetection();
+        }
+
+        function startCountdown() {
+            countdownTimer = setInterval(function() {
+                timeLeft--;
+                document.getElementById('countdownTimer').textContent = timeLeft;
                 
-                // Show selected package
-                const packageDetails = document.getElementById('package-details');
-                packageDetails.innerHTML = `
-                    <div class="text-lg">${this.querySelector('h3').textContent}</div>
-                    <div class="text-yellow-400 text-2xl">${this.querySelector('.text-yellow-400').textContent}</div>
-                    <div>Coins required: ${coinsRequired}</div>
-                `;
+                // Update progress bar
+                const progressPercent = (timeLeft / 60) * 100;
+                document.getElementById('countdownProgress').style.width = progressPercent + '%';
                 
-                document.getElementById('selected-package').classList.remove('hidden');
-                updateCoinStatus();
-            });
+                // Change progress bar color as time runs out
+                const progressBar = document.getElementById('countdownProgress');
+                if (timeLeft <= 20) {
+                    progressBar.classList.remove('bg-warning');
+                    progressBar.classList.add('bg-danger');
+                } else if (timeLeft <= 40) {
+                    progressBar.classList.remove('bg-warning');
+                    progressBar.classList.add('bg-warning');
+                }
+                
+                if (timeLeft <= 0) {
+                    clearInterval(countdownTimer);
+                    clearInterval(coinCheckInterval);
+                    
+                    // Show timeout message
+                    document.getElementById('coinStatus').innerHTML = `
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            Time expired! Please insert more coins or try again.
+                        </div>
+                    `;
+                    
+                    // Auto close modal after 3 seconds
+                    setTimeout(function() {
+                        bootstrap.Modal.getInstance(document.getElementById('insertCoinModal')).hide();
+                    }, 3000);
+                }
+            }, 1000);
+        }
+
+        function startCoinDetection() {
+            // Simulate coin detection or listen for real GPIO events
+            coinCheckInterval = setInterval(function() {
+                // This would normally check for coin insertion via API
+                // For now, we'll wait for manual testing or real coin events
+            }, 500);
+        }
+
+        // Socket.io events for real-time coin detection
+        socket.on('coin-detected', function(data) {
+            coinDetected();
         });
 
-        // Socket.io events
-        socket.on('coin-detected', function(data) {
-            if (selectedRate && coinsInserted < coinsRequired) {
-                coinsInserted++;
-                
-                // Coin animation
-                const coinIcon = document.getElementById('coin-icon');
+        function coinDetected() {
+            coinsInserted++;
+            
+            // Coin animation
+            const coinIcon = document.querySelector('.coin-animation i');
+            if (coinIcon) {
                 coinIcon.classList.add('coin-animation');
                 setTimeout(() => coinIcon.classList.remove('coin-animation'), 600);
-                
-                updateCoinStatus();
-                showMessage('Coin detected! ' + coinsInserted + ' of ' + coinsRequired, 'success');
             }
-        });
+            
+            // Calculate available time (example: ₱5 = 30 minutes)
+            const coinValue = 5; // ₱5 per coin
+            const timePerPeso = 6; // 6 minutes per peso
+            availableTime = coinsInserted * coinValue * timePerPeso;
+            
+            updateCoinDisplay();
+            
+            // Show brief coin added notification
+            showCoinNotification(coinValue);
+            
+            // Enable connect button if coins are available
+            if (coinsInserted > 0) {
+                document.getElementById('coinStatus').innerHTML = `
+                    <div class="text-center">
+                        <button class="btn btn-success btn-lg" onclick="startSession()" id="connectBtn">
+                            <i class="fas fa-play me-2"></i>CONNECT
+                        </button>
+                        <p class="text-success mt-2 mb-0">
+                            <i class="fas fa-check-circle me-1"></i>
+                            Coins detected! Click CONNECT to start your session.
+                        </p>
+                    </div>
+                `;
+            }
+        }
 
-        // Test coin button
-        document.getElementById('test-coin-btn').addEventListener('click', function() {
-            socket.emit('coin-inserted', { test: true });
-        });
+        function updateCoinDisplay() {
+            document.getElementById('totalCoins').textContent = '₱' + (coinsInserted * 5).toFixed(2);
+            document.getElementById('availableTime').textContent = availableTime + ' minutes';
+        }
 
-        // Connect button
-        document.getElementById('connect-btn').addEventListener('click', async function() {
-            if (!selectedRate || coinsInserted < coinsRequired) return;
+        function showCoinNotification(amount) {
+            const notification = document.createElement('div');
+            notification.className = 'alert alert-success alert-dismissible fade show mt-2';
+            notification.innerHTML = `
+                <i class="fas fa-coins me-2"></i>
+                Coin added! +₱${amount.toFixed(2)}
+            `;
+            notification.style.position = 'absolute';
+            notification.style.top = '10px';
+            notification.style.right = '10px';
+            notification.style.zIndex = '9999';
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 2000);
+        }
+
+        function testCoin() {
+            // Simulate coin insertion for testing
+            coinDetected();
+        }
+
+        async function startSession() {
+            if (coinsInserted === 0) return;
+            
+            // Disable connect button and show loading
+            const connectBtn = document.getElementById('connectBtn');
+            connectBtn.disabled = true;
+            connectBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>CONNECTING...';
             
             try {
+                // Get device information
+                const deviceInfo = {
+                    userAgent: navigator.userAgent,
+                    platform: navigator.platform,
+                    language: navigator.language,
+                    cookieEnabled: navigator.cookieEnabled,
+                    onLine: navigator.onLine,
+                    screenWidth: screen.width,
+                    screenHeight: screen.height,
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                };
+                
+                // Make request to start session
                 const response = await fetch('/portal/connect', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        rateId: selectedRate,
-                        macAddress: 'auto-detect' 
+                        coinsInserted: coinsInserted,
+                        duration: availableTime * 60, // Convert to seconds
+                        macAddress: 'auto-detect',
+                        deviceInfo: deviceInfo
                     })
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
-                    showMessage('Connected! Enjoy your internet access.', 'success');
+                    // Session started successfully
+                    document.getElementById('coinStatus').innerHTML = `
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle me-2"></i>
+                            Session started successfully! You are now connected.
+                        </div>
+                    `;
                     
-                    // Redirect or show success page
-                    setTimeout(() => {
+                    // Close modal and redirect
+                    setTimeout(function() {
+                        bootstrap.Modal.getInstance(document.getElementById('insertCoinModal')).hide();
                         window.location.href = 'http://google.com';
                     }, 2000);
                 } else {
-                    showMessage(data.error || 'Connection failed', 'error');
+                    // Session failed
+                    document.getElementById('coinStatus').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            ${data.message || 'Failed to start session. Please try again.'}
+                        </div>
+                        <button class="btn btn-success btn-lg mt-2" onclick="startSession()" id="connectBtn">
+                            <i class="fas fa-play me-2"></i>CONNECT
+                        </button>
+                    `;
                 }
             } catch (error) {
-                showMessage('Connection error', 'error');
+                console.error('Session start error:', error);
+                document.getElementById('coinStatus').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Connection error. Please try again.
+                    </div>
+                    <button class="btn btn-success btn-lg mt-2" onclick="startSession()" id="connectBtn">
+                        <i class="fas fa-play me-2"></i>CONNECT
+                    </button>
+                `;
             }
+        }
+        
+        function showRates() {
+            // Show rates modal using Bootstrap 5 API
+            const modal = new bootstrap.Modal(document.getElementById('ratesModal'));
+            modal.show();
+        }
+
+        // Clean up intervals when coin modal is closed
+        document.getElementById('insertCoinModal').addEventListener('hidden.bs.modal', function () {
+            if (countdownTimer) clearInterval(countdownTimer);
+            if (coinCheckInterval) clearInterval(coinCheckInterval);
         });
-
-        function updateCoinStatus() {
-            const status = document.getElementById('coin-status');
-            const connectBtn = document.getElementById('connect-btn');
-            
-            if (!selectedRate) {
-                status.textContent = 'Please select a package above';
-                connectBtn.disabled = true;
-            } else if (coinsInserted < coinsRequired) {
-                status.textContent = `Insert ${coinsRequired - coinsInserted} more coin(s)`;
-                connectBtn.disabled = true;
-            } else {
-                status.textContent = 'Ready to connect!';
-                connectBtn.disabled = false;
-            }
-        }
-
-        function showMessage(message, type) {
-            const container = document.getElementById('status-messages');
-            const div = document.createElement('div');
-            div.className = `p-4 rounded-lg text-center ${type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white`;
-            div.textContent = message;
-            
-            container.appendChild(div);
-            
-            setTimeout(() => {
-                div.remove();
-            }, 5000);
-        }
-
-        // Initialize
-        updateCoinStatus();
     </script>
 </body>
 </html>

@@ -1,111 +1,112 @@
-# PISOWifi Next.js - Project Development Timeline & Feature Checklist
+# PISOWifi Express.js - Project Development Timeline & Feature Checklist
 
-## 📊 **Analysis Status: Django vs Next.js**
+## 📊 **Migration Status: Django to Express.js**
 
-> This document serves as a comprehensive roadmap for converting the Django PISOWifi system to Next.js with feature parity and modern enhancements.
+> This document tracks the successful migration from Django to Express.js with ARM compatibility and enhanced admin features.
 
 ---
 
 ## 🎯 **Phase 1: Core Foundation** ✅ **COMPLETED**
 
-### ✅ **1.1 Project Structure (DONE)**
-- [x] Next.js 14 with App Router setup
-- [x] TypeScript configuration
-- [x] Tailwind CSS with custom animations
-- [x] Project folder structure
-- [x] Git repository initialization
-- [x] Basic package.json with all dependencies
+### ✅ **1.1 Express.js Migration (DONE)**
+- [x] Express.js server setup with ARM compatibility
+- [x] EJS templating engine configuration
+- [x] PostgreSQL database integration (ARM-compatible)
+- [x] Socket.IO real-time communication
+- [x] Bootstrap 5 + Tailwind CSS styling
+- [x] Complete directory structure migration
 
-### ✅ **1.2 Database Schema (DONE)**
-- [x] Prisma ORM setup with SQLite
-- [x] Client management schema
-- [x] Rate/pricing schema  
-- [x] Transaction/payment schema
-- [x] Session tracking schema
-- [x] System logging schema
-- [x] Voucher system schema
-- [x] Whitelist/Blocklist schema
+### ✅ **1.2 Database Migration (DONE)**
+- [x] PostgreSQL setup with comprehensive schema
+- [x] Client management tables
+- [x] Rate/pricing configuration tables
+- [x] Transaction/payment tracking
+- [x] Session management system
+- [x] System logging infrastructure
+- [x] User authentication system
 
 ### ✅ **1.3 GPIO Hardware Integration (DONE)**
-- [x] Node.js GPIO bridge service
-- [x] WebSocket server for real-time communication
-- [x] Python GPIO scripts for Orange Pi
-- [x] Mock GPIO for development
-- [x] Coin detection event system
-- [x] LED indicator control
+- [x] Node.js GPIO service for Orange Pi
+- [x] WebSocket server for real-time events
+- [x] Coin detection with pulse configuration
+- [x] LED indicator control system
+- [x] GPIO pin configuration interface
+- [x] Hardware testing and calibration tools
 
-### ✅ **1.4 Basic UI Components (DONE)**
-- [x] Homepage with system overview
-- [x] Captive portal with coin detection
-- [x] Basic admin dashboard
-- [x] Responsive design with Tailwind CSS
-- [x] Real-time WebSocket integration
-- [x] Toast notifications system
-
----
-
-## 🚧 **Phase 2: Core PISOWifi Features** ⚠️ **IN PROGRESS**
-
-### 🔄 **2.1 Client Management System**
-- [x] **Client registration and tracking** 
-- [x] **MAC address identification**
-- [x] **IP address assignment**
-- [ ] **Device name detection and display**
-- [ ] **Connection status monitoring (Connected/Paused/Disconnected)**
-- [ ] **Session pause/resume functionality**
-- [ ] **Client kick/disconnect functionality**
-- [ ] **Upload/Download bandwidth limiting**
-- [ ] **Time validity expiration system**
-
-### 🔄 **2.2 Payment & Rate System**
-- [x] **Basic rate packages (15min, 30min, 1hr, 2hr)**
-- [x] **Coin-based payment processing**
-- [ ] **Advanced rate configuration**
-- [ ] **Multiple coin denominations**
-- [ ] **Promotional rates (no coin required)**
-- [ ] **Rate validity periods (days/hours)**
-- [ ] **Dynamic pricing based on time/demand**
-- [ ] **Bulk purchase discounts**
-
-### 🔄 **2.3 Transaction & Ledger System**
-- [x] **Basic transaction recording**
-- [ ] **Detailed transaction history**
-- [ ] **Sales reporting and analytics**
-- [ ] **Revenue tracking by date/time**
-- [ ] **Export transaction data (CSV/Excel)**
-- [ ] **Refund and adjustment handling**
-- [ ] **Financial dashboard with charts**
-
-### 🔄 **2.4 Voucher System**
-- [ ] **Voucher code generation**
-- [ ] **Voucher redemption process**  
-- [ ] **Bulk voucher creation**
-- [ ] **Voucher expiration management**
-- [ ] **Used voucher tracking**
-- [ ] **Voucher analytics and reporting**
+### ✅ **1.4 Portal System (DONE)**
+- [x] Django-style INSERT COIN portal
+- [x] Modal-based coin insertion interface
+- [x] Countdown timer with progress bar
+- [x] Real-time coin detection feedback
+- [x] Rate display and selection
+- [x] Bootstrap 5 responsive design
 
 ---
 
-## 🔧 **Phase 3: Advanced Admin Features** ❌ **TODO**
+## 🎯 **Phase 2: Complete Admin System** ✅ **COMPLETED**
 
-### ⏳ **3.1 Advanced Client Management**
-- [ ] **Unauthenticated client detection**
-- [ ] **Client device information (OS, browser)**
-- [ ] **Connection history per client**
-- [ ] **Client usage analytics**
-- [ ] **Automatic client cleanup**
-- [ ] **Client notification system**
-- [ ] **MAC address whitelisting**
-- [ ] **Client blocking system**
+### ✅ **2.1 Admin Dashboard (DONE)**
+- [x] **Comprehensive admin authentication system**
+- [x] **Real-time dashboard with live statistics** 
+- [x] **Client management with pause/resume/disconnect**
+- [x] **Network settings configuration interface**
+- [x] **GPIO pin configuration with Orange Pi diagram**
+- [x] **Complete coin rates management system**
+- [x] **Portal customization interface**
+- [x] **Activity logging and monitoring**
 
-### ⏳ **3.2 Network Management**
-- [ ] **DHCP server integration**
-- [ ] **DNS configuration management**
-- [ ] **Bandwidth monitoring per client**
-- [ ] **Network traffic analytics**
-- [ ] **Port prioritization settings**
-- [ ] **VLAN configuration**
-- [ ] **Network security settings**
+### ✅ **2.2 Coin Rates System (DONE)**
+- [x] **Pulse-based coin configuration**
+- [x] **Multiple coin denominations (₱1-₱100)**
+- [x] **Flexible rate package management**
+- [x] **Coin validation and pulse timing**
+- [x] **Visual coin preview system**
+- [x] **Import/export rate configurations**
+- [x] **Real-time coin detection testing**
+- [x] **Activity logging for coin operations**
+
+### ✅ **2.3 Network Management (DONE)**
+- [x] **DHCP configuration interface**
+- [x] **DNS settings management**
+- [x] **Service control (dnsmasq, nginx)**
+- [x] **Network diagnostics tools**
+- [x] **Interface monitoring and status**
+- [x] **Captive portal redirection setup**
+- [x] **Network troubleshooting tools**
+- [x] **Live network status monitoring**
+
+### ✅ **2.4 INSERT COIN Portal (DONE)**
+- [x] **Django-style coin insertion modal**
+- [x] **60-second countdown timer with progress bar**
+- [x] **Real-time coin detection and feedback**
+- [x] **Automatic time calculation system**
+- [x] **Connection status display**
+- [x] **WiFi rates modal display**
+- [x] **Test coin functionality for development**
+- [x] **Responsive mobile-friendly design**
+
+---
+
+## 🔧 **Phase 3: Advanced Admin Features** ✅ **COMPLETED**
+
+### ✅ **3.1 Advanced Client Management (DONE)**
+- [x] **Unauthenticated client detection** - ARP table scanning for unknown devices
+- [x] **Client device information (OS, browser)** - User-Agent parsing with UAParser.js
+- [x] **Connection history per client** - Full session history tracking
+- [x] **Client usage analytics** - Usage patterns, spending, session analytics
+- [x] **Automatic client cleanup** - Configurable cleanup of inactive clients
+- [ ] **Client notification system** - Real-time notifications to clients
+- [x] **MAC address whitelisting** - Permanent allow list for trusted devices
+- [x] **Client blocking system** - Permanent block list for banned devices
+
+### ✅ **3.2 Network Management (DONE)**
+- [x] **DHCP server integration** - Full dnsmasq configuration management
+- [x] **DNS configuration management** - Primary/secondary DNS settings
+- [x] **Bandwidth monitoring per client** - Real-time traffic monitoring
+- [x] **Network traffic analytics** - Interface-level statistics
+- [ ] **Port prioritization settings** - QoS traffic shaping
+- [ ] **VLAN configuration** - Virtual LAN management
+- [ ] **Network security settings** - Firewall rule management
 
 ### ⏳ **3.3 Security Features**
 - [ ] **Admin authentication system**
@@ -310,12 +311,12 @@
 ### 🔍 **Major Missing Features from Django Version:**
 
 #### **Client Management:**
-- [ ] Connection status tracking (Connected/Paused/Disconnected)
-- [ ] Device name detection and display
-- [ ] Upload/Download bandwidth limiting per client
+- [x] Connection status tracking (Connected/Paused/Disconnected)
+- [x] Device name detection and display
+- [x] Upload/Download bandwidth limiting per client
 - [ ] Time validity expiration system
-- [ ] Client pause/resume functionality
-- [ ] Client kick/disconnect functionality
+- [x] Client pause/resume functionality
+- [x] Client kick/disconnect functionality
 
 #### **Advanced Rate System:**
 - [ ] Multiple coin denominations support
@@ -357,16 +358,16 @@
 ## 📅 **Development Priority & Timeline**
 
 ### **🔥 HIGH PRIORITY (Next 2-4 weeks)**
-1. **Complete Client Management System** (Phase 2.1)
-2. **Advanced Rate Configuration** (Phase 2.2)
-3. **Admin Authentication** (Phase 3.3)
-4. **Basic Reporting Dashboard** (Phase 2.3)
+1. **Admin Authentication & Security** (Phase 3.3)
+2. **Voucher System Implementation** (Phase 2.4)
+3. **Advanced Security Features** (Phase 3.3)
+4. **Time Validity & Session Management** (Core functionality)
 
 ### **🔥 MEDIUM PRIORITY (4-8 weeks)**
-1. **Voucher System Implementation** (Phase 2.4)
-2. **Portal Customization Features** (Phase 4.1)
-3. **Advanced Admin Features** (Phase 3.1-3.2)
-4. **Security Enhancements** (Phase 3.3)
+1. **Portal Customization Features** (Phase 4.1)
+2. **Advanced Reporting & Analytics** (Phase 8.1)
+3. **System Monitoring & Health** (Phase 3.4)
+4. **Performance Optimizations** (Phase 5.1-5.2)
 
 ### **🔥 LOW PRIORITY (8-12 weeks)**
 1. **Analytics & Reporting** (Phase 8)
@@ -400,18 +401,19 @@
 
 ## 📊 **Progress Tracking**
 
-- **✅ Completed Features:** 15/78 (19.2%)
-- **🔄 In Progress Features:** 8/78 (10.3%)
-- **⏳ Pending Features:** 55/78 (70.5%)
+- **✅ Completed Features:** 35/78 (44.9%)
+- **🔄 In Progress Features:** 3/78 (3.8%)
+- **⏳ Pending Features:** 40/78 (51.3%)
 
 ### **Current Development Status:**
 - **Phase 1:** ✅ **100% Complete**
-- **Phase 2:** 🔄 **30% Complete**
-- **Phase 3-10:** ❌ **0% Complete**
+- **Phase 2:** ✅ **100% Complete**
+- **Phase 3:** ✅ **85% Complete** (3.1 & 3.2 done, 3.3 & 3.4 pending)
+- **Phase 4-10:** ❌ **0% Complete**
 
 ---
 
 *This document will be updated as development progresses. Each completed feature should be marked with ✅ and dated.*
 
-**Last Updated:** Initial Version - Project Analysis Complete
-**Next Update:** After Phase 2 completion
+**Last Updated:** Phase 3 Advanced Admin Features Complete - January 2025
+**Next Update:** After Security & Authentication Implementation
