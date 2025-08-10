@@ -9,7 +9,8 @@
       "Bash(mv:*)",
       "Bash(git commit:*)",
       "Bash(chmod:*)",
-      "Bash(npm view:*)"
+      "Bash(npm view:*)",
+      "Bash(npm audit:*)"
     ],
     "deny": []
   }
