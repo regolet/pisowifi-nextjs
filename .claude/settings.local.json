@@ -8,7 +8,8 @@
       "Bash(touch:*)",
       "Bash(mv:*)",
       "Bash(git commit:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(npm view:*)"
     ],
     "deny": []
   }
