@@ -7,7 +7,7 @@ const jwt = require('jsonwebtoken');
 
 const execAsync = promisify(exec);
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://pisowifi_user:pisowifi123@localhost:5432/pisowifi'
+  connectionString: process.env.DATABASE_URL || 'postgresql://pisowifi_user:admin123@localhost:5432/pisowifi'
 });
 
 // Auth middleware

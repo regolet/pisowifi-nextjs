@@ -75,7 +75,7 @@ sudo -i -u postgres
 createdb pisowifi
 createuser --interactive --pwprompt pisowifi_user
 # When prompted:
-# - Enter password: pisowifi123
+# - Enter password: admin123
 # - Shall the new role be a superuser? No
 # - Shall the new role be allowed to create databases? Yes
 # - Shall the new role be allowed to create more new roles? No
@@ -294,7 +294,7 @@ nano .env
 Update with these values:
 ```env
 # Database (PostgreSQL for ARM compatibility)
-DATABASE_URL="postgresql://pisowifi_user:pisowifi123@localhost:5432/pisowifi"
+DATABASE_URL="postgresql://pisowifi_user:admin123@localhost:5432/pisowifi"
 
 # Authentication
 JWT_SECRET="your-super-secret-jwt-key-change-this-in-production"
@@ -486,7 +486,7 @@ Internet → [end0/eth0] Orange Pi [enx...] → WiFi Router → Clients
 - **Admin Username:** admin
 - **Admin Password:** admin123
 - **Database User:** pisowifi_user
-- **Database Password:** pisowifi123
+- **Database Password:** admin123
 
 ### **Service Ports**
 - **Express App:** 3000
