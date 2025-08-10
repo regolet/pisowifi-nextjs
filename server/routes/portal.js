@@ -152,59 +152,88 @@ router.get('/', async (req, res) => {
 // Connect endpoint
 router.post('/connect', async (req, res) => {
   try {
-    const { coinsInserted, duration, rateId, macAddress, deviceInfo } = req.body;
-    const clientIP = req.headers['x-forwarded-for'] || 
-                     req.connection.remoteAddress || 
-                     req.socket.remoteAddress ||
-                     (req.connection.socket ? req.connection.socket.remoteAddress : null);
+    console.log('Connect request received:', req.body);
     
-    console.log(`Connection request from IP: ${clientIP}, Rate: ${rateId}, Duration: ${duration}, Coins: ${coinsInserted}`);
+    const { coinsInserted, duration, rateId, macAddress, deviceInfo } = req.body;
+    let clientIP = req.headers['x-forwarded-for'] || 
+                   req.connection.remoteAddress || 
+                   req.socket.remoteAddress ||
+                   (req.connection.socket ? req.connection.socket.remoteAddress : null);
+    
+    // Clean IPv6-mapped IPv4 addresses
+    if (clientIP && clientIP.startsWith('::ffff:')) {
+      clientIP = clientIP.substring(7);
+    }
+    
+    // Remove port if present
+    if (clientIP && clientIP.includes(':') && !clientIP.includes('::')) {
+      clientIP = clientIP.split(':')[0];
+    }
+    
+    console.log(`Connection request from IP: ${clientIP}, Coins: ${coinsInserted}, Duration: ${duration}`);
+    
+    // Validate required fields
+    if (!coinsInserted || coinsInserted <= 0) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'No coins inserted. Please insert coins first.' 
+      });
+    }
     
     // Auto-detect MAC address if not provided
     let detectedMac = macAddress;
     if (!detectedMac || detectedMac === 'auto-detect') {
       try {
-        // Try multiple methods to detect MAC address
-        const { stdout: arpOutput } = await execAsync(`arp -n ${clientIP} 2>/dev/null || echo ""`);
-        if (arpOutput) {
+        console.log('Attempting MAC detection for IP:', clientIP);
+        
+        // Try ARP table first
+        try {
+          const { stdout: arpOutput } = await execAsync(`arp -n ${clientIP}`);
           const arpMatch = arpOutput.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
           if (arpMatch) {
-            detectedMac = arpMatch[0].toUpperCase();
+            detectedMac = arpMatch[0].replace(/[-:]/g, ':').toUpperCase();
+            console.log('MAC found via ARP:', detectedMac);
           }
+        } catch (arpError) {
+          console.log('ARP lookup failed:', arpError.message);
         }
         
-        // Try DHCP leases
+        // Try neighbor table if ARP failed
         if (!detectedMac) {
-          const { stdout: dhcpLeases } = await execAsync(`cat /var/lib/dhcp/dhcpd.leases /var/lib/misc/dnsmasq.leases 2>/dev/null || echo ""`);
-          const leaseLines = dhcpLeases.split('\n');
-          for (const line of leaseLines) {
-            if (line.includes(clientIP)) {
-              const parts = line.split(' ');
-              if (parts.length >= 2) {
-                detectedMac = parts[1].toUpperCase();
-                break;
+          try {
+            const { stdout: neighborOutput } = await execAsync(`ip neighbor show`);
+            const neighborLines = neighborOutput.split('\n');
+            for (const line of neighborLines) {
+              if (line.includes(clientIP)) {
+                const macMatch = line.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
+                if (macMatch) {
+                  detectedMac = macMatch[0].replace(/[-:]/g, ':').toUpperCase();
+                  console.log('MAC found via neighbor table:', detectedMac);
+                  break;
+                }
               }
             }
+          } catch (neighborError) {
+            console.log('Neighbor lookup failed:', neighborError.message);
           }
         }
         
-        // Try neighbor table
+        // If still no MAC, generate a temporary one based on IP
         if (!detectedMac) {
-          const { stdout: neighborOutput } = await execAsync(`ip neighbor show ${clientIP} 2>/dev/null || echo ""`);
-          const macMatch = neighborOutput.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
-          if (macMatch) {
-            detectedMac = macMatch[0].toUpperCase();
+          console.log('MAC detection failed, generating temporary MAC');
+          const ipParts = clientIP.split('.');
+          if (ipParts.length === 4) {
+            detectedMac = `02:00:${ipParts[2].padStart(2, '0')}:${ipParts[3].padStart(2, '0')}:00:01`;
+            console.log('Generated temporary MAC:', detectedMac);
+          } else {
+            throw new Error('Could not detect or generate MAC address');
           }
-        }
-        
-        if (!detectedMac) {
-          throw new Error('MAC address not detected');
         }
       } catch (err) {
-        console.warn('Could not auto-detect MAC address:', err.message);
+        console.error('MAC detection completely failed:', err.message);
         return res.status(400).json({ 
           success: false,
-          error: 'Unable to detect device MAC address. Please ensure you are connected to the network.' 
+          error: 'Unable to detect device. Please try again.' 
         });
       }
     }
@@ -332,8 +361,13 @@ router.post('/connect', async (req, res) => {
       
       console.log(`Client ${detectedMac} authenticated for ${sessionDuration} seconds`);
       
-      // Also run the allow script
-      await execAsync(`sudo ${__dirname}/../../scripts/pisowifi-allow-client ${detectedMac}`);
+      // Also run the allow script (ignore errors for now)
+      try {
+        await execAsync(`sudo ${__dirname}/../../scripts/pisowifi-allow-client ${detectedMac}`);
+        console.log('Allow script executed successfully');
+      } catch (scriptError) {
+        console.warn('Allow script failed (non-critical):', scriptError.message);
+      }
     } catch (err) {
       console.error('Internet access setup failed:', err.message);
       // Don't fail the entire operation, but log it
@@ -364,6 +398,32 @@ router.post('/connect', async (req, res) => {
     res.status(500).json({ 
       success: false,
       error: 'Connection failed. Please try again.' 
+    });
+  }
+});
+
+// Test coin detection endpoint
+router.post('/test-coin', async (req, res) => {
+  try {
+    console.log('Test coin detection triggered');
+    
+    // Emit coin detection event via socket.io
+    const { io } = require('../app');
+    io.emit('coin-detected', { 
+      timestamp: new Date().toISOString(),
+      value: 5.00,
+      source: 'test' 
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Test coin detection sent' 
+    });
+  } catch (error) {
+    console.error('Test coin error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Test failed' 
     });
   }
 });

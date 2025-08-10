@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><%= title %></title>
+    <script src="/socket.io/socket.io.js"></script>
     <style>
         * {
             margin: 0;
@@ -365,10 +366,33 @@
         let timeLeft = <%= portalSettings.coin_timeout %>;
         let coinsInserted = 0;
         let totalTime = 0;
+        let socket;
         
         // Default rate (will be updated when rates load)
         let coinValue = 5.00;
         let timePerCoin = 30; // minutes
+        
+        // Initialize Socket.IO for real-time coin detection
+        try {
+            socket = io();
+            
+            socket.on('connect', function() {
+                console.log('Connected to server for coin detection');
+            });
+            
+            socket.on('coin-detected', function(data) {
+                console.log('Coin detected via socket:', data);
+                if (document.getElementById('coinModal').style.display === 'block') {
+                    addCoin();
+                }
+            });
+            
+            socket.on('disconnect', function() {
+                console.log('Disconnected from server');
+            });
+        } catch (error) {
+            console.warn('Socket.IO not available:', error);
+        }
         
         // Load rates on page start
         loadRates();
@@ -447,8 +471,28 @@
             updateCoinDisplay();
         }
         
-        function testCoin() {
-            addCoin();
+        async function testCoin() {
+            try {
+                console.log('Testing coin detection...');
+                const response = await fetch('/portal/test-coin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    console.log('Test coin sent successfully');
+                    // The coin will be added via socket.io event
+                } else {
+                    console.error('Test coin failed:', result.error);
+                    // Fallback to manual coin addition
+                    addCoin();
+                }
+            } catch (error) {
+                console.error('Test coin request failed:', error);
+                // Fallback to manual coin addition
+                addCoin();
+            }
         }
         
         function addCoin() {
@@ -470,13 +514,22 @@
         }
         
         async function connectNow() {
-            if (coinsInserted === 0) return;
+            if (coinsInserted === 0) {
+                alert('Please insert coins first');
+                return;
+            }
             
             const connectBtn = document.getElementById('connectBtn');
             connectBtn.textContent = '⏳ Connecting...';
             connectBtn.disabled = true;
             
             try {
+                console.log('Connecting with data:', {
+                    coinsInserted: coinsInserted,
+                    duration: totalTime * 60,
+                    macAddress: 'auto-detect'
+                });
+                
                 const response = await fetch('/portal/connect', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -487,7 +540,14 @@
                     })
                 });
                 
+                console.log('Connect response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
+                console.log('Connect response data:', data);
                 
                 if (data.success) {
                     connectBtn.textContent = '✅ Connected!';
@@ -496,18 +556,19 @@
                         window.location.reload();
                     }, 1500);
                 } else {
-                    connectBtn.textContent = '❌ Failed';
+                    connectBtn.textContent = '❌ Failed: ' + (data.error || 'Unknown error');
                     setTimeout(() => {
                         connectBtn.textContent = '▶️ Connect Now';
                         connectBtn.disabled = false;
-                    }, 2000);
+                    }, 3000);
                 }
             } catch (error) {
-                connectBtn.textContent = '❌ Error';
+                console.error('Connection error:', error);
+                connectBtn.textContent = '❌ Error: ' + error.message;
                 setTimeout(() => {
                     connectBtn.textContent = '▶️ Connect Now';
                     connectBtn.disabled = false;
-                }, 2000);
+                }, 3000);
             }
         }
         
