@@ -210,29 +210,68 @@ router.put('/gpio', authenticateToken, async (req, res) => {
 // Update rates
 router.put('/rates', authenticateToken, async (req, res) => {
   try {
-    const { rates } = req.body;
+    const { rates, coinSettings } = req.body;
     
-    // Update each rate in database
+    // Clear existing rates if we're doing a full replacement
+    await pool.query('DELETE FROM rates WHERE 1=1');
+    
+    // Insert all rates
     for (const rate of rates) {
-      if (rate.id) {
-        // Update existing rate
-        await pool.query(
-          'UPDATE rates SET name = $1, duration = $2, coins_required = $3, price = $4, is_active = $5 WHERE id = $6',
-          [rate.name, rate.duration, rate.coins_required, rate.price, rate.is_active, rate.id]
-        );
-      } else {
-        // Insert new rate
-        await pool.query(
-          'INSERT INTO rates (name, duration, coins_required, price, is_active) VALUES ($1, $2, $3, $4, $5)',
-          [rate.name, rate.duration, rate.coins_required, rate.price, rate.is_active]
-        );
-      }
+      await pool.query(
+        'INSERT INTO rates (name, duration, coins_required, price, is_active) VALUES ($1, $2, $3, $4, $5)',
+        [rate.name, rate.duration, rate.coins_required, rate.price, rate.is_active]
+      );
     }
+    
+    // Save coin settings if provided
+    if (coinSettings) {
+      await saveSettings({ coin: coinSettings });
+    }
+    
+    // Log action
+    await pool.query(
+      'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
+      ['INFO', 'Rate packages updated', 'admin', JSON.stringify({ admin: req.user.username, rateCount: rates.length })]
+    );
     
     res.json({ success: true, message: 'Rates updated' });
   } catch (error) {
     console.error('Update rates error:', error);
     res.status(500).json({ error: 'Failed to update rates' });
+  }
+});
+
+// Update coin settings
+router.put('/coin', authenticateToken, async (req, res) => {
+  try {
+    const coinSettings = req.body;
+    
+    // Validate coin settings
+    if (coinSettings.coin_value < 0.01 || coinSettings.coin_value > 1000) {
+      return res.status(400).json({ error: 'Invalid coin value' });
+    }
+    
+    if (coinSettings.pulses_per_coin < 1 || coinSettings.pulses_per_coin > 10) {
+      return res.status(400).json({ error: 'Invalid pulse count' });
+    }
+    
+    if (coinSettings.pulse_duration < 10 || coinSettings.pulse_duration > 2000) {
+      return res.status(400).json({ error: 'Invalid pulse duration' });
+    }
+    
+    // Save coin settings
+    await saveSettings({ coin: coinSettings });
+    
+    // Log action
+    await pool.query(
+      'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
+      ['INFO', 'Coin settings updated', 'admin', JSON.stringify({ admin: req.user.username, settings: coinSettings })]
+    );
+    
+    res.json({ success: true, message: 'Coin settings updated' });
+  } catch (error) {
+    console.error('Update coin settings error:', error);
+    res.status(500).json({ error: 'Failed to update coin settings' });
   }
 });
 

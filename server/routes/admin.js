@@ -133,6 +133,14 @@ router.get('/portal', authenticateToken, (req, res) => {
   });
 });
 
+// Coin Rates
+router.get('/rates', authenticateToken, (req, res) => {
+  res.render('admin-rates', { 
+    title: 'Coin Rates Management',
+    user: req.user
+  });
+});
+
 // Reports
 router.get('/reports', authenticateToken, (req, res) => {
   res.render('admin-reports', { 

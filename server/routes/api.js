@@ -131,13 +131,24 @@ router.get('/clients', async (req, res) => {
   }
 });
 
-// Get rates
+// Get rates (public endpoint for portal)
 router.get('/rates', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM rates WHERE is_active = true ORDER BY duration');
     res.json(result.rows);
   } catch (error) {
     console.error('Get rates error:', error);
+    res.status(500).json({ error: 'Failed to get rates' });
+  }
+});
+
+// Get all rates (admin endpoint)
+router.get('/rates/all', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM rates ORDER BY duration');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Get all rates error:', error);
     res.status(500).json({ error: 'Failed to get rates' });
   }
 });
