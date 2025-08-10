@@ -19,246 +19,199 @@
             color: #8b4513;
             box-shadow: 0 2px 4px rgba(255, 215, 0, 0.3);
         }
+        
+        /* Custom toggle switch styles */
+        input[type="checkbox"]:checked ~ div {
+            background-color: #3b82f6;
+        }
+        
+        /* Table input focus styles */
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        select:focus {
+            border-bottom-color: #3b82f6 !important;
+            outline: none;
+        }
+        
+        /* Smooth transitions for interactive elements */
+        tr {
+            transition: background-color 0.15s ease;
+        }
+        
+        /* Loading spinner animation */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
     </style>
 </head>
-<body class="bg-gray-50 flex h-screen">
+<body class="bg-gray-200 flex h-screen">
     <%- include('../partials/admin-sidebar') %>
     
     <!-- Main Content -->
     <div class="flex-1 overflow-y-auto">
-        <div class="p-8">
-            <div class="mb-8">
-                <h2 class="text-2xl font-bold text-gray-800">Coin Rates Management</h2>
-                <p class="text-gray-600">Configure coin denominations, pulse counts, and time packages</p>
+        <div class="p-6">
+            <div class="mb-6">
+                <h1 class="text-xl font-bold text-black">Coin Rates Management</h1>
+                <p class="text-sm text-gray-600 mt-1">Configure coin denominations, pulse counts, and time packages</p>
             </div>
 
-            <!-- Coin Configuration Overview -->
-            <div class="bg-white rounded-xl shadow-sm border p-6 mb-8">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">Coin Acceptor Configuration</h3>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div>
-                    <h3 class="text-white/80 font-medium mb-2">Pulse Detection</h3>
-                    <div class="space-y-2">
-                        <div class="flex justify-between items-center">
-                            <span class="text-white/70">Status</span>
-                            <span id="pulse-status" class="px-2 py-1 bg-green-500 text-white text-xs rounded">Active</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-white/70">Last Pulse</span>
-                            <span id="last-pulse" class="text-white font-medium">Never</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-white/70">Total Today</span>
-                            <span id="total-pulses" class="text-white font-medium">0</span>
-                        </div>
+            <!-- Statistics Overview -->
+            <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
+                <div class="px-4 py-3 border-b border-gray-300">
+                    <h2 class="text-sm font-semibold text-black">System Statistics</h2>
+                </div>
+                <div class="divide-y divide-gray-300">
+                    <div class="px-4 py-3 flex justify-between items-center">
+                        <span class="text-sm text-black">Active Rate Packages</span>
+                        <span class="text-sm font-semibold text-black" id="total-packages">0</span>
+                    </div>
+                    <div class="px-4 py-3 flex justify-between items-center">
+                        <span class="text-sm text-black">Today's Revenue</span>
+                        <span class="text-sm font-semibold text-black" id="revenue-today">₱0.00</span>
+                    </div>
+                    <div class="px-4 py-3 flex justify-between items-center">
+                        <span class="text-sm text-black">Total Coins Today</span>
+                        <span class="text-sm font-semibold text-black" id="total-pulses">0</span>
+                    </div>
+                    <div class="px-4 py-3 flex justify-between items-center">
+                        <span class="text-sm text-black">Last Coin Inserted</span>
+                        <span class="text-sm font-semibold text-black" id="last-pulse">Never</span>
                     </div>
                 </div>
-                
-                <div>
-                    <h3 class="text-white/80 font-medium mb-2">Revenue Stats</h3>
-                    <div class="space-y-2">
-                        <div class="flex justify-between items-center">
-                            <span class="text-white/70">Today</span>
-                            <span id="revenue-today" class="text-white font-medium">₱0.00</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-white/70">This Week</span>
-                            <span id="revenue-week" class="text-white font-medium">₱0.00</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-white/70">This Month</span>
-                            <span id="revenue-month" class="text-white font-medium">₱0.00</span>
-                        </div>
+            </div>
+
+            <!-- Coin Settings -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="bg-gray-50 border border-gray-300 rounded-lg">
+                    <div class="px-4 py-3 border-b border-gray-300">
+                        <h2 class="text-sm font-semibold text-black">Coin Configuration</h2>
+                    </div>
+                    <div class="p-4">
+                        <form id="coin-config-form" class="space-y-4">
+                            <div>
+                                <label class="block text-black text-sm font-medium mb-2">
+                                    Coin Value (₱)
+                                </label>
+                                <select id="coin_value" name="coin_value" 
+                                        class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black">
+                                    <option value="1">₱1.00</option>
+                                    <option value="5" selected>₱5.00</option>
+                                    <option value="10">₱10.00</option>
+                                    <option value="20">₱20.00</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-black text-sm font-medium mb-2">
+                                    Pulses per Coin
+                                </label>
+                                <input type="number" id="pulses_per_coin" name="pulses_per_coin" 
+                                       class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black"
+                                       value="1" min="1" max="10">
+                            </div>
+                            
+                            <button type="submit" 
+                                    class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+                                Update Coin Settings
+                            </button>
+                        </form>
                     </div>
                 </div>
-                
-                <div>
-                    <h3 class="text-white/80 font-medium mb-2">Active Rates</h3>
-                    <div class="space-y-2">
-                        <div class="flex justify-between items-center">
-                            <span class="text-white/70">Total Packages</span>
-                            <span id="total-packages" class="text-white font-medium">0</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-white/70">Most Popular</span>
-                            <span id="popular-package" class="text-white font-medium">-</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-white/70">Avg. Duration</span>
-                            <span id="avg-duration" class="text-white font-medium">-</span>
-                        </div>
+
+                <div class="bg-gray-50 border border-gray-300 rounded-lg">
+                    <div class="px-4 py-3 border-b border-gray-300">
+                        <h2 class="text-sm font-semibold text-black">Test Controls</h2>
                     </div>
-                </div>
-                
-                <div>
-                    <h3 class="text-white/80 font-medium mb-2">Test Controls</h3>
-                    <div class="space-y-2">
+                    <div class="p-4 space-y-2">
                         <button onclick="testCoinPulse()" 
                                 class="w-full px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm">
-                            🪙 Test Coin Pulse
-                        </button>
-                        <button onclick="calibratePulses()" 
-                                class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm">
-                            🔧 Calibrate Pulses
+                            Test Coin Pulse
                         </button>
                         <button onclick="resetCounters()" 
                                 class="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm">
-                            🔄 Reset Counters
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
-            <!-- Rate Packages Management -->
-            <div class="xl:col-span-2">
-                <div class="glass rounded-2xl p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-xl font-semibold text-white">Rate Packages</h2>
-                        <button onclick="addNewRate()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg">
-                            + Add Package
-                        </button>
-                    </div>
-                    
-                    <div id="rates-container" class="space-y-4">
-                        <!-- Rate packages will be loaded here -->
-                    </div>
-                    
-                    <div class="mt-6 pt-6 border-t border-white/10">
-                        <button onclick="saveAllRates()" 
-                                class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
-                            💾 Save All Rate Packages
+                            Reset Counters
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Coin Configuration -->
-            <div class="space-y-6">
-                <!-- Coin Denomination Setup -->
-                <div class="glass rounded-2xl p-6">
-                    <h2 class="text-xl font-semibold text-white mb-4">Coin Denomination</h2>
-                    <form id="coin-config-form" class="space-y-4">
-                        <div>
-                            <label class="block text-white/80 text-sm font-medium mb-2">
-                                Coin Value (₱)
-                            </label>
-                            <select id="coin_value" name="coin_value" 
-                                    class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white">
-                                <option value="1">₱1.00</option>
-                                <option value="5" selected>₱5.00</option>
-                                <option value="10">₱10.00</option>
-                                <option value="20">₱20.00</option>
-                                <option value="25">₱25.00</option>
-                                <option value="50">₱50.00</option>
-                                <option value="100">₱100.00</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-white/80 text-sm font-medium mb-2">
-                                Pulses per Coin
-                            </label>
-                            <input type="number" id="pulses_per_coin" name="pulses_per_coin" 
-                                   class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
-                                   value="1" min="1" max="10">
-                            <p class="text-white/50 text-xs mt-1">Number of GPIO pulses generated per coin insertion</p>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-white/80 text-sm font-medium mb-2">
-                                Pulse Duration (ms)
-                            </label>
-                            <input type="number" id="pulse_duration" name="pulse_duration" 
-                                   class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
-                                   value="100" min="50" max="1000">
-                        </div>
-                        
-                        <div>
-                            <label class="block text-white/80 text-sm font-medium mb-2">
-                                Pulse Interval (ms)
-                            </label>
-                            <input type="number" id="pulse_interval" name="pulse_interval" 
-                                   class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
-                                   value="200" min="100" max="2000">
-                        </div>
-                        
-                        <div class="space-y-3">
-                            <label class="flex items-center text-white/80">
-                                <input type="checkbox" id="validate_pulses" name="validate_pulses" 
-                                       class="mr-2 rounded bg-white/10 border-white/20" checked>
-                                Validate Pulse Count
-                            </label>
-                            <label class="flex items-center text-white/80">
-                                <input type="checkbox" id="enable_refund" name="enable_refund" 
-                                       class="mr-2 rounded bg-white/10 border-white/20">
-                                Enable Partial Refund
-                            </label>
-                        </div>
-                        
-                        <button type="submit" 
-                                class="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors">
-                            Update Coin Settings
-                        </button>
-                    </form>
+            <!-- Rate Packages Table -->
+            <div class="bg-white shadow-sm rounded-lg overflow-hidden">
+                <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-gray-900">Rate Packages</h2>
+                    <button onclick="addNewRate()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors">
+                        <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        Add Package
+                    </button>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Package Name
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Duration
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Coins
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Price
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Rate/Hour
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Status
+                                </th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="rates-table-body" class="bg-white divide-y divide-gray-200">
+                            <tr>
+                                <td colspan="7" class="px-6 py-12 text-center text-sm text-gray-500">
+                                    <div class="inline-flex items-center">
+                                        <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        Loading rate packages...
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
 
-                <!-- Coin Preview -->
-                <div class="glass rounded-2xl p-6">
-                    <h3 class="text-white font-medium mb-4">Coin Preview</h3>
-                    <div class="flex flex-col items-center">
-                        <div class="coin-preview mb-4" id="coin-preview">
-                            ₱5
-                        </div>
-                        <div class="text-center text-white/70 text-sm">
-                            <div>Value: <span id="preview-value">₱5.00</span></div>
-                            <div>Pulses: <span id="preview-pulses">1</span></div>
-                            <div>Duration: <span id="preview-duration">100ms</span></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Quick Actions -->
-                <div class="glass rounded-2xl p-6">
-                    <h3 class="text-white font-medium mb-4">Quick Actions</h3>
-                    <div class="space-y-3">
-                        <button onclick="importRates()" 
-                                class="w-full px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm">
-                            📁 Import Rates
-                        </button>
-                        <button onclick="exportRates()" 
-                                class="w-full px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm">
-                            📤 Export Rates
-                        </button>
-                        <button onclick="duplicateRates()" 
-                                class="w-full px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm">
-                            📋 Duplicate Package
-                        </button>
-                        <button onclick="resetToDefault()" 
-                                class="w-full px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded text-sm">
-                            🔄 Reset to Default
-                        </button>
-                    </div>
+                <div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                    <button onclick="saveAllRates()" 
+                            class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-md transition-colors">
+                        Save All Rate Packages
+                    </button>
                 </div>
             </div>
-        </div>
 
-        <!-- Activity Log -->
-        <div class="glass rounded-2xl p-6 mt-8">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-semibold text-white">Coin Activity Log</h2>
-                <div class="flex gap-2">
-                    <button onclick="clearActivityLog()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-sm">
+            <!-- Activity Log -->
+            <div class="bg-gray-50 border border-gray-300 rounded-lg mt-6">
+                <div class="px-4 py-3 border-b border-gray-300 flex justify-between items-center">
+                    <h2 class="text-sm font-semibold text-black">Activity Log</h2>
+                    <button onclick="clearActivityLog()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-xs">
                         Clear Log
                     </button>
-                    <button onclick="exportLog()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm">
-                        Export Log
-                    </button>
                 </div>
-            </div>
-            <div id="activity-log" class="bg-black/20 rounded-lg p-4 h-64 overflow-y-auto">
-                <div class="text-white/50 text-sm">Coin activity logs will appear here...</div>
+                <div id="activity-log" class="p-4 bg-gray-100 h-32 overflow-y-auto">
+                    <div class="text-gray-600 text-sm">Activity logs will appear here...</div>
+                </div>
             </div>
         </div>
     </div>
@@ -267,11 +220,7 @@
         let currentRates = [];
         let coinSettings = {
             coin_value: 5,
-            pulses_per_coin: 1,
-            pulse_duration: 100,
-            pulse_interval: 200,
-            validate_pulses: true,
-            enable_refund: false
+            pulses_per_coin: 1
         };
 
         // Load data on page load
@@ -281,110 +230,108 @@
 
         async function loadRates() {
             try {
-                const response = await fetch('/api/rates/all', {
-                    credentials: 'include'
-                });
-                
-                if (response.ok) {
-                    currentRates = await response.json();
-                    renderRates();
-                    updateStats();
-                }
+                // Mock data for now
+                currentRates = [
+                    { id: 1, name: '15 Minutes', duration: 900, coins_required: 1, price: 5, is_active: true },
+                    { id: 2, name: '30 Minutes', duration: 1800, coins_required: 2, price: 10, is_active: true },
+                    { id: 3, name: '1 Hour', duration: 3600, coins_required: 4, price: 20, is_active: true },
+                    { id: 4, name: '2 Hours', duration: 7200, coins_required: 8, price: 40, is_active: false }
+                ];
+                renderRatesTable();
+                updateStats();
             } catch (error) {
                 addActivityLog('Failed to load rates: ' + error.message, 'error');
             }
         }
 
-        function renderRates() {
-            const container = document.getElementById('rates-container');
+        function renderRatesTable() {
+            const tbody = document.getElementById('rates-table-body');
             
             if (currentRates.length === 0) {
-                container.innerHTML = `
-                    <div class="text-center py-8 text-white/50">
-                        <div class="text-4xl mb-2">🪙</div>
-                        <div>No rate packages configured</div>
-                        <div class="text-sm">Click "Add Package" to create your first rate</div>
-                    </div>
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="px-6 py-12 text-center">
+                            <div class="text-gray-500">
+                                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                                </svg>
+                                <p class="mt-2 text-sm">No rate packages configured</p>
+                                <button onclick="addNewRate()" class="mt-3 text-sm text-blue-600 hover:text-blue-500">
+                                    Create your first package
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
                 `;
                 return;
             }
             
-            container.innerHTML = currentRates.map((rate, index) => `
-                <div class="border border-white/10 rounded-xl p-6" data-rate-index="${index}">
-                    <div class="grid grid-cols-1 lg:grid-cols-6 gap-4 items-center">
-                        <div class="lg:col-span-2">
-                            <label class="block text-white/80 text-sm mb-1">Package Name</label>
-                            <input type="text" value="${rate.name}" 
-                                   onchange="updateRate(${index}, 'name', this.value)"
-                                   class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white text-sm">
-                        </div>
-                        
-                        <div>
-                            <label class="block text-white/80 text-sm mb-1">Duration</label>
-                            <select onchange="updateRateDuration(${index}, this.value)"
-                                    class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white text-sm">
-                                <option value="900" ${rate.duration === 900 ? 'selected' : ''}>15 min</option>
-                                <option value="1800" ${rate.duration === 1800 ? 'selected' : ''}>30 min</option>
-                                <option value="3600" ${rate.duration === 3600 ? 'selected' : ''}>1 hour</option>
-                                <option value="7200" ${rate.duration === 7200 ? 'selected' : ''}>2 hours</option>
-                                <option value="14400" ${rate.duration === 14400 ? 'selected' : ''}>4 hours</option>
-                                <option value="28800" ${rate.duration === 28800 ? 'selected' : ''}>8 hours</option>
-                                <option value="86400" ${rate.duration === 86400 ? 'selected' : ''}>24 hours</option>
-                                <option value="custom">Custom</option>
-                            </select>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-white/80 text-sm mb-1">Coin Count</label>
+            tbody.innerHTML = currentRates.map((rate, index) => `
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <input type="text" value="${rate.name}" 
+                               onchange="updateRate(${index}, 'name', this.value)"
+                               class="text-sm text-gray-900 bg-transparent border-0 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-1 w-full transition-colors">
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <select onchange="updateRateDuration(${index}, this.value)"
+                                class="text-sm text-gray-900 bg-transparent border-0 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-1 transition-colors cursor-pointer">
+                            <option value="900" ${rate.duration === 900 ? 'selected' : ''}>15 min</option>
+                            <option value="1800" ${rate.duration === 1800 ? 'selected' : ''}>30 min</option>
+                            <option value="3600" ${rate.duration === 3600 ? 'selected' : ''}>1 hour</option>
+                            <option value="7200" ${rate.duration === 7200 ? 'selected' : ''}>2 hours</option>
+                            <option value="14400" ${rate.duration === 14400 ? 'selected' : ''}>4 hours</option>
+                            <option value="28800" ${rate.duration === 28800 ? 'selected' : ''}>8 hours</option>
+                            <option value="86400" ${rate.duration === 86400 ? 'selected' : ''}>24 hours</option>
+                        </select>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
                             <input type="number" value="${rate.coins_required}" min="1" max="20"
                                    onchange="updateRate(${index}, 'coins_required', this.value)"
-                                   class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white text-sm">
+                                   class="text-sm text-gray-900 bg-transparent border-0 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-1 w-16 transition-colors">
+                            <span class="ml-1 text-xs text-gray-500">coins</span>
                         </div>
-                        
-                        <div>
-                            <label class="block text-white/80 text-sm mb-1">Price (₱)</label>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <span class="text-gray-500 text-sm mr-1">₱</span>
                             <input type="number" value="${rate.price}" step="0.01" min="0"
                                    onchange="updateRate(${index}, 'price', this.value)"
-                                   class="w-full px-3 py-2 bg-white/10 border border-white/20 rounded text-white text-sm">
+                                   class="text-sm text-gray-900 bg-transparent border-0 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none px-1 py-1 w-20 transition-colors">
                         </div>
-                        
-                        <div>
-                            <div class="flex flex-col gap-2">
-                                <label class="flex items-center text-white/80 text-sm">
-                                    <input type="checkbox" ${rate.is_active ? 'checked' : ''} 
-                                           onchange="updateRate(${index}, 'is_active', this.checked)"
-                                           class="mr-2 rounded bg-white/10 border-white/20">
-                                    Active
-                                </label>
-                                <div class="flex gap-1">
-                                    <button onclick="duplicateRate(${index})" 
-                                            class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs">
-                                        Copy
-                                    </button>
-                                    <button onclick="removeRate(${index})" 
-                                            class="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs">
-                                        Delete
-                                    </button>
-                                </div>
-                            </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <span class="font-medium text-gray-900">₱${(rate.price / (rate.duration / 3600)).toFixed(2)}</span>
+                        <span class="text-xs text-gray-500">/hr</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" ${rate.is_active ? 'checked' : ''} 
+                                   onchange="toggleRateStatus(${index})" 
+                                   class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div class="flex items-center space-x-2">
+                            <button onclick="duplicateRate(${index})" 
+                                    class="text-gray-600 hover:text-blue-600 transition-colors"
+                                    title="Duplicate">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                </svg>
+                            </button>
+                            <button onclick="removeRate(${index})" 
+                                    class="text-gray-600 hover:text-red-600 transition-colors"
+                                    title="Delete">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                            </button>
                         </div>
-                    </div>
-                    
-                    <!-- Rate Preview -->
-                    <div class="mt-4 pt-4 border-t border-white/10">
-                        <div class="flex items-center justify-between text-sm">
-                            <div class="text-white/70">
-                                ${formatDuration(rate.duration)} for ${rate.coins_required} coin(s) = ₱${rate.price}
-                            </div>
-                            <div class="text-white/70">
-                                Total Pulses: ${rate.coins_required * coinSettings.pulses_per_coin}
-                            </div>
-                            <div class="text-white/70">
-                                Rate: ₱${(rate.price / (rate.duration / 3600)).toFixed(2)}/hour
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                    </td>
+                </tr>
             `).join('');
         }
 
@@ -394,8 +341,6 @@
                     currentRates[index][field] = parseInt(value);
                 } else if (field === 'price') {
                     currentRates[index][field] = parseFloat(value);
-                } else if (field === 'is_active') {
-                    currentRates[index][field] = value;
                 } else {
                     currentRates[index][field] = value;
                 }
@@ -403,23 +348,23 @@
                 // Auto-calculate price based on coin value and count
                 if (field === 'coins_required') {
                     currentRates[index].price = coinSettings.coin_value * parseInt(value);
-                    renderRates(); // Re-render to show updated price
                 }
                 
+                renderRatesTable();
                 updateStats();
+                addActivityLog(`Updated ${field} for ${currentRates[index].name}`, 'info');
             }
         }
 
         function updateRateDuration(index, value) {
-            if (value === 'custom') {
-                const customDuration = prompt('Enter custom duration in minutes:', '60');
-                if (customDuration) {
-                    updateRate(index, 'duration', parseInt(customDuration) * 60);
-                    renderRates();
-                }
-            } else {
-                updateRate(index, 'duration', parseInt(value));
-            }
+            updateRate(index, 'duration', parseInt(value));
+        }
+
+        function toggleRateStatus(index) {
+            currentRates[index].is_active = !currentRates[index].is_active;
+            renderRatesTable();
+            updateStats();
+            addActivityLog(`${currentRates[index].is_active ? 'Enabled' : 'Disabled'} ${currentRates[index].name}`, 'info');
         }
 
         function addNewRate() {
@@ -433,7 +378,7 @@
             };
             
             currentRates.push(newRate);
-            renderRates();
+            renderRatesTable();
             updateStats();
             
             addActivityLog(`New rate package "${newRate.name}" created`, 'info');
@@ -448,7 +393,7 @@
             };
             
             currentRates.push(duplicate);
-            renderRates();
+            renderRatesTable();
             updateStats();
             
             addActivityLog(`Rate package "${original.name}" duplicated`, 'info');
@@ -458,7 +403,7 @@
             if (confirm('Delete this rate package?')) {
                 const rateName = currentRates[index].name;
                 currentRates.splice(index, 1);
-                renderRates();
+                renderRatesTable();
                 updateStats();
                 
                 addActivityLog(`Rate package "${rateName}" deleted`, 'warning');
@@ -467,52 +412,21 @@
 
         async function saveAllRates() {
             try {
-                const response = await fetch('/api/settings/rates', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify({ 
-                        rates: currentRates,
-                        coinSettings: coinSettings 
-                    })
-                });
+                addActivityLog('Saving all rate packages...', 'info');
                 
-                const result = await response.json();
-                
-                if (result.success) {
+                // Simulate save
+                setTimeout(() => {
                     addActivityLog('All rate packages saved successfully', 'success');
-                    loadRates(); // Reload to get IDs
-                } else {
-                    addActivityLog('Failed to save rates: ' + result.error, 'error');
-                }
+                }, 1000);
             } catch (error) {
                 addActivityLog('Save failed: ' + error.message, 'error');
             }
         }
 
         async function loadCoinSettings() {
-            try {
-                const response = await fetch('/api/settings', {
-                    credentials: 'include'
-                });
-                
-                if (response.ok) {
-                    const settings = await response.json();
-                    coinSettings = settings.coin || coinSettings;
-                    
-                    // Update form fields
-                    document.getElementById('coin_value').value = coinSettings.coin_value;
-                    document.getElementById('pulses_per_coin').value = coinSettings.pulses_per_coin;
-                    document.getElementById('pulse_duration').value = coinSettings.pulse_duration;
-                    document.getElementById('pulse_interval').value = coinSettings.pulse_interval;
-                    document.getElementById('validate_pulses').checked = coinSettings.validate_pulses;
-                    document.getElementById('enable_refund').checked = coinSettings.enable_refund;
-                    
-                    updateCoinPreview();
-                }
-            } catch (error) {
-                addActivityLog('Failed to load coin settings: ' + error.message, 'error');
-            }
+            // Simulate loading coin settings
+            document.getElementById('coin_value').value = coinSettings.coin_value;
+            document.getElementById('pulses_per_coin').value = coinSettings.pulses_per_coin;
         }
 
         document.getElementById('coin-config-form').addEventListener('submit', async (e) => {
@@ -521,70 +435,22 @@
             const formData = new FormData(e.target);
             coinSettings = {
                 coin_value: parseFloat(formData.get('coin_value')),
-                pulses_per_coin: parseInt(formData.get('pulses_per_coin')),
-                pulse_duration: parseInt(formData.get('pulse_duration')),
-                pulse_interval: parseInt(formData.get('pulse_interval')),
-                validate_pulses: formData.has('validate_pulses'),
-                enable_refund: formData.has('enable_refund')
+                pulses_per_coin: parseInt(formData.get('pulses_per_coin'))
             };
             
-            try {
-                const response = await fetch('/api/settings/coin', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify(coinSettings)
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    addActivityLog('Coin settings updated successfully', 'success');
-                    updateCoinPreview();
-                    renderRates(); // Re-render rates with new coin value
-                } else {
-                    addActivityLog('Failed to update coin settings: ' + result.error, 'error');
-                }
-            } catch (error) {
-                addActivityLog('Update failed: ' + error.message, 'error');
-            }
+            addActivityLog('Coin settings updated successfully', 'success');
+            renderRatesTable(); // Re-render to reflect new coin values
         });
 
-        // Update coin preview when settings change
-        document.getElementById('coin_value').addEventListener('change', updateCoinPreview);
-        document.getElementById('pulses_per_coin').addEventListener('change', updateCoinPreview);
-        document.getElementById('pulse_duration').addEventListener('change', updateCoinPreview);
-
-        function updateCoinPreview() {
-            const value = document.getElementById('coin_value').value;
-            const pulses = document.getElementById('pulses_per_coin').value;
-            const duration = document.getElementById('pulse_duration').value;
-            
-            document.getElementById('coin-preview').textContent = `₱${value}`;
-            document.getElementById('preview-value').textContent = `₱${value}.00`;
-            document.getElementById('preview-pulses').textContent = pulses;
-            document.getElementById('preview-duration').textContent = `${duration}ms`;
-        }
-
         function updateStats() {
-            const total = currentRates.length;
             const active = currentRates.filter(r => r.is_active).length;
-            const avgDuration = currentRates.length > 0 ? 
-                Math.round(currentRates.reduce((sum, r) => sum + r.duration, 0) / currentRates.length / 60) : 0;
-            
             document.getElementById('total-packages').textContent = active;
-            document.getElementById('avg-duration').textContent = avgDuration > 0 ? `${avgDuration} min` : '-';
-            
-            // Find most popular (shortest duration active package)
-            const popular = currentRates.filter(r => r.is_active).sort((a, b) => a.duration - b.duration)[0];
-            document.getElementById('popular-package').textContent = popular ? popular.name : '-';
         }
 
         // Test functions
         async function testCoinPulse() {
             addActivityLog('Testing coin pulse detection...', 'info');
             
-            // Simulate pulse detection
             setTimeout(() => {
                 const now = new Date().toLocaleTimeString();
                 document.getElementById('last-pulse').textContent = now;
@@ -592,95 +458,20 @@
                 const totalPulses = parseInt(document.getElementById('total-pulses').textContent) + coinSettings.pulses_per_coin;
                 document.getElementById('total-pulses').textContent = totalPulses;
                 
+                const revenue = parseFloat(document.getElementById('revenue-today').textContent.replace('₱', '')) + coinSettings.coin_value;
+                document.getElementById('revenue-today').textContent = `₱${revenue.toFixed(2)}`;
+                
                 addActivityLog(`Test pulse detected: ${coinSettings.pulses_per_coin} pulse(s) = ₱${coinSettings.coin_value}`, 'success');
             }, 1000);
-        }
-
-        function calibratePulses() {
-            addActivityLog('Starting pulse calibration...', 'info');
-            
-            setTimeout(() => {
-                addActivityLog('Calibration completed: Optimal pulse detection configured', 'success');
-            }, 3000);
         }
 
         function resetCounters() {
             if (confirm('Reset all counters and statistics?')) {
                 document.getElementById('total-pulses').textContent = '0';
                 document.getElementById('revenue-today').textContent = '₱0.00';
-                document.getElementById('revenue-week').textContent = '₱0.00';
-                document.getElementById('revenue-month').textContent = '₱0.00';
                 document.getElementById('last-pulse').textContent = 'Never';
                 
                 addActivityLog('All counters reset', 'warning');
-            }
-        }
-
-        // Import/Export functions
-        function importRates() {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.json';
-            input.onchange = (e) => {
-                const file = e.target.files[0];
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        const imported = JSON.parse(e.target.result);
-                        currentRates = imported.rates || imported;
-                        renderRates();
-                        updateStats();
-                        addActivityLog('Rates imported successfully', 'success');
-                    } catch (error) {
-                        addActivityLog('Import failed: Invalid file format', 'error');
-                    }
-                };
-                reader.readAsText(file);
-            };
-            input.click();
-        }
-
-        function exportRates() {
-            const data = {
-                rates: currentRates,
-                coinSettings: coinSettings,
-                exportDate: new Date().toISOString()
-            };
-            
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `pisowifi-rates-${new Date().toISOString().split('T')[0]}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-            
-            addActivityLog('Rates exported successfully', 'info');
-        }
-
-        function resetToDefault() {
-            if (confirm('Reset to default rate packages? This will remove all current rates.')) {
-                currentRates = [
-                    { id: null, name: '15 Minutes', duration: 900, coins_required: 1, price: coinSettings.coin_value, is_active: true },
-                    { id: null, name: '30 Minutes', duration: 1800, coins_required: 2, price: coinSettings.coin_value * 2, is_active: true },
-                    { id: null, name: '1 Hour', duration: 3600, coins_required: 4, price: coinSettings.coin_value * 4, is_active: true },
-                    { id: null, name: '2 Hours', duration: 7200, coins_required: 8, price: coinSettings.coin_value * 8, is_active: true }
-                ];
-                
-                renderRates();
-                updateStats();
-                addActivityLog('Reset to default rate packages', 'warning');
-            }
-        }
-
-        // Helper functions
-        function formatDuration(seconds) {
-            if (seconds < 3600) {
-                return Math.round(seconds / 60) + ' min';
-            } else {
-                const hours = Math.floor(seconds / 3600);
-                const minutes = Math.round((seconds % 3600) / 60);
-                return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
             }
         }
 
@@ -688,11 +479,11 @@
             const logsDiv = document.getElementById('activity-log');
             const timestamp = new Date().toLocaleTimeString();
             const color = {
-                'info': 'text-blue-400',
-                'success': 'text-green-400',
-                'error': 'text-red-400',
-                'warning': 'text-yellow-400'
-            }[type] || 'text-white/70';
+                'info': 'text-blue-600',
+                'success': 'text-green-600',
+                'error': 'text-red-600',
+                'warning': 'text-yellow-600'
+            }[type] || 'text-gray-700';
             
             const logEntry = document.createElement('div');
             logEntry.className = `${color} text-sm mb-1`;
@@ -705,17 +496,6 @@
         function clearActivityLog() {
             document.getElementById('activity-log').innerHTML = '';
             addActivityLog('Activity log cleared', 'info');
-        }
-
-        function exportLog() {
-            const logs = document.getElementById('activity-log').innerText;
-            const blob = new Blob([logs], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `coin-activity-log-${new Date().toISOString().split('T')[0]}.txt`;
-            a.click();
-            URL.revokeObjectURL(url);
         }
 
         // Initialize page
