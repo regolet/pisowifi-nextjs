@@ -83,8 +83,22 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`🚀 PISOWifi Express server running on port ${PORT}`);
+  
+  // Initialize network stack for captive portal
+  try {
+    const NetworkManager = require('./services/network-manager');
+    const networkManager = new NetworkManager();
+    const result = await networkManager.initializeNetworkStack();
+    if (result.success) {
+      console.log('✅ Network stack initialized: Captive portal ready');
+    } else {
+      console.log('⚠️ Network initialization warning:', result.error);
+    }
+  } catch (error) {
+    console.log('⚠️ Network manager not available:', error.message);
+  }
 });
 
 module.exports = { app, io };

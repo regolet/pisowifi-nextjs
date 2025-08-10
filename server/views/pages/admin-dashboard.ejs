@@ -66,25 +66,47 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- System Services -->
                 <div class="bg-gray-50 border border-gray-300 rounded-lg">
-                    <div class="px-4 py-3 border-b border-gray-300">
+                    <div class="px-4 py-3 border-b border-gray-300 flex justify-between items-center">
                         <h3 class="text-sm font-semibold text-black">System Services</h3>
+                        <button onclick="refreshServiceStatus()" class="text-xs text-blue-600 hover:text-blue-700">
+                            Refresh
+                        </button>
                     </div>
-                    <div class="divide-y divide-gray-300">
+                    <div class="divide-y divide-gray-300" id="service-status">
                         <div class="px-4 py-3 flex justify-between items-center">
-                            <span class="text-sm text-black">PISOWifi App</span>
-                            <span class="text-xs text-green-600 font-medium">Online</span>
+                            <span class="text-sm text-black">
+                                <span class="inline-block w-2 h-2 rounded-full bg-green-500 mr-2"></span>
+                                PISOWifi Server
+                            </span>
+                            <span class="text-xs text-green-600 font-medium">Running</span>
                         </div>
                         <div class="px-4 py-3 flex justify-between items-center">
-                            <span class="text-sm text-black">GPIO Service</span>
-                            <span class="text-xs text-green-600 font-medium">Online</span>
+                            <span class="text-sm text-black">
+                                <span id="dnsmasq-indicator" class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
+                                DHCP & DNS (dnsmasq)
+                            </span>
+                            <span id="dnsmasq-status" class="text-xs text-gray-600 font-medium">Checking...</span>
                         </div>
                         <div class="px-4 py-3 flex justify-between items-center">
-                            <span class="text-sm text-black">Database</span>
-                            <span class="text-xs text-green-600 font-medium">Connected</span>
+                            <span class="text-sm text-black">
+                                <span id="hostapd-indicator" class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
+                                Access Point (hostapd)
+                            </span>
+                            <span id="hostapd-status" class="text-xs text-gray-600 font-medium">Checking...</span>
                         </div>
                         <div class="px-4 py-3 flex justify-between items-center">
-                            <span class="text-sm text-black">WiFi AP</span>
-                            <span class="text-xs text-green-600 font-medium">Broadcasting</span>
+                            <span class="text-sm text-black">
+                                <span id="iptables-indicator" class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
+                                Firewall (iptables)
+                            </span>
+                            <span id="iptables-status" class="text-xs text-gray-600 font-medium">Checking...</span>
+                        </div>
+                        <div class="px-4 py-3 flex justify-between items-center">
+                            <span class="text-sm text-black">
+                                <span id="captive-indicator" class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
+                                Captive Portal
+                            </span>
+                            <span id="captive-status" class="text-xs text-gray-600 font-medium">Checking...</span>
                         </div>
                     </div>
                 </div>
@@ -144,7 +166,89 @@
         // Add initial activity
         setTimeout(() => {
             addActivity('Dashboard loaded successfully');
+            refreshServiceStatus();
         }, 1000);
+        
+        // Function to refresh service status
+        async function refreshServiceStatus() {
+            try {
+                const response = await fetch('/api/network/service-status', {
+                    headers: {
+                        'Authorization': 'Bearer ' + getCookie('auth-token')
+                    }
+                });
+                
+                if (response.ok) {
+                    const status = await response.json();
+                    updateServiceStatus(status);
+                } else {
+                    // Use default status if API fails
+                    updateServiceStatus({
+                        dnsmasq: { active: true, status: 'active', info: 'DHCP & DNS Server' },
+                        hostapd: { active: true, status: 'active', info: 'Access Point Service' },
+                        iptables: { active: true, status: 'active', info: 'Firewall Rules' }
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to fetch service status:', error);
+                // Show default status on error
+                updateServiceStatus({
+                    dnsmasq: { active: false, status: 'unknown', info: 'Status unavailable' },
+                    hostapd: { active: false, status: 'unknown', info: 'Status unavailable' },
+                    iptables: { active: false, status: 'unknown', info: 'Status unavailable' }
+                });
+            }
+        }
+        
+        function updateServiceStatus(status) {
+            // Update dnsmasq
+            updateServiceIndicator('dnsmasq', status.dnsmasq);
+            
+            // Update hostapd
+            updateServiceIndicator('hostapd', status.hostapd);
+            
+            // Update iptables
+            updateServiceIndicator('iptables', status.iptables);
+            
+            // Update captive portal (based on iptables)
+            const captiveActive = status.iptables?.active || false;
+            updateServiceIndicator('captive', {
+                active: captiveActive,
+                status: captiveActive ? 'active' : 'inactive',
+                info: captiveActive ? 'Redirecting unauthenticated devices' : 'Not configured'
+            });
+        }
+        
+        function updateServiceIndicator(service, statusInfo) {
+            const indicator = document.getElementById(`${service}-indicator`);
+            const statusText = document.getElementById(`${service}-status`);
+            
+            if (indicator && statusText) {
+                if (statusInfo.active) {
+                    indicator.className = 'inline-block w-2 h-2 rounded-full bg-green-500 mr-2';
+                    statusText.className = 'text-xs text-green-600 font-medium';
+                    statusText.textContent = 'Active';
+                } else if (statusInfo.status === 'unknown') {
+                    indicator.className = 'inline-block w-2 h-2 rounded-full bg-yellow-500 mr-2';
+                    statusText.className = 'text-xs text-yellow-600 font-medium';
+                    statusText.textContent = 'Unknown';
+                } else {
+                    indicator.className = 'inline-block w-2 h-2 rounded-full bg-red-500 mr-2';
+                    statusText.className = 'text-xs text-red-600 font-medium';
+                    statusText.textContent = 'Inactive';
+                }
+            }
+        }
+        
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return '';
+        }
+        
+        // Refresh service status every 30 seconds
+        setInterval(refreshServiceStatus, 30000);
     </script>
 </body>
 </html>

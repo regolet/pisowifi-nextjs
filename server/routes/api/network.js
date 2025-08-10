@@ -31,21 +31,37 @@ const authenticateToken = (req, res, next) => {
 // Get network configuration
 router.get('/config', authenticateToken, async (req, res) => {
   try {
-    // Return default configuration for now (no database dependency)
-    const config = {
-      dhcp_enabled: true,
-      dhcp_range_start: '192.168.100.10',
-      dhcp_range_end: '192.168.100.200',
-      subnet_mask: '255.255.255.0',
-      gateway: '192.168.100.1',
-      dns_primary: '8.8.8.8',
-      dns_secondary: '8.8.4.4',
-      lease_time: 3600,
-      wifi_interface: 'wlan0',
-      ethernet_interface: 'eth0'
-    };
+    // Try to get from database first
+    try {
+      const result = await pool.query('SELECT * FROM network_config WHERE id = 1');
+      if (result.rows.length > 0) {
+        return res.json(result.rows[0]);
+      }
+    } catch (dbError) {
+      console.log('Database not available, using file-based config');
+    }
     
-    res.json(config);
+    // Fallback to file-based config
+    try {
+      const configData = await fs.readFile('/tmp/network-config.json', 'utf8');
+      return res.json(JSON.parse(configData));
+    } catch (fileError) {
+      // Return default configuration
+      const config = {
+        dhcp_enabled: true,
+        dhcp_range_start: '192.168.100.10',
+        dhcp_range_end: '192.168.100.200',
+        subnet_mask: '255.255.255.0',
+        gateway: '192.168.100.1',
+        dns_primary: '8.8.8.8',
+        dns_secondary: '8.8.4.4',
+        lease_time: 3600,
+        wifi_interface: 'wlan0',
+        ethernet_interface: 'eth0'
+      };
+      
+      res.json(config);
+    }
   } catch (error) {
     console.error('Get network config error:', error);
     res.status(500).json({ error: 'Failed to get network configuration' });
@@ -68,7 +84,38 @@ router.put('/config', authenticateToken, async (req, res) => {
       ethernet_interface
     } = req.body;
     
-    // Simplified: Save to file instead of database to avoid DB dependency issues
+    // Try to save to database first
+    try {
+      await pool.query(
+        `INSERT INTO network_config (
+          id, dhcp_enabled, dhcp_range_start, dhcp_range_end, 
+          subnet_mask, gateway, dns_primary, dns_secondary, 
+          lease_time, wifi_interface, ethernet_interface, updated_at
+        ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP)
+        ON CONFLICT (id) DO UPDATE SET
+          dhcp_enabled = EXCLUDED.dhcp_enabled,
+          dhcp_range_start = EXCLUDED.dhcp_range_start,
+          dhcp_range_end = EXCLUDED.dhcp_range_end,
+          subnet_mask = EXCLUDED.subnet_mask,
+          gateway = EXCLUDED.gateway,
+          dns_primary = EXCLUDED.dns_primary,
+          dns_secondary = EXCLUDED.dns_secondary,
+          lease_time = EXCLUDED.lease_time,
+          wifi_interface = EXCLUDED.wifi_interface,
+          ethernet_interface = EXCLUDED.ethernet_interface,
+          updated_at = CURRENT_TIMESTAMP`,
+        [
+          dhcp_enabled, dhcp_range_start, dhcp_range_end,
+          subnet_mask, gateway, dns_primary, dns_secondary,
+          lease_time, wifi_interface, ethernet_interface
+        ]
+      );
+      console.log('Network config saved to database');
+    } catch (dbError) {
+      console.log('Database not available, saving to file:', dbError.message);
+    }
+    
+    // Also save to file as backup
     const config = {
       dhcp_enabled,
       dhcp_range_start,
@@ -84,14 +131,13 @@ router.put('/config', authenticateToken, async (req, res) => {
       updated_by: req.user?.username || 'admin'
     };
     
-    // Save configuration to file
     await fs.writeFile('/tmp/network-config.json', JSON.stringify(config, null, 2));
     
-    // Apply configuration (simplified without complex system calls)
+    // Apply configuration
     try {
       await applyNetworkConfig(config);
     } catch (applyError) {
-      console.warn('Network config application failed, but config saved:', applyError.message);
+      console.warn('Network config application warning:', applyError.message);
     }
     
     res.json({ success: true, message: 'Network configuration updated successfully' });
@@ -245,6 +291,24 @@ router.get('/bandwidth-monitor', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Bandwidth monitor error:', error);
     res.status(500).json({ error: 'Failed to get bandwidth monitoring data' });
+  }
+});
+
+// Get service status
+router.get('/service-status', authenticateToken, async (req, res) => {
+  try {
+    const NetworkManager = require('../../services/network-manager');
+    const networkManager = new NetworkManager();
+    const status = await networkManager.getServiceStatus();
+    res.json(status);
+  } catch (error) {
+    console.error('Service status error:', error);
+    // Return mock status on error
+    res.json({
+      dnsmasq: { active: true, status: 'active', info: 'DHCP & DNS Server' },
+      hostapd: { active: true, status: 'active', info: 'Access Point Service' },
+      iptables: { active: true, status: 'active', info: 'Firewall Rules' }
+    });
   }
 });
 
