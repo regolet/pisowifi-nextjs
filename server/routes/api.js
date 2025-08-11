@@ -8,14 +8,11 @@ router.use('/network', require('./api/network'));
 router.use('/coin-slots', require('./api/coin-slots'));
 
 // Keep existing general API routes
-const { Pool } = require('pg');
 const { exec } = require('child_process');
 const { promisify } = require('util');
+const db = require('../db/adapter');
 
 const execAsync = promisify(exec);
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://pisowifi_user:admin123@localhost:5432/pisowifi'
-});
 
 // Client authentication endpoint
 router.post('/clients/authenticate', async (req, res) => {
@@ -27,19 +24,19 @@ router.post('/clients/authenticate', async (req, res) => {
     }
 
     // Find or create client
-    let clientResult = await pool.query('SELECT * FROM clients WHERE mac_address = $1', [macAddress]);
+    let clientResult = await db.query('SELECT * FROM clients WHERE mac_address = $1', [macAddress]);
     let client;
 
     if (clientResult.rows.length === 0) {
       // Create new client
-      const insertResult = await pool.query(
+      const insertResult = await db.query(
         'INSERT INTO clients (mac_address, ip_address, status, time_remaining) VALUES ($1, $2, $3, $4) RETURNING *',
         [macAddress, ipAddress, 'CONNECTED', sessionDuration || 1800]
       );
       client = insertResult.rows[0];
     } else {
       // Update existing client
-      const updateResult = await pool.query(
+      const updateResult = await db.query(
         'UPDATE clients SET ip_address = $1, status = $2, time_remaining = $3, session_start = CURRENT_TIMESTAMP, last_seen = CURRENT_TIMESTAMP WHERE mac_address = $4 RETURNING *',
         [ipAddress, 'CONNECTED', sessionDuration || clientResult.rows[0].time_remaining, macAddress]
       );
@@ -47,7 +44,7 @@ router.post('/clients/authenticate', async (req, res) => {
     }
 
     // Create new session
-    const sessionResult = await pool.query(
+    const sessionResult = await db.query(
       'INSERT INTO sessions (client_id, mac_address, ip_address, duration, status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
       [client.id, macAddress, ipAddress || '', sessionDuration || 1800, 'ACTIVE']
     );
@@ -58,7 +55,7 @@ router.post('/clients/authenticate', async (req, res) => {
       await execAsync(`pisowifi-allow-client ${macAddress}`);
       
       // Log successful authentication
-      await pool.query(
+      await db.query(
         'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
         ['INFO', `Client authenticated: ${macAddress}`, 'network', JSON.stringify({ ipAddress, sessionId: session.id })]
       );
@@ -66,7 +63,7 @@ router.post('/clients/authenticate', async (req, res) => {
     } catch (iptablesError) {
       console.error('Failed to configure iptables:', iptablesError);
       
-      await pool.query(
+      await db.query(
         'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
         ['ERROR', `Failed to authenticate client in iptables: ${macAddress}`, 'network', JSON.stringify({ error: iptablesError.message })]
       );
@@ -86,7 +83,7 @@ router.post('/clients/authenticate', async (req, res) => {
   } catch (error) {
     console.error('Client authentication error:', error);
     
-    await pool.query(
+    await db.query(
       'INSERT INTO system_logs (level, message, category) VALUES ($1, $2, $3)',
       ['ERROR', `Client authentication failed: ${error.message}`, 'network']
     );
@@ -105,7 +102,7 @@ router.post('/clients/disconnect', async (req, res) => {
     }
 
     // Update client status
-    await pool.query('UPDATE clients SET status = $1 WHERE mac_address = $2', ['DISCONNECTED', macAddress]);
+    await db.query('UPDATE clients SET status = $1 WHERE mac_address = $2', ['DISCONNECTED', macAddress]);
 
     // Block client in iptables
     try {
@@ -125,7 +122,7 @@ router.post('/clients/disconnect', async (req, res) => {
 // Get clients
 router.get('/clients', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM clients ORDER BY last_seen DESC');
+    const result = await db.query('SELECT * FROM clients ORDER BY last_seen DESC');
     res.json(result.rows);
   } catch (error) {
     console.error('Get clients error:', error);
@@ -136,7 +133,7 @@ router.get('/clients', async (req, res) => {
 // Get rates (public endpoint for portal)
 router.get('/rates', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM rates WHERE is_active = true ORDER BY duration');
+    const result = await db.query('SELECT * FROM rates WHERE is_active = true ORDER BY duration');
     res.json(result.rows);
   } catch (error) {
     console.error('Get rates error:', error);
@@ -147,7 +144,7 @@ router.get('/rates', async (req, res) => {
 // Get all rates (admin endpoint)
 router.get('/rates/all', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM rates ORDER BY duration');
+    const result = await db.query('SELECT * FROM rates ORDER BY duration');
     res.json(result.rows);
   } catch (error) {
     console.error('Get all rates error:', error);

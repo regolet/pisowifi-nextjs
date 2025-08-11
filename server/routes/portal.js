@@ -1,17 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { Pool } = require('pg');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const UAParser = require('ua-parser-js');
 const NetworkManager = require('../services/network-manager');
+const db = require('../db/adapter');
 
 const execAsync = promisify(exec);
 const networkManager = new NetworkManager();
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://pisowifi_user:admin123@localhost:5432/pisowifi'
-});
 
 // Portal page
 router.get('/', async (req, res) => {
@@ -89,7 +85,7 @@ router.get('/', async (req, res) => {
     let isAuthenticated = false;
     if (detectedMac) {
       try {
-        const authCheck = await pool.query(
+        const authCheck = await db.query(
           'SELECT * FROM clients WHERE mac_address = $1 AND status = $2 AND time_remaining > 0',
           [detectedMac, 'CONNECTED']
         );
@@ -105,7 +101,7 @@ router.get('/', async (req, res) => {
     }
 
     // Get active rates
-    const result = await pool.query('SELECT * FROM rates WHERE is_active = true ORDER BY duration');
+    const result = await db.query('SELECT * FROM rates WHERE is_active = true ORDER BY duration');
     const rates = result.rows;
     
     // Get WAN connectivity status
@@ -125,7 +121,7 @@ router.get('/', async (req, res) => {
     };
     
     try {
-      const settingsResult = await pool.query('SELECT coin_timeout, portal_title, portal_subtitle FROM portal_settings LIMIT 1');
+      const settingsResult = await db.query('SELECT coin_timeout, portal_title, portal_subtitle FROM portal_settings LIMIT 1');
       if (settingsResult.rows.length > 0) {
         portalSettings = settingsResult.rows[0];
       }
@@ -246,7 +242,7 @@ router.post('/connect', async (req, res) => {
     let selectedRate = null;
     if (rateId) {
       try {
-        const rateResult = await pool.query('SELECT * FROM rates WHERE id = $1 AND is_active = true', [rateId]);
+        const rateResult = await db.query('SELECT * FROM rates WHERE id = $1 AND is_active = true', [rateId]);
         if (rateResult.rows.length > 0) {
           selectedRate = rateResult.rows[0];
         }
@@ -265,7 +261,7 @@ router.post('/connect', async (req, res) => {
     } else if (coinsInserted) {
       // Get the first active rate as default for coin-based calculation
       try {
-        const defaultRateResult = await pool.query('SELECT * FROM rates WHERE is_active = true ORDER BY duration LIMIT 1');
+        const defaultRateResult = await db.query('SELECT * FROM rates WHERE is_active = true ORDER BY duration LIMIT 1');
         if (defaultRateResult.rows.length > 0) {
           const defaultRate = defaultRateResult.rows[0];
           // Calculate based on coins and rate
@@ -321,7 +317,7 @@ router.post('/connect', async (req, res) => {
     let clientResult;
     try {
       // Try full insert first
-      clientResult = await pool.query(
+      clientResult = await db.query(
         `INSERT INTO clients (
           mac_address, ip_address, device_name, device_type, os, browser, 
           user_agent, platform, language, screen_resolution, timezone,
@@ -360,7 +356,7 @@ router.post('/connect', async (req, res) => {
     } catch (clientError) {
       console.warn('Full client insert failed, trying simplified version:', clientError.message);
       // Fallback to basic client record
-      clientResult = await pool.query(
+      clientResult = await db.query(
         `INSERT INTO clients (mac_address, ip_address, status, time_remaining, created_at, last_seen)
          VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
          ON CONFLICT (mac_address) 
@@ -379,7 +375,7 @@ router.post('/connect', async (req, res) => {
     
     console.log('Step 5: Creating session record...');
     // Create session record
-    const sessionResult = await pool.query(
+    const sessionResult = await db.query(
       `INSERT INTO sessions (client_id, mac_address, ip_address, duration, status, started_at)
        VALUES ($1, $2, $3, $4, 'ACTIVE', CURRENT_TIMESTAMP)
        RETURNING id`,
@@ -389,7 +385,7 @@ router.post('/connect', async (req, res) => {
     
     console.log('Step 6: Creating transaction record...');
     // Create transaction record
-    await pool.query(
+    await db.query(
       `INSERT INTO transactions (client_id, session_id, amount, coins_used, payment_method, status, created_at)
        VALUES ($1, $2, $3, $4, 'COIN', 'COMPLETED', CURRENT_TIMESTAMP)`,
       [clientId, sessionResult.rows[0].id, sessionCost, coinsInserted || 0]
@@ -423,7 +419,7 @@ router.post('/connect', async (req, res) => {
     
     console.log('Step 8: Logging connection...');
     // Log the connection
-    await pool.query(
+    await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
       ['INFO', `Client connected: ${detectedMac}`, 'portal', 
        JSON.stringify({ ip: clientIP, duration, coins: coinsInserted })]
@@ -511,7 +507,7 @@ router.get('/session-status', async (req, res) => {
     }
     
     // Check client status in database
-    const clientResult = await pool.query(
+    const clientResult = await db.query(
       'SELECT * FROM clients WHERE mac_address = $1 AND status = $2 AND time_remaining > 0',
       [detectedMac, 'CONNECTED']
     );

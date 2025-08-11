@@ -1,23 +1,19 @@
 const express = require('express');
 const router = express.Router();
-const { Pool } = require('pg');
 const { exec } = require('child_process');
 const { promisify } = require('util');
+const db = require('../../db/adapter');
 
 const execAsync = promisify(exec);
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://pisowifi_user:admin123@localhost:5432/pisowifi'
-});
 
 // Get all coin slots status
 router.get('/slots', async (req, res) => {
   try {
     // Release expired slots first
-    await pool.query('SELECT release_expired_coin_slots()');
+    await db.query('SELECT release_expired_coin_slots()');
     
     // Get all slots with queue information
-    const result = await pool.query(`
+    const result = await db.query(`
       SELECT 
         cs.*,
         COALESCE(
@@ -60,12 +56,12 @@ router.post('/slots/:slotNumber/claim', async (req, res) => {
     console.log(`Attempting to claim slot ${slotNumber} for client ${clientIp}`);
     
     // Release expired slots first
-    await pool.query('SELECT release_expired_coin_slots()');
+    await db.query('SELECT release_expired_coin_slots()');
     
     // Try to claim the slot
     const expiresAt = new Date(Date.now() + (timeoutMinutes * 60 * 1000));
     
-    const result = await pool.query(`
+    const result = await db.query(`
       UPDATE coin_slots 
       SET status = 'claimed',
           claimed_by_client_id = $1,
@@ -80,7 +76,7 @@ router.post('/slots/:slotNumber/claim', async (req, res) => {
     
     if (result.rows.length === 0) {
       // Check if slot exists or is already claimed
-      const slotCheck = await pool.query(
+      const slotCheck = await db.query(
         'SELECT * FROM coin_slots WHERE slot_number = $1',
         [slotNumber]
       );
@@ -131,17 +127,17 @@ router.post('/slots/:slotNumber/release', async (req, res) => {
     console.log(`Releasing slot ${slotNumber} for client ${clientIp}${preserveQueues ? ' (preserving queues)' : ''}`);
     
     // Begin transaction to handle slot release and queue preservation
-    await pool.query('BEGIN');
+    await db.query('BEGIN');
     
     try {
       // Get the slot ID before releasing
-      const slotInfo = await pool.query(
+      const slotInfo = await db.query(
         'SELECT id FROM coin_slots WHERE slot_number = $1 AND (claimed_by_ip = $2 OR claimed_by_mac = $3)',
         [slotNumber, clientIp, clientMac]
       );
       
       if (slotInfo.rows.length === 0) {
-        await pool.query('ROLLBACK');
+        await db.query('ROLLBACK');
         return res.status(404).json({
           success: false,
           error: 'Coin slot not found or not claimed by this client'
@@ -153,7 +149,7 @@ router.post('/slots/:slotNumber/release', async (req, res) => {
       // If preserveQueues is true, update queue records to store client info directly
       // and disconnect them from the slot
       if (preserveQueues) {
-        const preservedQueues = await pool.query(`
+        const preservedQueues = await db.query(`
           UPDATE coin_queues 
           SET slot_id = NULL,
               client_ip = COALESCE(client_ip, $1),
@@ -168,7 +164,7 @@ router.post('/slots/:slotNumber/release', async (req, res) => {
       }
       
       // Release the slot
-      const result = await pool.query(`
+      const result = await db.query(`
         UPDATE coin_slots 
         SET status = 'available',
             claimed_by_client_id = NULL,
@@ -180,7 +176,7 @@ router.post('/slots/:slotNumber/release', async (req, res) => {
         RETURNING *
       `, [slotNumber]);
       
-      await pool.query('COMMIT');
+      await db.query('COMMIT');
       
       // Emit real-time update
       const { io } = require('../../app');
@@ -201,7 +197,7 @@ router.post('/slots/:slotNumber/release', async (req, res) => {
       });
       
     } catch (error) {
-      await pool.query('ROLLBACK');
+      await db.query('ROLLBACK');
       throw error;
     }
     
@@ -245,7 +241,7 @@ router.post('/slots/:slotNumber/add-coin', async (req, res) => {
     }
     
     // Verify slot is claimed by this client
-    const slotResult = await pool.query(`
+    const slotResult = await db.query(`
       SELECT id FROM coin_slots 
       WHERE slot_number = $1 
       AND status = 'claimed' 
@@ -266,7 +262,7 @@ router.post('/slots/:slotNumber/add-coin', async (req, res) => {
     console.log(`Slot ID: ${slotId}, Total Value: ₱${totalValue}`);
     
     // Begin transaction to handle coin addition and queue re-association
-    await pool.query('BEGIN');
+    await db.query('BEGIN');
     
     let reAssociated, queueResult;
     
@@ -275,7 +271,7 @@ router.post('/slots/:slotNumber/add-coin', async (req, res) => {
       
       // Re-associate any preserved queues (slot_id = NULL) with this slot
       console.log('Checking for preserved queues...');
-      reAssociated = await pool.query(`
+      reAssociated = await db.query(`
         UPDATE coin_queues 
         SET slot_id = $1
         WHERE slot_id IS NULL 
@@ -292,7 +288,7 @@ router.post('/slots/:slotNumber/add-coin', async (req, res) => {
       
       // Add new coin to queue
       console.log('Inserting new coin into queue...');
-      queueResult = await pool.query(`
+      queueResult = await db.query(`
         INSERT INTO coin_queues (
           slot_id, client_id, client_ip, client_mac, 
           coin_value, coin_count, total_value, status
@@ -302,11 +298,11 @@ router.post('/slots/:slotNumber/add-coin', async (req, res) => {
       
       console.log('New coin inserted successfully:', queueResult.rows[0]);
       
-      await pool.query('COMMIT');
+      await db.query('COMMIT');
       console.log('Transaction committed successfully');
       
       // Get total queued amount for client (using direct query instead of function)
-      const totalResult = await pool.query(`
+      const totalResult = await db.query(`
         SELECT 
           COALESCE(SUM(cq.coin_count), 0)::INTEGER as total_coins,
           COALESCE(SUM(cq.total_value), 0.00)::DECIMAL(10,2) as total_value,
@@ -340,7 +336,7 @@ router.post('/slots/:slotNumber/add-coin', async (req, res) => {
       });
       
     } catch (error) {
-      await pool.query('ROLLBACK');
+      await db.query('ROLLBACK');
       throw error;
     }
   } catch (error) {
@@ -393,10 +389,10 @@ router.get('/queues/client', async (req, res) => {
       `;
     }
     
-    const queueResult = await pool.query(queueQuery, [clientIp, clientMac]);
+    const queueResult = await db.query(queueQuery, [clientIp, clientMac]);
     
     // Get total using a custom query that includes preserved queues
-    const totalResult = await pool.query(`
+    const totalResult = await db.query(`
       SELECT 
         COALESCE(SUM(cq.coin_count), 0)::INTEGER as total_coins,
         COALESCE(SUM(cq.total_value), 0.00)::DECIMAL(10,2) as total_value,
@@ -435,7 +431,7 @@ router.post('/queues/redeem', async (req, res) => {
     console.log(`Redeeming queued coins for client ${clientIp}`);
     
     // Update all queued coins to redeemed status
-    const result = await pool.query(`
+    const result = await db.query(`
       UPDATE coin_queues 
       SET status = 'redeemed'
       WHERE status = 'queued'
@@ -455,7 +451,7 @@ router.post('/queues/redeem', async (req, res) => {
     const totalValue = result.rows.reduce((sum, queue) => sum + parseFloat(queue.total_value), 0);
     
     // Release any claimed slots by this client
-    await pool.query(`
+    await db.query(`
       UPDATE coin_slots 
       SET status = 'available',
           claimed_by_client_id = NULL,
@@ -500,7 +496,7 @@ router.get('/queues', async (req, res) => {
     console.log('Fetching all coin queues');
     
     // Get all active queues with slot and client information
-    const result = await pool.query(`
+    const result = await db.query(`
       SELECT 
         cq.*,
         cs.slot_number,
@@ -533,10 +529,10 @@ router.post('/cleanup', async (req, res) => {
     console.log('Cleaning up expired coin slots and queues');
     
     // Release expired slots
-    const releasedSlots = await pool.query('SELECT release_expired_coin_slots()');
+    const releasedSlots = await db.query('SELECT release_expired_coin_slots()');
     
     // Expire old queues (older than 1 hour)
-    const expiredQueues = await pool.query(`
+    const expiredQueues = await db.query(`
       UPDATE coin_queues 
       SET status = 'expired'
       WHERE status = 'queued'
