@@ -126,45 +126,85 @@ router.post('/slots/:slotNumber/claim', async (req, res) => {
 router.post('/slots/:slotNumber/release', async (req, res) => {
   try {
     const { slotNumber } = req.params;
-    const { clientIp, clientMac } = req.body;
+    const { clientIp, clientMac, preserveQueues = false } = req.body;
     
-    console.log(`Releasing slot ${slotNumber} for client ${clientIp}`);
+    console.log(`Releasing slot ${slotNumber} for client ${clientIp}${preserveQueues ? ' (preserving queues)' : ''}`);
     
-    const result = await pool.query(`
-      UPDATE coin_slots 
-      SET status = 'available',
-          claimed_by_client_id = NULL,
-          claimed_by_ip = NULL,
-          claimed_by_mac = NULL,
-          claimed_at = NULL,
-          expires_at = NULL
-      WHERE slot_number = $1 
-      AND (claimed_by_ip = $2 OR claimed_by_mac = $3)
-      RETURNING *
-    `, [slotNumber, clientIp, clientMac]);
+    // Begin transaction to handle slot release and queue preservation
+    await pool.query('BEGIN');
     
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Coin slot not found or not claimed by this client'
+    try {
+      // Get the slot ID before releasing
+      const slotInfo = await pool.query(
+        'SELECT id FROM coin_slots WHERE slot_number = $1 AND (claimed_by_ip = $2 OR claimed_by_mac = $3)',
+        [slotNumber, clientIp, clientMac]
+      );
+      
+      if (slotInfo.rows.length === 0) {
+        await pool.query('ROLLBACK');
+        return res.status(404).json({
+          success: false,
+          error: 'Coin slot not found or not claimed by this client'
+        });
+      }
+      
+      const slotId = slotInfo.rows[0].id;
+      
+      // If preserveQueues is true, update queue records to store client info directly
+      // and disconnect them from the slot
+      if (preserveQueues) {
+        const preservedQueues = await pool.query(`
+          UPDATE coin_queues 
+          SET slot_id = NULL,
+              client_ip = COALESCE(client_ip, $1),
+              client_mac = COALESCE(client_mac, $2)
+          WHERE slot_id = $3 
+          AND status = 'queued'
+          AND (client_ip = $1 OR client_mac = $2)
+          RETURNING *
+        `, [clientIp, clientMac, slotId]);
+        
+        console.log(`Preserved ${preservedQueues.rows.length} queued coins for client ${clientMac || clientIp}`);
+      }
+      
+      // Release the slot
+      const result = await pool.query(`
+        UPDATE coin_slots 
+        SET status = 'available',
+            claimed_by_client_id = NULL,
+            claimed_by_ip = NULL,
+            claimed_by_mac = NULL,
+            claimed_at = NULL,
+            expires_at = NULL
+        WHERE slot_number = $1 
+        RETURNING *
+      `, [slotNumber]);
+      
+      await pool.query('COMMIT');
+      
+      // Emit real-time update
+      const { io } = require('../../app');
+      io.emit('coin-slot-released', {
+        slot: result.rows[0],
+        clientIp,
+        clientMac,
+        preserveQueues
       });
+      
+      console.log(`Slot ${slotNumber} released successfully`);
+      
+      res.json({
+        success: true,
+        message: `Coin slot released successfully${preserveQueues ? ' with queues preserved' : ''}`,
+        slot: result.rows[0],
+        preserveQueues
+      });
+      
+    } catch (error) {
+      await pool.query('ROLLBACK');
+      throw error;
     }
     
-    // Emit real-time update
-    const { io } = require('../../app');
-    io.emit('coin-slot-released', {
-      slot: result.rows[0],
-      clientIp,
-      clientMac
-    });
-    
-    console.log(`Slot ${slotNumber} released successfully`);
-    
-    res.json({
-      success: true,
-      message: 'Coin slot released successfully',
-      slot: result.rows[0]
-    });
   } catch (error) {
     console.error('Release coin slot error:', error);
     res.status(500).json({
@@ -200,40 +240,67 @@ router.post('/slots/:slotNumber/add-coin', async (req, res) => {
     const slotId = slotResult.rows[0].id;
     const totalValue = parseFloat(coinValue) * parseInt(coinCount);
     
-    // Add coin to queue
-    const queueResult = await pool.query(`
-      INSERT INTO coin_queues (
-        slot_id, client_id, client_ip, client_mac, 
-        coin_value, coin_count, total_value, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued')
-      RETURNING *
-    `, [slotId, clientId, clientIp, clientMac, coinValue, coinCount, totalValue]);
+    // Begin transaction to handle coin addition and queue re-association
+    await pool.query('BEGIN');
     
-    // Get total queued amount for client
-    const totalResult = await pool.query(`
-      SELECT * FROM get_client_queued_total($1, $2)
-    `, [clientIp, clientMac]);
-    
-    const queuedTotal = totalResult.rows[0];
-    
-    // Emit real-time update
-    const { io } = require('../../app');
-    io.emit('coin-added', {
-      queue: queueResult.rows[0],
-      total: queuedTotal,
-      slotNumber,
-      clientIp,
-      clientMac
-    });
-    
-    console.log(`Coin added successfully. Client total: ₱${queuedTotal.total_value}`);
-    
-    res.json({
-      success: true,
-      message: 'Coin added to queue successfully',
-      queue: queueResult.rows[0],
-      total: queuedTotal
-    });
+    try {
+      // Re-associate any preserved queues (slot_id = NULL) with this slot
+      const reAssociated = await pool.query(`
+        UPDATE coin_queues 
+        SET slot_id = $1
+        WHERE slot_id IS NULL 
+        AND status = 'queued'
+        AND (client_ip = $2 OR client_mac = $3)
+        RETURNING *
+      `, [slotId, clientIp, clientMac]);
+      
+      if (reAssociated.rows.length > 0) {
+        console.log(`Re-associated ${reAssociated.rows.length} preserved queues with slot ${slotNumber}`);
+      }
+      
+      // Add new coin to queue
+      const queueResult = await pool.query(`
+        INSERT INTO coin_queues (
+          slot_id, client_id, client_ip, client_mac, 
+          coin_value, coin_count, total_value, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued')
+        RETURNING *
+      `, [slotId, clientId, clientIp, clientMac, coinValue, coinCount, totalValue]);
+      
+      await pool.query('COMMIT');
+      
+      // Get total queued amount for client
+      const totalResult = await pool.query(`
+        SELECT * FROM get_client_queued_total($1, $2)
+      `, [clientIp, clientMac]);
+      
+      const queuedTotal = totalResult.rows[0];
+      
+      // Emit real-time update
+      const { io } = require('../../app');
+      io.emit('coin-added', {
+        queue: newQueue,
+        total: queuedTotal,
+        slotNumber,
+        clientIp,
+        clientMac,
+        reAssociated: reAssociated.rows.length > 0
+      });
+      
+      console.log(`Coin added successfully. Client total: ₱${queuedTotal.total_value}`);
+      
+      res.json({
+        success: true,
+        message: 'Coin added to queue successfully' + (reAssociated.rows.length > 0 ? ' (restored previous coins)' : ''),
+        queue: newQueue,
+        total: queuedTotal,
+        reAssociated: reAssociated.rows.length
+      });
+      
+    } catch (error) {
+      await pool.query('ROLLBACK');
+      throw error;
+    }
   } catch (error) {
     console.error('Add coin error:', error);
     res.status(500).json({
@@ -246,7 +313,7 @@ router.post('/slots/:slotNumber/add-coin', async (req, res) => {
 // Get client's queued coins
 router.get('/queues/client', async (req, res) => {
   try {
-    const { clientIp, clientMac } = req.query;
+    const { clientIp, clientMac, includePreserved = false } = req.query;
     
     if (!clientIp && !clientMac) {
       return res.status(400).json({
@@ -255,29 +322,59 @@ router.get('/queues/client', async (req, res) => {
       });
     }
     
-    // Get queued coins for client
-    const queueResult = await pool.query(`
+    // Get queued coins for client (including preserved ones if requested)
+    let queueQuery, queryParams;
+    
+    if (includePreserved === 'true') {
+      // Include both slot-associated and preserved (slot_id = NULL) queues
+      queueQuery = `
+        SELECT 
+          cq.*,
+          cs.slot_number
+        FROM coin_queues cq
+        LEFT JOIN coin_slots cs ON cq.slot_id = cs.id
+        WHERE cq.status = 'queued'
+        AND (cq.client_ip = $1 OR cq.client_mac = $2)
+        ORDER BY cq.created_at
+      `;
+    } else {
+      // Only get queues associated with active slots
+      queueQuery = `
+        SELECT 
+          cq.*,
+          cs.slot_number
+        FROM coin_queues cq
+        JOIN coin_slots cs ON cq.slot_id = cs.id
+        WHERE cq.status = 'queued'
+        AND (cq.client_ip = $1 OR cq.client_mac = $2)
+        ORDER BY cq.created_at
+      `;
+    }
+    
+    const queueResult = await pool.query(queueQuery, [clientIp, clientMac]);
+    
+    // Get total using a custom query that includes preserved queues
+    const totalResult = await pool.query(`
       SELECT 
-        cq.*,
-        cs.slot_number
+        COALESCE(SUM(cq.coin_count), 0)::INTEGER as total_coins,
+        COALESCE(SUM(cq.total_value), 0.00)::DECIMAL(10,2) as total_value,
+        COUNT(cq.id)::INTEGER as queue_count
       FROM coin_queues cq
-      JOIN coin_slots cs ON cq.slot_id = cs.id
       WHERE cq.status = 'queued'
       AND (cq.client_ip = $1 OR cq.client_mac = $2)
-      ORDER BY cq.created_at
-    `, [clientIp, clientMac]);
-    
-    // Get total
-    const totalResult = await pool.query(`
-      SELECT * FROM get_client_queued_total($1, $2)
+      ${includePreserved === 'true' ? '' : 'AND cq.slot_id IS NOT NULL'}
     `, [clientIp, clientMac]);
     
     const total = totalResult.rows[0];
     
+    // Check if any queues are preserved (not associated with a slot)
+    const hasPreservedQueues = queueResult.rows.some(queue => queue.slot_id === null);
+    
     res.json({
       success: true,
       queues: queueResult.rows,
-      total: total
+      total: total,
+      preserved: hasPreservedQueues && includePreserved === 'true'
     });
   } catch (error) {
     console.error('Get client queues error:', error);

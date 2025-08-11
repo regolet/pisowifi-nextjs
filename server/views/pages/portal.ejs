@@ -516,7 +516,7 @@
             document.getElementById('coinModal').style.display = 'none';
             if (countdown) clearInterval(countdown);
             
-            // Release the claimed slot
+            // Release the claimed slot but preserve queued coins
             if (claimedSlot) {
                 try {
                     await fetch(`/api/coin-slots/slots/${claimedSlot.slot_number}/release`, {
@@ -524,14 +524,20 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             clientIp: clientIP,
-                            clientMac: clientMAC
+                            clientMac: clientMAC,
+                            preserveQueues: true // Keep queued coins for this client
                         })
                     });
-                    console.log('Released slot:', claimedSlot.slot_number);
+                    console.log('Released slot:', claimedSlot.slot_number, '- queued coins preserved for', clientMAC || clientIP);
                 } catch (error) {
                     console.warn('Failed to release slot:', error);
                 }
                 claimedSlot = null;
+            }
+            
+            // Show a message if there are queued coins
+            if (totalValue > 0) {
+                console.log(`You have ₱${totalValue.toFixed(2)} in queued coins that will be saved for your next visit`);
             }
         }
         
@@ -592,11 +598,33 @@
         
         async function loadExistingQueue() {
             try {
-                const response = await fetch(`/api/coin-slots/queues/client?clientIp=${encodeURIComponent(clientIP)}&clientMac=${encodeURIComponent(clientMAC)}`);
+                // Load any existing queues for this client (including preserved ones)
+                const response = await fetch(`/api/coin-slots/queues/client?clientIp=${encodeURIComponent(clientIP)}&clientMac=${encodeURIComponent(clientMAC)}&includePreserved=true`);
                 const data = await response.json();
                 
                 if (data.success && data.total) {
                     updateCoinDisplayFromQueue(data.total);
+                    
+                    // Show message if coins were restored from previous session
+                    if (data.total.total_coins > 0 && data.preserved) {
+                        const welcomeMsg = `💰 Welcome back! You have ₱${data.total.total_value} in saved coins from your previous visit.`;
+                        setTimeout(() => {
+                            const coinStats = document.querySelector('.coin-stats');
+                            if (coinStats) {
+                                const welcomeDiv = document.createElement('div');
+                                welcomeDiv.className = 'bg-green-50 border border-green-200 rounded p-2 mt-2 text-sm text-green-700';
+                                welcomeDiv.textContent = welcomeMsg;
+                                coinStats.parentNode.insertBefore(welcomeDiv, coinStats.nextSibling);
+                                
+                                // Remove message after 5 seconds
+                                setTimeout(() => {
+                                    if (welcomeDiv.parentNode) {
+                                        welcomeDiv.parentNode.removeChild(welcomeDiv);
+                                    }
+                                }, 5000);
+                            }
+                        }, 500);
+                    }
                 } else {
                     resetCoins();
                 }
