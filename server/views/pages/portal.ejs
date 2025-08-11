@@ -90,30 +90,25 @@
             margin-bottom: 4px;
         }
         
-        .client-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
+        .time-remaining-display {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
             margin: 20px 0;
-        }
-        
-        .stat-item {
-            background: #f7fafc;
-            padding: 16px;
-            border-radius: 8px;
             text-align: center;
         }
         
-        .stat-label {
-            font-size: 0.8rem;
-            color: #718096;
-            margin-bottom: 4px;
+        .time-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-bottom: 8px;
         }
         
-        .stat-value {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: #2d3748;
+        .time-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: 1px;
         }
         
         .main-button {
@@ -242,9 +237,8 @@
                 padding: 30px 20px;
             }
             
-            .client-stats {
-                grid-template-columns: 1fr;
-                gap: 12px;
+            .time-value {
+                font-size: 1.5rem;
             }
         }
     </style>
@@ -263,26 +257,20 @@
                 <span><%= isAuthenticated ? 'Connected' : 'Disconnected' %></span>
             </div>
             
+            <!-- Time Remaining Display (if authenticated) -->
+            <% if (isAuthenticated && clientInfo) { %>
+            <div class="time-remaining-display">
+                <div class="time-label">Time Remaining</div>
+                <div class="time-value" id="timeRemaining"><%= clientInfo.time_remaining || 0 %></div>
+            </div>
+            <% } %>
+            
             <!-- Device Info -->
             <div class="device-info">
                 <div><strong>MAC:</strong> <%= clientMAC %></div>
                 <div><strong>IP:</strong> <%= clientIP %></div>
                 <div><strong>Internet:</strong> <%= wanStatus === 'connected' ? '✅ Online' : '❌ Offline' %></div>
             </div>
-            
-            <!-- Client Stats (if authenticated) -->
-            <% if (isAuthenticated && clientInfo) { %>
-            <div class="client-stats">
-                <div class="stat-item">
-                    <div class="stat-label">Time Remaining</div>
-                    <div class="stat-value"><%= Math.floor(clientInfo.time_remaining / 60) %> min</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-label">Amount Paid</div>
-                    <div class="stat-value">₱<%= (clientInfo.total_amount_paid || 5).toFixed(2) %></div>
-                </div>
-            </div>
-            <% } %>
         </div>
         
         <!-- Main Action Buttons -->
@@ -442,7 +430,7 @@
         }
         
         // Load rates on page start
-        loadRates();
+        // Format time remaining function\n        function formatTime(totalSeconds) {\n            if (totalSeconds <= 0) return '0secs';\n            \n            const days = Math.floor(totalSeconds / 86400);\n            const hours = Math.floor((totalSeconds % 86400) / 3600);\n            const minutes = Math.floor((totalSeconds % 3600) / 60);\n            const seconds = totalSeconds % 60;\n            \n            const parts = [];\n            if (days > 0) parts.push(`${days}day${days > 1 ? 's' : ''}`);\n            if (hours > 0) parts.push(`${hours}hr${hours > 1 ? 's' : ''}`);\n            if (minutes > 0) parts.push(`${minutes}min${minutes > 1 ? 's' : ''}`);\n            if (seconds > 0) parts.push(`${seconds}sec${seconds > 1 ? 's' : ''}`);\n            \n            return parts.join(', ');\n        }\n        \n        // Initialize time display if authenticated\n        <% if (isAuthenticated && clientInfo) { %>\n        document.addEventListener('DOMContentLoaded', function() {\n            const timeRemainingElement = document.getElementById('timeRemaining');\n            if (timeRemainingElement) {\n                const timeRemaining = parseInt('<%= clientInfo.time_remaining || 0 %>');\n                timeRemainingElement.textContent = formatTime(timeRemaining);\n                \n                // Update time every second\n                let currentTime = timeRemaining;\n                setInterval(() => {\n                    if (currentTime > 0) {\n                        currentTime--;\n                        timeRemainingElement.textContent = formatTime(currentTime);\n                    } else {\n                        timeRemainingElement.textContent = 'Expired';\n                        window.location.reload(); // Refresh to show disconnected state\n                    }\n                }, 1000);\n            }\n        });\n        <% } %>\n        \n        loadRates();
         
         async function loadRates() {
             try {
