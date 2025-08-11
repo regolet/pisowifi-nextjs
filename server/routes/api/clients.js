@@ -1,17 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const { Pool } = require('pg');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const UAParser = require('ua-parser-js');
 const jwt = require('jsonwebtoken');
 const NetworkManager = require('../../services/network-manager');
+const db = require('../../db/simple-adapter');
 
 const execAsync = promisify(exec);
 const networkManager = new NetworkManager();
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://pisowifi_user:admin123@localhost:5432/pisowifi'
-});
 
 // Auth middleware
 const authenticateToken = (req, res, next) => {
@@ -34,7 +31,7 @@ const authenticateToken = (req, res, next) => {
 router.get('/', authenticateToken, async (req, res) => {
   try {
     // Get clients from database
-    const dbClients = await pool.query(
+    const dbClients = await db.query(
       `SELECT 
         c.*,
         s.id as session_id,
@@ -121,7 +118,7 @@ router.get('/unauthenticated', authenticateToken, async (req, res) => {
     for (const networkClient of connectedClients) {
       try {
         // Check if client is authenticated in database
-        const dbResult = await pool.query(
+        const dbResult = await db.query(
           'SELECT * FROM clients WHERE mac_address = $1 AND status = $2 AND time_remaining > 0',
           [networkClient.mac_address.toUpperCase(), 'CONNECTED']
         );
@@ -175,7 +172,7 @@ router.get('/connected', authenticateToken, async (req, res) => {
     for (const networkClient of connectedClients) {
       try {
         // Look up client in database
-        const dbResult = await pool.query(
+        const dbResult = await db.query(
           'SELECT * FROM clients WHERE mac_address = $1',
           [networkClient.mac_address.toUpperCase()]
         );
@@ -246,7 +243,7 @@ router.post('/:id/authenticate', authenticateToken, async (req, res) => {
     const { duration } = req.body;
     
     // Get client from database
-    const clientResult = await pool.query('SELECT * FROM clients WHERE id = $1', [id]);
+    const clientResult = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
     if (clientResult.rows.length === 0) {
       return res.status(404).json({ error: 'Client not found' });
     }
@@ -257,13 +254,13 @@ router.post('/:id/authenticate', authenticateToken, async (req, res) => {
     console.log(`Authenticating client ${client.mac_address} for ${authDuration} seconds`);
     
     // Update client status in database
-    await pool.query(
+    await db.query(
       'UPDATE clients SET status = $1, time_remaining = $2, last_seen = CURRENT_TIMESTAMP WHERE id = $3',
       ['CONNECTED', authDuration, id]
     );
     
     // Create new session
-    const sessionResult = await pool.query(
+    const sessionResult = await db.query(
       `INSERT INTO sessions (client_id, mac_address, ip_address, duration, status, started_at)
        VALUES ($1, $2, $3, $4, 'ACTIVE', CURRENT_TIMESTAMP)
        RETURNING id`,
@@ -282,13 +279,13 @@ router.post('/:id/authenticate', authenticateToken, async (req, res) => {
       }
     } else {
       // If NetworkManager auth failed, revert database changes
-      await pool.query('UPDATE clients SET status = $1 WHERE id = $2', ['DISCONNECTED', id]);
-      await pool.query('UPDATE sessions SET status = $1 WHERE id = $2', ['FAILED', sessionResult.rows[0].id]);
+      await db.query('UPDATE clients SET status = $1 WHERE id = $2', ['DISCONNECTED', id]);
+      await db.query('UPDATE sessions SET status = $1 WHERE id = $2', ['FAILED', sessionResult.rows[0].id]);
       throw new Error(authResult.error);
     }
     
     // Log the action
-    await pool.query(
+    await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
       ['INFO', `Client manually authenticated: ${client.mac_address}`, 'admin',
        JSON.stringify({ admin: req.user?.username, duration: authDuration, client_id: id })]
@@ -312,7 +309,7 @@ router.post('/:id/disconnect', authenticateToken, async (req, res) => {
     const { id } = req.params;
     
     // Get client from database
-    const clientResult = await pool.query('SELECT * FROM clients WHERE id = $1', [id]);
+    const clientResult = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
     if (clientResult.rows.length === 0) {
       return res.status(404).json({ error: 'Client not found' });
     }
@@ -321,13 +318,13 @@ router.post('/:id/disconnect', authenticateToken, async (req, res) => {
     console.log(`Disconnecting client ${client.mac_address}`);
     
     // Update client status
-    await pool.query(
+    await db.query(
       'UPDATE clients SET status = $1, time_remaining = 0 WHERE id = $2',
       ['DISCONNECTED', id]
     );
     
     // End active sessions
-    await pool.query(
+    await db.query(
       'UPDATE sessions SET status = $1, ended_at = CURRENT_TIMESTAMP WHERE client_id = $2 AND status = $3',
       ['ENDED', id, 'ACTIVE']
     );
@@ -345,7 +342,7 @@ router.post('/:id/disconnect', authenticateToken, async (req, res) => {
     }
     
     // Log the action
-    await pool.query(
+    await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
       ['INFO', `Client manually disconnected: ${client.mac_address}`, 'admin',
        JSON.stringify({ admin: req.user?.username, client_id: id })]
@@ -363,7 +360,7 @@ router.post('/:id/pause', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     
-    const clientResult = await pool.query('SELECT * FROM clients WHERE id = $1', [id]);
+    const clientResult = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
     if (clientResult.rows.length === 0) {
       return res.status(404).json({ error: 'Client not found' });
     }
@@ -372,7 +369,7 @@ router.post('/:id/pause', authenticateToken, async (req, res) => {
     const newStatus = client.status === 'PAUSED' ? 'CONNECTED' : 'PAUSED';
     
     // Update status
-    await pool.query('UPDATE clients SET status = $1 WHERE id = $2', [newStatus, id]);
+    await db.query('UPDATE clients SET status = $1 WHERE id = $2', [newStatus, id]);
     
     // Apply or remove iptables rule
     if (newStatus === 'PAUSED') {
@@ -396,7 +393,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
     
     // Get client first
-    const clientResult = await pool.query('SELECT * FROM clients WHERE id = $1', [id]);
+    const clientResult = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
     if (clientResult.rows.length > 0) {
       const client = clientResult.rows[0];
       // Block client before deletion
@@ -409,9 +406,9 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     }
     
     // Delete client and related records
-    await pool.query('DELETE FROM sessions WHERE client_id = $1', [id]);
-    await pool.query('DELETE FROM transactions WHERE client_id = $1', [id]);
-    await pool.query('DELETE FROM clients WHERE id = $1', [id]);
+    await db.query('DELETE FROM sessions WHERE client_id = $1', [id]);
+    await db.query('DELETE FROM transactions WHERE client_id = $1', [id]);
+    await db.query('DELETE FROM clients WHERE id = $1', [id]);
     
     res.json({ success: true, message: 'Client deleted' });
   } catch (error) {
@@ -434,7 +431,7 @@ router.post('/device-info', async (req, res) => {
     
     // Update client in database if exists
     try {
-      await pool.query(
+      await db.query(
         `UPDATE clients SET 
          device_name = $1, device_type = $2, os = $3, browser = $4, user_agent = $5, last_seen = CURRENT_TIMESTAMP 
          WHERE mac_address = $6`,
@@ -472,7 +469,7 @@ router.get('/:id/history', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     
-    const result = await pool.query(
+    const result = await db.query(
       `SELECT 
         s.id,
         s.started_at,
@@ -503,7 +500,7 @@ router.get('/:id/analytics', authenticateToken, async (req, res) => {
     const { id } = req.params;
     
     // Get basic stats
-    const statsResult = await pool.query(
+    const statsResult = await db.query(
       `SELECT 
         COUNT(s.id) as total_sessions,
         SUM(s.duration) as total_time,
@@ -518,7 +515,7 @@ router.get('/:id/analytics', authenticateToken, async (req, res) => {
     );
     
     // Get usage by hour of day
-    const hourlyResult = await pool.query(
+    const hourlyResult = await db.query(
       `SELECT 
         EXTRACT(hour FROM started_at) as hour,
         COUNT(*) as sessions,
@@ -531,7 +528,7 @@ router.get('/:id/analytics', authenticateToken, async (req, res) => {
     );
     
     // Get usage by day of week
-    const weeklyResult = await pool.query(
+    const weeklyResult = await db.query(
       `SELECT 
         EXTRACT(dow FROM started_at) as day_of_week,
         COUNT(*) as sessions,
@@ -568,10 +565,10 @@ router.post('/cleanup', authenticateToken, async (req, res) => {
       query += ` AND status NOT IN ('CONNECTED', 'PAUSED')`;
     }
     
-    const result = await pool.query(query);
+    const result = await db.query(query);
     
     // Log cleanup action
-    await pool.query(
+    await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
       ['INFO', `Cleaned up ${result.rowCount} inactive clients`, 'system', 
        JSON.stringify({ days: olderThanDays, admin: req.user.username })]
@@ -595,7 +592,7 @@ router.post('/:id/whitelist', authenticateToken, async (req, res) => {
     const { reason } = req.body;
     
     // Get client
-    const clientResult = await pool.query('SELECT * FROM clients WHERE id = $1', [id]);
+    const clientResult = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
     if (clientResult.rows.length === 0) {
       return res.status(404).json({ error: 'Client not found' });
     }
@@ -603,7 +600,7 @@ router.post('/:id/whitelist', authenticateToken, async (req, res) => {
     const client = clientResult.rows[0];
     
     // Add to whitelist
-    await pool.query(
+    await db.query(
       `INSERT INTO whitelisted_clients (mac_address, ip_address, reason, added_by, created_at) 
        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
        ON CONFLICT (mac_address) DO UPDATE SET 
@@ -614,7 +611,7 @@ router.post('/:id/whitelist', authenticateToken, async (req, res) => {
     );
     
     // Update client status
-    await pool.query(
+    await db.query(
       'UPDATE clients SET is_whitelisted = true WHERE id = $1',
       [id]
     );
@@ -640,7 +637,7 @@ router.post('/:id/block', authenticateToken, async (req, res) => {
     const { reason } = req.body;
     
     // Get client
-    const clientResult = await pool.query('SELECT * FROM clients WHERE id = $1', [id]);
+    const clientResult = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
     if (clientResult.rows.length === 0) {
       return res.status(404).json({ error: 'Client not found' });
     }
@@ -648,7 +645,7 @@ router.post('/:id/block', authenticateToken, async (req, res) => {
     const client = clientResult.rows[0];
     
     // Add to blocklist
-    await pool.query(
+    await db.query(
       `INSERT INTO blocked_clients (mac_address, ip_address, reason, blocked_by, created_at) 
        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
        ON CONFLICT (mac_address) DO UPDATE SET 
@@ -659,7 +656,7 @@ router.post('/:id/block', authenticateToken, async (req, res) => {
     );
     
     // Update client status
-    await pool.query(
+    await db.query(
       'UPDATE clients SET status = $1, is_blocked = true WHERE id = $2',
       ['BLOCKED', id]
     );

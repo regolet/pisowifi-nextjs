@@ -429,8 +429,81 @@
             console.warn('Socket.IO not available:', error);
         }
         
+        // Format time remaining function
+        function formatTime(totalSeconds) {
+            if (totalSeconds <= 0) return '0secs';
+            
+            const days = Math.floor(totalSeconds / 86400);
+            const hours = Math.floor((totalSeconds % 86400) / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            
+            const parts = [];
+            if (days > 0) parts.push(`${days}day${days > 1 ? 's' : ''}`);
+            if (hours > 0) parts.push(`${hours}hr${hours > 1 ? 's' : ''}`);
+            if (minutes > 0) parts.push(`${minutes}min${minutes > 1 ? 's' : ''}`);
+            if (seconds > 0) parts.push(`${seconds}sec${seconds > 1 ? 's' : ''}`);
+            
+            return parts.join(', ');
+        }
+        
+        // Initialize time display if authenticated
+        <% if (isAuthenticated && clientInfo) { %>
+        document.addEventListener('DOMContentLoaded', function() {
+            const timeRemainingElement = document.getElementById('timeRemaining');
+            if (timeRemainingElement) {
+                // Initialize with server value
+                let currentTime = parseInt('<%= clientInfo.time_remaining || 0 %>');
+                timeRemainingElement.textContent = formatTime(currentTime);
+                
+                // Update from server every 5 seconds instead of local countdown
+                const updateFromServer = () => {
+                    fetch('/portal/session-status')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.authenticated) {
+                                currentTime = data.time_remaining;
+                                timeRemainingElement.textContent = formatTime(currentTime);
+                                
+                                if (currentTime <= 0) {
+                                    setTimeout(() => window.location.reload(), 1000);
+                                }
+                            } else {
+                                // Client is no longer authenticated
+                                window.location.reload();
+                            }
+                        })
+                        .catch(error => {
+                            console.warn('Failed to update time from server:', error);
+                            // Fallback to local countdown for this interval
+                            if (currentTime > 0) {
+                                currentTime = Math.max(0, currentTime - 5); // Subtract 5 seconds
+                                timeRemainingElement.textContent = formatTime(currentTime);
+                            }
+                        });
+                };
+                
+                // Update from server every 5 seconds
+                setInterval(updateFromServer, 5000);
+                
+                // Also do local countdown every second for smooth display
+                setInterval(() => {
+                    if (currentTime > 0) {
+                        currentTime--;
+                        timeRemainingElement.textContent = formatTime(currentTime);
+                        
+                        if (currentTime <= 0) {
+                            timeRemainingElement.textContent = 'Expired';
+                            setTimeout(() => window.location.reload(), 1000);
+                        }
+                    }
+                }, 1000);
+            }
+        });
+        <% } %>
+        
         // Load rates on page start
-        // Format time remaining function\n        function formatTime(totalSeconds) {\n            if (totalSeconds <= 0) return '0secs';\n            \n            const days = Math.floor(totalSeconds / 86400);\n            const hours = Math.floor((totalSeconds % 86400) / 3600);\n            const minutes = Math.floor((totalSeconds % 3600) / 60);\n            const seconds = totalSeconds % 60;\n            \n            const parts = [];\n            if (days > 0) parts.push(`${days}day${days > 1 ? 's' : ''}`);\n            if (hours > 0) parts.push(`${hours}hr${hours > 1 ? 's' : ''}`);\n            if (minutes > 0) parts.push(`${minutes}min${minutes > 1 ? 's' : ''}`);\n            if (seconds > 0) parts.push(`${seconds}sec${seconds > 1 ? 's' : ''}`);\n            \n            return parts.join(', ');\n        }\n        \n        // Initialize time display if authenticated\n        <% if (isAuthenticated && clientInfo) { %>\n        document.addEventListener('DOMContentLoaded', function() {\n            const timeRemainingElement = document.getElementById('timeRemaining');\n            if (timeRemainingElement) {\n                const timeRemaining = parseInt('<%= clientInfo.time_remaining || 0 %>');\n                timeRemainingElement.textContent = formatTime(timeRemaining);\n                \n                // Update time every second\n                let currentTime = timeRemaining;\n                setInterval(() => {\n                    if (currentTime > 0) {\n                        currentTime--;\n                        timeRemainingElement.textContent = formatTime(currentTime);\n                    } else {\n                        timeRemainingElement.textContent = 'Expired';\n                        window.location.reload(); // Refresh to show disconnected state\n                    }\n                }, 1000);\n            }\n        });\n        <% } %>\n        \n        loadRates();
+        loadRates();
         
         async function loadRates() {
             try {

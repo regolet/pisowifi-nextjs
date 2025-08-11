@@ -184,6 +184,91 @@ server.listen(PORT, async () => {
   } catch (error) {
     console.log('⚠️ Network manager not available:', error.message);
   }
+  
+  // Start time countdown system for authenticated clients
+  startTimeCountdownSystem();
 });
+
+// Time countdown system - decrements time_remaining in database every second
+function startTimeCountdownSystem() {
+  console.log('⏰ Starting time countdown system...');
+  
+  setInterval(async () => {
+    try {
+      const db = require('./db/simple-adapter');
+      
+      // Decrement time_remaining for all connected clients
+      const result = await db.query(`
+        UPDATE clients 
+        SET time_remaining = GREATEST(0, time_remaining - 1),
+            last_seen = CURRENT_TIMESTAMP
+        WHERE status = 'CONNECTED' 
+        AND time_remaining > 0
+        RETURNING id, mac_address, time_remaining
+      `);
+      
+      // Check for expired clients
+      const expiredResult = await db.query(`
+        SELECT id, mac_address, ip_address 
+        FROM clients 
+        WHERE status = 'CONNECTED' 
+        AND time_remaining <= 0
+      `);
+      
+      // Disconnect expired clients
+      if (expiredResult.rows.length > 0) {
+        console.log(`⏰ Found ${expiredResult.rows.length} expired clients, disconnecting...`);
+        
+        for (const client of expiredResult.rows) {
+          try {
+            // Update client status to disconnected
+            await db.query(`
+              UPDATE clients 
+              SET status = 'DISCONNECTED', time_remaining = 0, last_seen = CURRENT_TIMESTAMP 
+              WHERE id = $1
+            `, [client.id]);
+            
+            // End active sessions
+            await db.query(`
+              UPDATE sessions 
+              SET status = 'ENDED', ended_at = CURRENT_TIMESTAMP 
+              WHERE client_id = $1 AND status = 'ACTIVE'
+            `, [client.id]);
+            
+            // Deauthenticate using NetworkManager
+            try {
+              const NetworkManager = require('./services/network-manager');
+              const networkManager = new NetworkManager();
+              await networkManager.deauthenticateClient(client.mac_address);
+              console.log(`⏰ Deauthenticated expired client: ${client.mac_address}`);
+            } catch (networkError) {
+              console.warn(`Failed to deauthenticate ${client.mac_address}:`, networkError.message);
+            }
+            
+            // Emit socket event to update frontend
+            io.emit('client-disconnected', {
+              mac_address: client.mac_address,
+              reason: 'time_expired'
+            });
+            
+          } catch (clientError) {
+            console.error(`Failed to disconnect expired client ${client.mac_address}:`, clientError.message);
+          }
+        }
+      }
+      
+      // Log active clients count every minute
+      if (result.rows.length > 0) {
+        const now = new Date();
+        if (now.getSeconds() === 0) { // Log only at the start of each minute
+          console.log(`⏰ ${result.rows.length} active clients with time remaining`);
+        }
+      }
+      
+    } catch (error) {
+      console.error('Time countdown system error:', error.message);
+    }
+  }, 1000); // Run every second
+}
 
 module.exports = { app, io };
