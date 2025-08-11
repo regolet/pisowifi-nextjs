@@ -487,7 +487,7 @@
                     body: JSON.stringify({
                         clientIp: clientIP,
                         clientMac: clientMAC,
-                        timeoutMinutes: 5
+                        timeoutMinutes: Math.max(<%= portalSettings.coin_timeout %> / 60, 5) // Use portal timeout or minimum 5 minutes
                     })
                 });
                 
@@ -672,7 +672,36 @@
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('HTTP Error:', response.status, response.statusText, errorText);
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    
+                    // Handle 403 Forbidden (slot not claimed) by attempting to reclaim
+                    if (response.status === 403) {
+                        console.log('Slot not claimed, attempting to reclaim...');
+                        try {
+                            const reclaimResponse = await fetch('/api/coin-slots/slots/1/claim', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    clientIp: clientIP,
+                                    clientMac: clientMAC,
+                                    timeoutMinutes: Math.max(<%= portalSettings.coin_timeout %> / 60, 5)
+                                })
+                            });
+                            
+                            const reclaimData = await reclaimResponse.json();
+                            if (reclaimData.success) {
+                                claimedSlot = reclaimData.slot;
+                                console.log('Slot reclaimed, retrying coin addition...');
+                                // Retry the coin addition
+                                return await addCoinToQueue(value, count);
+                            } else {
+                                throw new Error('Slot is busy. Please wait and try again.');
+                            }
+                        } catch (reclaimError) {
+                            throw new Error('Unable to access coin slot: ' + reclaimError.message);
+                        }
+                    } else {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
                 }
                 
                 const data = await response.json();
@@ -702,7 +731,15 @@
         function updateCoinDisplayFromQueue(queueTotal) {
             coinsInserted = queueTotal.total_coins || 0;
             totalValue = parseFloat(queueTotal.total_value) || 0;
-            totalTime = Math.floor((totalValue / coinValue) * timePerCoin);
+            
+            // Calculate time based on loaded rates or fallback
+            if (totalValue > 0 && coinValue > 0) {
+                totalTime = Math.floor((totalValue / coinValue) * timePerCoin);
+            } else {
+                // Fallback calculation: assume 5 pesos = 30 minutes
+                totalTime = Math.floor((totalValue / 5) * 30);
+            }
+            
             updateCoinDisplay();
             
             // Enable connect button if coins added
@@ -739,10 +776,18 @@
                     })
                 });
                 
+                if (!redeemResponse.ok) {
+                    const errorText = await redeemResponse.text();
+                    console.error('Redeem error:', redeemResponse.status, errorText);
+                    throw new Error(`Failed to redeem coins: HTTP ${redeemResponse.status}`);
+                }
+                
                 const redeemData = await redeemResponse.json();
                 if (!redeemData.success) {
                     throw new Error('Failed to redeem coins: ' + redeemData.error);
                 }
+                
+                console.log('Coins redeemed successfully:', redeemData);
                 
                 connectBtn.textContent = '⏳ Connecting...';
                 
@@ -758,9 +803,16 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         coinsInserted: redeemData.totalCoins,
-                        totalValue: redeemData.totalValue,
                         duration: totalTime * 60, // Convert to seconds
-                        macAddress: 'auto-detect'
+                        macAddress: clientMAC || 'auto-detect',
+                        deviceInfo: {
+                            userAgent: navigator.userAgent,
+                            platform: navigator.platform,
+                            language: navigator.language,
+                            screenWidth: screen.width,
+                            screenHeight: screen.height,
+                            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                        }
                     })
                 });
                 
@@ -789,10 +841,27 @@
                         claimedSlot = null;
                     }
                     
+                    // Show success message with connection details
+                    const successMessage = `
+                        <div class="bg-green-50 border border-green-200 rounded p-4 mb-4">
+                            <h4 class="text-green-800 font-semibold">✅ Internet Access Granted!</h4>
+                            <p class="text-green-700 text-sm mt-2">
+                                • Duration: ${Math.floor(data.duration / 60)} minutes<br>
+                                • Amount Paid: ₱${data.amount_paid.toFixed(2)}<br>
+                                • Expires: ${new Date(data.expires_at).toLocaleTimeString()}
+                            </p>
+                        </div>
+                    `;
+                    
+                    // Insert success message before coin modal content
+                    const modalContent = document.querySelector('.modal-content');
+                    modalContent.insertAdjacentHTML('afterbegin', successMessage);
+                    
                     setTimeout(() => {
                         closeCoinModal();
+                        // Redirect to show authorized state
                         window.location.reload();
-                    }, 1500);
+                    }, 3000);
                 } else {
                     connectBtn.textContent = '❌ Failed: ' + (data.error || 'Unknown error');
                     setTimeout(() => {
