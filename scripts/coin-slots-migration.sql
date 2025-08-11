@@ -30,12 +30,9 @@ CREATE TABLE IF NOT EXISTS coin_queues (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Insert default coin slots (assuming 4 physical coin slots)
+-- Insert default coin slot for Orange Pi standalone (single physical coin slot)
 INSERT INTO coin_slots (slot_number, status) VALUES 
-(1, 'available'),
-(2, 'available'), 
-(3, 'available'),
-(4, 'available')
+(1, 'available')
 ON CONFLICT (slot_number) DO NOTHING;
 
 -- Add indexes for performance

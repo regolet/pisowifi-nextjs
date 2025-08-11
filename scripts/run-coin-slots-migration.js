@@ -87,20 +87,17 @@ async function runMigration() {
         }
       }
       
-      // Insert default coin slots
-      console.log('Inserting default coin slots...');
+      // Insert default coin slot for Orange Pi standalone
+      console.log('Inserting default coin slot...');
       try {
         await pool.query(`
           INSERT INTO coin_slots (slot_number, status) VALUES 
-          (1, 'available'),
-          (2, 'available'), 
-          (3, 'available'),
-          (4, 'available')
+          (1, 'available')
           ON CONFLICT (slot_number) DO NOTHING
         `);
-        console.log('  ✅ Default slots inserted\n');
+        console.log('  ✅ Default slot inserted (Orange Pi standalone)\n');
       } catch (err) {
-        console.log(`  ⚠️  Default slots may already exist: ${err.message}\n`);
+        console.log(`  ⚠️  Default slot may already exist: ${err.message}\n`);
       }
       
       // Create indexes

@@ -464,7 +464,7 @@
         }
         
         async function showCoinModal() {
-            // Try to claim a coin slot first
+            // Try to claim coin slot 1 (Orange Pi standalone has only one physical coin slot)
             try {
                 const response = await fetch('/api/coin-slots/slots/1/claim', {
                     method: 'POST',
@@ -480,50 +480,20 @@
                 
                 if (data.success) {
                     claimedSlot = data.slot;
-                    console.log('Claimed slot:', claimedSlot.slot_number);
+                    console.log('Claimed coin slot 1:', claimedSlot.slot_number);
                     
                     document.getElementById('coinModal').style.display = 'block';
                     startCountdown();
                     await loadExistingQueue();
                 } else {
-                    // Try other slots if slot 1 is unavailable
-                    let claimed = false;
-                    for (let slotNum = 2; slotNum <= 4; slotNum++) {
-                        try {
-                            const altResponse = await fetch(`/api/coin-slots/slots/${slotNum}/claim`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    clientIp: clientIP,
-                                    clientMac: clientMAC,
-                                    timeoutMinutes: 5
-                                })
-                            });
-                            
-                            const altData = await altResponse.json();
-                            if (altData.success) {
-                                claimedSlot = altData.slot;
-                                claimed = true;
-                                console.log('Claimed alternative slot:', claimedSlot.slot_number);
-                                break;
-                            }
-                        } catch (error) {
-                            console.warn(`Failed to claim slot ${slotNum}:`, error);
-                        }
-                    }
-                    
-                    if (claimed) {
-                        document.getElementById('coinModal').style.display = 'block';
-                        startCountdown();
-                        await loadExistingQueue();
-                    } else {
-                        alert('All coin slots are currently in use. Please try again in a few minutes.');
-                        return;
-                    }
+                    // Orange Pi has only one coin slot, so show appropriate message
+                    console.warn('Coin slot 1 is busy:', data.error);
+                    alert('The coin slot is currently in use by another client. Please wait and try again in a few minutes.');
+                    return;
                 }
             } catch (error) {
                 console.error('Failed to claim coin slot:', error);
-                alert('Unable to access coin slot system. Please try again.');
+                alert('Unable to access coin slot system. The hardware may be busy or unavailable.');
             }
         }
         
