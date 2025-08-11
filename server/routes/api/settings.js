@@ -2,15 +2,12 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs').promises;
 const path = require('path');
-const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const { exec } = require('child_process');
 const { promisify } = require('util');
+const db = require('../../db/simple-adapter');
 
 const execAsync = promisify(exec);
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://pisowifi_user:admin123@localhost:5432/pisowifi'
-});
 
 // Settings file paths
 const NETWORK_CONFIG_PATH = '/etc/dnsmasq.conf';
@@ -82,7 +79,7 @@ router.get('/', authenticateToken, async (req, res) => {
     }
     
     // Get rates from database
-    const ratesResult = await pool.query('SELECT * FROM rates ORDER BY duration');
+    const ratesResult = await db.query('SELECT * FROM rates ORDER BY duration');
     settings.rates = ratesResult.rows;
     
     res.json(settings);
@@ -146,7 +143,7 @@ server {
     await saveSettings({ network: req.body });
     
     // Log action
-    await pool.query(
+    await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
       ['INFO', 'Network settings updated', 'admin', JSON.stringify({ admin: req.user.username, settings: req.body })]
     );
@@ -167,7 +164,7 @@ router.put('/portal', authenticateToken, async (req, res) => {
     await saveSettings({ portal: settings });
     
     // Log action
-    await pool.query(
+    await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
       ['INFO', 'Portal settings updated', 'admin', JSON.stringify({ admin: req.user.username })]
     );
@@ -195,7 +192,7 @@ router.put('/gpio', authenticateToken, async (req, res) => {
     }
     
     // Log action
-    await pool.query(
+    await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
       ['INFO', 'GPIO settings updated', 'admin', JSON.stringify({ admin: req.user.username, settings })]
     );
@@ -213,11 +210,11 @@ router.put('/rates', authenticateToken, async (req, res) => {
     const { rates, coinSettings } = req.body;
     
     // Clear existing rates if we're doing a full replacement
-    await pool.query('DELETE FROM rates WHERE 1=1');
+    await db.query('DELETE FROM rates WHERE 1=1');
     
     // Insert all rates
     for (const rate of rates) {
-      await pool.query(
+      await db.query(
         'INSERT INTO rates (name, duration, coins_required, price, is_active) VALUES ($1, $2, $3, $4, $5)',
         [rate.name, rate.duration, rate.coins_required, rate.price, rate.is_active]
       );
@@ -229,7 +226,7 @@ router.put('/rates', authenticateToken, async (req, res) => {
     }
     
     // Log action
-    await pool.query(
+    await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
       ['INFO', 'Rate packages updated', 'admin', JSON.stringify({ admin: req.user.username, rateCount: rates.length })]
     );
@@ -263,7 +260,7 @@ router.put('/coin', authenticateToken, async (req, res) => {
     await saveSettings({ coin: coinSettings });
     
     // Log action
-    await pool.query(
+    await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
       ['INFO', 'Coin settings updated', 'admin', JSON.stringify({ admin: req.user.username, settings: coinSettings })]
     );

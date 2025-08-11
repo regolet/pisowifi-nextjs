@@ -2,13 +2,9 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { Pool } = require('pg');
 const path = require('path');
 const fs = require('fs');
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://pisowifi_user:admin123@localhost:5432/pisowifi'
-});
+const db = require('../db/simple-adapter');
 
 
 // Auth middleware
@@ -39,7 +35,7 @@ router.post('/login', async (req, res) => {
     const { username, password } = req.body;
     
     // Find user
-    const result = await pool.query('SELECT * FROM users WHERE username = $1 OR email = $1', [username]);
+    const result = await db.query('SELECT * FROM users WHERE username = $1 OR email = $1', [username]);
     if (result.rows.length === 0) {
       return res.render('admin-login', { title: 'Admin Login', error: 'Invalid credentials' });
     }
@@ -83,9 +79,9 @@ router.post('/logout', (req, res) => {
 router.get('/', authenticateToken, async (req, res) => {
   try {
     // Get dashboard stats
-    const clientsResult = await pool.query('SELECT COUNT(*) as count FROM clients');
-    const sessionsResult = await pool.query('SELECT COUNT(*) as count FROM sessions WHERE status = $1', ['ACTIVE']);
-    const revenueResult = await pool.query('SELECT SUM(amount) as total FROM transactions WHERE DATE(created_at) = CURRENT_DATE');
+    const clientsResult = await db.query('SELECT COUNT(*) as count FROM clients');
+    const sessionsResult = await db.query('SELECT COUNT(*) as count FROM sessions WHERE status = $1', ['ACTIVE']);
+    const revenueResult = await db.query('SELECT SUM(amount) as total FROM transactions WHERE DATE(created_at) = CURRENT_DATE');
     
     const stats = {
       totalClients: clientsResult.rows[0].count,
@@ -136,7 +132,7 @@ router.get('/gpio', authenticateToken, (req, res) => {
 router.get('/portal-settings', authenticateToken, async (req, res) => {
   try {
     // Get current portal settings from database
-    const settingsResult = await pool.query('SELECT * FROM portal_settings LIMIT 1');
+    const settingsResult = await db.query('SELECT * FROM portal_settings LIMIT 1');
     const settings = settingsResult.rows[0] || {
       coin_timeout: 60,
       portal_title: 'PISOWifi Portal',
@@ -161,7 +157,7 @@ router.post('/portal-settings', authenticateToken, async (req, res) => {
     const { coin_timeout, portal_title, portal_subtitle } = req.body;
     
     // Create or update portal settings
-    await pool.query(`
+    await db.query(`
       INSERT INTO portal_settings (coin_timeout, portal_title, portal_subtitle, updated_at)
       VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
       ON CONFLICT (id) DO UPDATE SET

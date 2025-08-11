@@ -1,15 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { Pool } = require('pg');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const jwt = require('jsonwebtoken');
 const fs = require('fs').promises;
+const db = require('../../db/simple-adapter');
 
 const execAsync = promisify(exec);
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://pisowifi_user:admin123@localhost:5432/pisowifi'
-});
 
 // Auth middleware
 const authenticateToken = (req, res, next) => {
@@ -33,7 +30,7 @@ router.get('/config', authenticateToken, async (req, res) => {
   try {
     // Try to get from database first
     try {
-      const result = await pool.query('SELECT * FROM network_config WHERE id = 1');
+      const result = await db.query('SELECT * FROM network_config WHERE id = 1');
       if (result.rows.length > 0) {
         return res.json(result.rows[0]);
       }
@@ -86,7 +83,7 @@ router.put('/config', authenticateToken, async (req, res) => {
     
     // Try to save to database first
     try {
-      await pool.query(
+      await db.query(
         `INSERT INTO network_config (
           id, dhcp_enabled, dhcp_range_start, dhcp_range_end, 
           subnet_mask, gateway, dns_primary, dns_secondary, 
