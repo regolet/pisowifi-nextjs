@@ -268,12 +268,14 @@ router.post('/slots/:slotNumber/add-coin', async (req, res) => {
     // Begin transaction to handle coin addition and queue re-association
     await pool.query('BEGIN');
     
+    let reAssociated, queueResult;
+    
     try {
       console.log('Starting transaction for coin addition...');
       
       // Re-associate any preserved queues (slot_id = NULL) with this slot
       console.log('Checking for preserved queues...');
-      const reAssociated = await pool.query(`
+      reAssociated = await pool.query(`
         UPDATE coin_queues 
         SET slot_id = $1
         WHERE slot_id IS NULL 
@@ -290,7 +292,7 @@ router.post('/slots/:slotNumber/add-coin', async (req, res) => {
       
       // Add new coin to queue
       console.log('Inserting new coin into queue...');
-      const queueResult = await pool.query(`
+      queueResult = await pool.query(`
         INSERT INTO coin_queues (
           slot_id, client_id, client_ip, client_mac, 
           coin_value, coin_count, total_value, status
@@ -319,7 +321,7 @@ router.post('/slots/:slotNumber/add-coin', async (req, res) => {
       // Emit real-time update
       const { io } = require('../../app');
       io.emit('coin-added', {
-        queue: newQueue,
+        queue: queueResult.rows[0],
         total: queuedTotal,
         slotNumber,
         clientIp,
@@ -332,7 +334,7 @@ router.post('/slots/:slotNumber/add-coin', async (req, res) => {
       res.json({
         success: true,
         message: 'Coin added to queue successfully' + (reAssociated.rows.length > 0 ? ' (restored previous coins)' : ''),
-        queue: newQueue,
+        queue: queueResult.rows[0],
         total: queuedTotal,
         reAssociated: reAssociated.rows.length
       });
