@@ -614,4 +614,34 @@ router.get('/session-status', async (req, res) => {
   }
 });
 
+// Captive portal diagnostic test page
+router.get('/test', async (req, res) => {
+  try {
+    let clientIP = req.headers['x-forwarded-for'] || 
+                   req.headers['x-real-ip'] ||
+                   req.connection.remoteAddress || 
+                   req.socket.remoteAddress ||
+                   (req.connection.socket ? req.connection.socket.remoteAddress : null);
+
+    // Clean IPv6-mapped IPv4 addresses
+    if (clientIP && clientIP.startsWith('::ffff:')) {
+      clientIP = clientIP.substring(7);
+    }
+    
+    // Remove port if present
+    if (clientIP && clientIP.includes(':') && !clientIP.includes('::')) {
+      clientIP = clientIP.split(':')[0];
+    }
+
+    res.render('captive-test', {
+      clientIP: clientIP,
+      serverHost: req.headers.host,
+      req: req
+    });
+  } catch (error) {
+    console.error('Captive test page error:', error);
+    res.status(500).send('Test page error: ' + error.message);
+  }
+});
+
 module.exports = router;

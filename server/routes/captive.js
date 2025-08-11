@@ -13,10 +13,13 @@ const getPortalUrl = (req) => {
 
 // Apple devices (iOS, macOS)
 router.get('/hotspot-detect.html', (req, res) => {
+  console.log(`[CAPTIVE] Apple hotspot-detect.html requested from ${req.ip} (${req.headers.host})`);
   // Apple expects an HTML response with "Success" for open networks
   // Or a redirect for captive portals
+  const portalUrl = getPortalUrl(req);
+  console.log(`[CAPTIVE] Redirecting to: ${portalUrl}`);
   res.status(302);
-  res.set('Location', getPortalUrl(req));
+  res.set('Location', portalUrl);
   res.send(`<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>`);
 });
 
@@ -29,10 +32,13 @@ router.get('/library/test/success.html', (req, res) => {
 
 // Android devices
 router.get('/generate_204', (req, res) => {
+  console.log(`[CAPTIVE] Android generate_204 requested from ${req.ip} (${req.headers.host})`);
   // Android expects a 204 No Content for open networks
   // Or a redirect for captive portals
+  const portalUrl = getPortalUrl(req);
+  console.log(`[CAPTIVE] Redirecting to: ${portalUrl}`);
   res.status(302);
-  res.set('Location', getPortalUrl(req));
+  res.set('Location', portalUrl);
   res.set('Content-Length', '0');
   res.end();
 });
@@ -97,6 +103,10 @@ router.get('/success.txt', (req, res) => {
 router.get('/', (req, res, next) => {
   // Check if this is a captive portal check from common domains
   const host = req.headers.host || '';
+  const url = req.originalUrl || req.url;
+  
+  console.log(`[CAPTIVE] Catch-all request: Host=${host}, URL=${url}, IP=${req.ip}`);
+  
   const captiveCheckDomains = [
     'captive.apple.com',
     'connectivitycheck.gstatic.com',
@@ -108,10 +118,16 @@ router.get('/', (req, res, next) => {
     'detectportal.firefox.com'
   ];
   
-  if (captiveCheckDomains.some(domain => host.includes(domain))) {
-    return res.redirect(302, getPortalUrl(req));
+  const isCaptiveCheck = captiveCheckDomains.some(domain => host.includes(domain));
+  console.log(`[CAPTIVE] Is captive check domain: ${isCaptiveCheck}`);
+  
+  if (isCaptiveCheck) {
+    const portalUrl = getPortalUrl(req);
+    console.log(`[CAPTIVE] Domain match - redirecting to: ${portalUrl}`);
+    return res.redirect(302, portalUrl);
   }
   
+  console.log(`[CAPTIVE] No domain match - passing to next handler`);
   // Pass through to next handler if not a captive check
   next();
 });
