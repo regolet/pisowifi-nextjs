@@ -84,16 +84,20 @@ router.get('/', async (req, res) => {
     // Check if client is already authenticated
     let isAuthenticated = false;
     if (detectedMac) {
+      console.log(`[DEBUG PORTAL] Checking auth for MAC: ${detectedMac}`);
       try {
         const authCheck = await db.query(
           'SELECT * FROM clients WHERE mac_address = $1 AND status = $2 AND time_remaining > 0',
           [detectedMac, 'CONNECTED']
         );
         
+        console.log(`[DEBUG PORTAL] Auth check result: ${authCheck.rows.length} rows found`);
         if (authCheck.rows.length > 0) {
           isAuthenticated = true;
           clientInfo = authCheck.rows[0];
-          console.log(`Client ${detectedMac} is already authenticated`);
+          console.log(`[DEBUG PORTAL] Client ${detectedMac} is authenticated with time_remaining=${clientInfo.time_remaining}`);
+        } else {
+          console.log(`[DEBUG PORTAL] Client ${detectedMac} is NOT authenticated`);
         }
       } catch (dbError) {
         console.warn('Database auth check failed:', dbError.message);
@@ -477,6 +481,87 @@ router.post('/test-coin', async (req, res) => {
       success: false, 
       error: 'Test failed' 
     });
+  }
+});
+
+// Debug endpoint to check portal authentication state
+router.get('/debug-auth', async (req, res) => {
+  try {
+    let clientIP = req.headers['x-forwarded-for'] || 
+                   req.headers['x-real-ip'] ||
+                   req.connection.remoteAddress || 
+                   req.socket.remoteAddress ||
+                   (req.connection.socket ? req.connection.socket.remoteAddress : null);
+
+    // Clean IPv6-mapped IPv4 addresses
+    if (clientIP && clientIP.startsWith('::ffff:')) {
+      clientIP = clientIP.substring(7);
+    }
+    
+    // Remove port if present
+    if (clientIP && clientIP.includes(':') && !clientIP.includes('::')) {
+      clientIP = clientIP.split(':')[0];
+    }
+
+    console.log(`[DEBUG AUTH] Portal debug auth check from IP: ${clientIP}`);
+    
+    // Try to detect MAC address
+    let detectedMac = null;
+    try {
+      const { stdout: arpOutput } = await execAsync(`arp -n ${clientIP} 2>/dev/null || echo ""`);
+      if (arpOutput) {
+        const arpMatch = arpOutput.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
+        if (arpMatch) {
+          detectedMac = arpMatch[0].toUpperCase();
+        }
+      }
+    } catch (error) {
+      console.warn('[DEBUG AUTH] MAC detection failed:', error.message);
+    }
+
+    console.log(`[DEBUG AUTH] Detected MAC: ${detectedMac}`);
+
+    let authState = {
+      client_ip: clientIP,
+      detected_mac: detectedMac,
+      authenticated: false,
+      client_info: null,
+      database_query_result: null
+    };
+
+    if (detectedMac) {
+      try {
+        const authCheck = await db.query(
+          'SELECT * FROM clients WHERE mac_address = $1 AND status = $2 AND time_remaining > 0',
+          [detectedMac, 'CONNECTED']
+        );
+        
+        authState.database_query_result = {
+          rows_found: authCheck.rows.length,
+          query_used: `SELECT * FROM clients WHERE mac_address = '${detectedMac}' AND status = 'CONNECTED' AND time_remaining > 0`,
+          rows: authCheck.rows
+        };
+        
+        if (authCheck.rows.length > 0) {
+          authState.authenticated = true;
+          authState.client_info = authCheck.rows[0];
+        }
+        
+        console.log(`[DEBUG AUTH] Database check for ${detectedMac}: ${authCheck.rows.length} rows found`);
+        authCheck.rows.forEach(client => {
+          console.log(`[DEBUG AUTH] Found client: Status=${client.status}, TimeRemaining=${client.time_remaining}, LastSeen=${client.last_seen}`);
+        });
+        
+      } catch (dbError) {
+        console.warn('[DEBUG AUTH] Database check failed:', dbError.message);
+        authState.database_error = dbError.message;
+      }
+    }
+    
+    res.json(authState);
+  } catch (error) {
+    console.error('[DEBUG AUTH] Portal debug auth error:', error);
+    res.json({ error: error.message });
   }
 });
 

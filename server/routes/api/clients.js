@@ -44,6 +44,11 @@ router.get('/', authenticateToken, async (req, res) => {
       ORDER BY c.last_seen DESC`
     );
     
+    console.log(`[DEBUG] Found ${dbClients.rows.length} clients in database`);
+    dbClients.rows.forEach(client => {
+      console.log(`[DEBUG] Client: MAC=${client.mac_address}, Status=${client.status}, TimeRemaining=${client.time_remaining}, SessionStatus=${client.session_status}`);
+    });
+    
     // Get real-time connected clients from network
     const connectedClients = await networkManager.getConnectedClients();
     
@@ -51,15 +56,23 @@ router.get('/', authenticateToken, async (req, res) => {
     const mergedClients = dbClients.rows.map(client => {
       const networkClient = connectedClients.find(nc => nc.mac_address === client.mac_address);
       
-      return {
+      const merged = {
         ...client,
         // Update online status based on network data
         online: !!networkClient,
         network_info: networkClient || null,
-        // Calculate remaining time
-        time_remaining: client.session_status === 'ACTIVE' ? 
-          Math.max(0, client.time_remaining - (client.session_time_used || 0)) : 0
+        // Use time_remaining directly from database (it's already being decremented by the countdown system)
+        time_remaining: client.time_remaining || 0,
+        // Keep original session status
+        session_status: client.session_status
       };
+      
+      // Additional debug logging for authenticated clients
+      if (client.status === 'CONNECTED' && client.time_remaining > 0) {
+        console.log(`[DEBUG] AUTHENTICATED Client found: MAC=${client.mac_address}, Status=${client.status}, TimeRemaining=${client.time_remaining}, Online=${!!networkClient}, SessionStatus=${client.session_status}`);
+      }
+      
+      return merged;
     });
     
     // Add any network clients not in database as unauthenticated
@@ -672,6 +685,56 @@ router.post('/:id/block', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Block client error:', error);
     res.status(500).json({ error: 'Failed to block client' });
+  }
+});
+
+// Debug endpoint to check database state
+router.get('/debug-db', authenticateToken, async (req, res) => {
+  try {
+    console.log('[DEBUG DB] Checking all clients in database...');
+    
+    // Get all clients
+    const allClients = await db.query('SELECT * FROM clients ORDER BY last_seen DESC');
+    console.log(`[DEBUG DB] Found ${allClients.rows.length} total clients in database`);
+    
+    // Get authenticated clients (status = CONNECTED and time_remaining > 0)
+    const authClients = await db.query(
+      'SELECT * FROM clients WHERE status = $1 AND time_remaining > 0 ORDER BY last_seen DESC',
+      ['CONNECTED']
+    );
+    console.log(`[DEBUG DB] Found ${authClients.rows.length} authenticated clients`);
+    
+    // Get active sessions
+    const activeSessions = await db.query(
+      'SELECT * FROM sessions WHERE status = $1 ORDER BY started_at DESC',
+      ['ACTIVE']
+    );
+    console.log(`[DEBUG DB] Found ${activeSessions.rows.length} active sessions`);
+    
+    // Log detailed info for each client
+    allClients.rows.forEach(client => {
+      console.log(`[DEBUG DB] Client ${client.mac_address}: Status=${client.status}, TimeRemaining=${client.time_remaining}, LastSeen=${client.last_seen}`);
+    });
+    
+    authClients.rows.forEach(client => {
+      console.log(`[DEBUG DB] AUTH Client ${client.mac_address}: Status=${client.status}, TimeRemaining=${client.time_remaining}, LastSeen=${client.last_seen}`);
+    });
+    
+    activeSessions.rows.forEach(session => {
+      console.log(`[DEBUG DB] SESSION: ClientID=${session.client_id}, MAC=${session.mac_address}, Status=${session.status}, Started=${session.started_at}`);
+    });
+    
+    res.json({
+      total_clients: allClients.rows.length,
+      authenticated_clients: authClients.rows.length,
+      active_sessions: activeSessions.rows.length,
+      all_clients: allClients.rows,
+      authenticated_clients_data: authClients.rows,
+      active_sessions_data: activeSessions.rows
+    });
+  } catch (error) {
+    console.error('[DEBUG DB] Error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
