@@ -152,9 +152,11 @@ router.get('/', async (req, res) => {
 // Connect endpoint
 router.post('/connect', async (req, res) => {
   try {
+    console.log('=== CONNECT REQUEST START ===');
     console.log('Connect request received:', req.body);
     
     const { coinsInserted, duration, rateId, macAddress, deviceInfo } = req.body;
+    console.log('Extracted request data:', { coinsInserted, duration, rateId, macAddress, deviceInfo });
     let clientIP = req.headers['x-forwarded-for'] || 
                    req.connection.remoteAddress || 
                    req.socket.remoteAddress ||
@@ -172,6 +174,7 @@ router.post('/connect', async (req, res) => {
     
     console.log(`Connection request from IP: ${clientIP}, Coins: ${coinsInserted}, Duration: ${duration}`);
     
+    console.log('Step 1: Validating required fields...');
     // Validate required fields
     if (!coinsInserted || coinsInserted <= 0) {
       return res.status(400).json({ 
@@ -180,6 +183,7 @@ router.post('/connect', async (req, res) => {
       });
     }
     
+    console.log('Step 2: Detecting MAC address...');
     // Auto-detect MAC address if not provided
     let detectedMac = macAddress;
     if (!detectedMac || detectedMac === 'auto-detect') {
@@ -283,11 +287,14 @@ router.post('/connect', async (req, res) => {
       }
     }
     
+    console.log('Step 3: Parsing device information...');
     // Parse device information if provided
     let parsedDeviceInfo = {};
     if (deviceInfo && deviceInfo.userAgent) {
+      console.log('Device info provided:', deviceInfo);
       const parser = new UAParser(deviceInfo.userAgent);
       const result = parser.getResult();
+      console.log('UAParser result:', result);
       
       parsedDeviceInfo = {
         device_name: result.device.model || result.device.vendor || 'Unknown Device',
@@ -301,6 +308,14 @@ router.post('/connect', async (req, res) => {
         timezone: deviceInfo.timezone
       };
     }
+    
+    console.log('Step 4: Creating client record...');
+    console.log('Client data to insert:', {
+      macAddress: detectedMac,
+      clientIP,
+      sessionDuration,
+      parsedDeviceInfo
+    });
     
     // Create or update client record
     const clientResult = await pool.query(
@@ -336,7 +351,9 @@ router.post('/connect', async (req, res) => {
     );
     
     const clientId = clientResult.rows[0].id;
+    console.log('Client record created with ID:', clientId);
     
+    console.log('Step 5: Creating session record...');
     // Create session record
     const sessionResult = await pool.query(
       `INSERT INTO sessions (client_id, mac_address, ip_address, duration, status, started_at)
@@ -344,42 +361,52 @@ router.post('/connect', async (req, res) => {
        RETURNING id`,
       [clientId, detectedMac.toUpperCase(), clientIP, sessionDuration]
     );
+    console.log('Session record created with ID:', sessionResult.rows[0].id);
     
+    console.log('Step 6: Creating transaction record...');
     // Create transaction record
     await pool.query(
       `INSERT INTO transactions (client_id, session_id, amount, coins_used, payment_method, status, created_at)
        VALUES ($1, $2, $3, $4, 'COIN', 'COMPLETED', CURRENT_TIMESTAMP)`,
       [clientId, sessionResult.rows[0].id, sessionCost, coinsInserted || 0]
     );
+    console.log('Transaction record created successfully');
     
-    // Authenticate client using NetworkManager
+    console.log('Step 7: Authenticating client...');
+    // Try network authentication but don't fail if it doesn't work
     try {
+      console.log('Attempting NetworkManager authentication...');
       const authResult = await networkManager.authenticateClient(detectedMac, clientIP, sessionDuration);
       if (!authResult.success) {
-        throw new Error(authResult.error || 'Authentication failed');
+        console.warn('NetworkManager auth failed:', authResult.error);
+      } else {
+        console.log(`NetworkManager authenticated client ${detectedMac} for ${sessionDuration} seconds`);
       }
-      
-      console.log(`Client ${detectedMac} authenticated for ${sessionDuration} seconds`);
-      
-      // Also run the allow script (ignore errors for now)
-      try {
-        await execAsync(`sudo ${__dirname}/../../scripts/pisowifi-allow-client ${detectedMac}`);
-        console.log('Allow script executed successfully');
-      } catch (scriptError) {
-        console.warn('Allow script failed (non-critical):', scriptError.message);
-      }
-    } catch (err) {
-      console.error('Internet access setup failed:', err.message);
-      // Don't fail the entire operation, but log it
+    } catch (networkError) {
+      console.warn('NetworkManager authentication error (non-critical):', networkError.message);
     }
     
+    // Try allow script as backup
+    try {
+      console.log('Running backup allow script...');
+      await execAsync(`sudo ${__dirname}/../../scripts/pisowifi-allow-client ${detectedMac}`);
+      console.log('Allow script executed successfully');
+    } catch (scriptError) {
+      console.warn('Allow script failed (non-critical):', scriptError.message);
+    }
+    
+    console.log('Authentication step completed (with fallbacks)');
+    
+    console.log('Step 8: Logging connection...');
     // Log the connection
     await pool.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
       ['INFO', `Client connected: ${detectedMac}`, 'portal', 
        JSON.stringify({ ip: clientIP, duration, coins: coinsInserted })]
     );
+    console.log('Connection logged successfully');
     
+    console.log('Step 9: Sending success response...');
     res.json({
       success: true,
       message: 'Connection successful! You now have internet access.',
@@ -392,12 +419,17 @@ router.post('/connect', async (req, res) => {
       coins_used: coinsInserted || 0,
       expires_at: new Date(Date.now() + (sessionDuration * 1000))
     });
+    console.log('=== CONNECT REQUEST SUCCESS ===');
     
   } catch (error) {
-    console.error('Connect error:', error);
+    console.error('Connect error details:', {
+      message: error.message,
+      stack: error.stack,
+      requestBody: req.body
+    });
     res.status(500).json({ 
       success: false,
-      error: 'Connection failed. Please try again.' 
+      error: 'Connection failed: ' + error.message 
     });
   }
 });
