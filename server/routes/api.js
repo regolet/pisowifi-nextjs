@@ -5,6 +5,7 @@ const router = express.Router();
 router.use('/clients', require('./api/clients'));
 router.use('/settings', require('./api/settings'));
 router.use('/network', require('./api/network'));
+router.use('/coin-slots', require('./api/coin-slots'));
 
 // Keep existing general API routes
 const { Pool } = require('pg');

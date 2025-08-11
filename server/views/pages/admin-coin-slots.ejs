@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coin Slots & Queues - PISOWifi Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        .slot-available { @apply bg-green-100 border-green-300 text-green-800; }
+        .slot-claimed { @apply bg-yellow-100 border-yellow-300 text-yellow-800; }
+        .slot-active { @apply bg-blue-100 border-blue-300 text-blue-800; }
+        .coin-queue-item { @apply bg-gray-50 border border-gray-200 rounded p-3 mb-2; }
+        .status-badge { @apply px-2 py-1 rounded-full text-xs font-medium; }
+        .refresh-animation { animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-100 flex h-screen">
+    
+    <!-- Include Admin Sidebar -->
+    <%- include('../partials/admin-sidebar', {currentPage}) %>
+    
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+        
+        <!-- Header -->
+        <div class="bg-white shadow-sm border-b border-gray-300 px-6 py-4">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-2xl font-semibold text-gray-800">Coin Slots & Queues</h1>
+                    <p class="text-gray-600 text-sm">Monitor coin slot status and client queues</p>
+                </div>
+                <div class="flex space-x-3">
+                    <button onclick="refreshData()" class="px-4 py-2 border border-gray-300 text-gray-700 bg-white rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <span id="refreshIcon">🔄</span> Refresh
+                    </button>
+                    <button onclick="cleanupExpired()" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500">
+                        🧹 Cleanup Expired
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Content Area -->
+        <div class="flex-1 overflow-auto p-6">
+            
+            <!-- Statistics Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-green-100 rounded-md">
+                            <span class="text-2xl">✅</span>
+                        </div>
+                        <div class="ml-4">
+                            <h2 class="text-sm font-medium text-gray-600">Available Slots</h2>
+                            <p id="availableSlots" class="text-2xl font-semibold text-gray-900">-</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-yellow-100 rounded-md">
+                            <span class="text-2xl">🔒</span>
+                        </div>
+                        <div class="ml-4">
+                            <h2 class="text-sm font-medium text-gray-600">Claimed Slots</h2>
+                            <p id="claimedSlots" class="text-2xl font-semibold text-gray-900">-</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-blue-100 rounded-md">
+                            <span class="text-2xl">🪙</span>
+                        </div>
+                        <div class="ml-4">
+                            <h2 class="text-sm font-medium text-gray-600">Queued Coins</h2>
+                            <p id="queuedCoins" class="text-2xl font-semibold text-gray-900">-</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-purple-100 rounded-md">
+                            <span class="text-2xl">💰</span>
+                        </div>
+                        <div class="ml-4">
+                            <h2 class="text-sm font-medium text-gray-600">Queue Value</h2>
+                            <p id="queueValue" class="text-2xl font-semibold text-gray-900">₱0.00</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Coin Slots Grid -->
+            <div class="bg-white rounded-lg shadow mb-6">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">Physical Coin Slots</h3>
+                    <p class="text-sm text-gray-500">Real-time status of physical coin slot hardware</p>
+                </div>
+                <div class="p-6">
+                    <div id="coinSlotsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <!-- Coin slots will be populated here -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Active Coin Queues -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">Active Coin Queues</h3>
+                    <p class="text-sm text-gray-500">Clients with queued coins ready for redemption</p>
+                </div>
+                <div class="p-6">
+                    <div id="coinQueuesContainer">
+                        <!-- Coin queues will be populated here -->
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <script>
+        let socket;
+        let coinSlotsData = [];
+        let coinQueuesData = [];
+        
+        // Initialize Socket.IO
+        try {
+            socket = io();
+            
+            socket.on('connect', function() {
+                console.log('Connected to server for real-time updates');
+            });
+            
+            socket.on('coin-slot-claimed', function(data) {
+                console.log('Coin slot claimed:', data);
+                refreshData();
+            });
+            
+            socket.on('coin-slot-released', function(data) {
+                console.log('Coin slot released:', data);
+                refreshData();
+            });
+            
+            socket.on('coin-added', function(data) {
+                console.log('Coin added to queue:', data);
+                refreshData();
+            });
+            
+            socket.on('coins-redeemed', function(data) {
+                console.log('Coins redeemed:', data);
+                refreshData();
+            });
+        } catch (error) {
+            console.warn('Socket.IO connection failed:', error);
+        }
+        
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshData();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(refreshData, 30000);
+        });
+        
+        async function refreshData() {
+            const refreshIcon = document.getElementById('refreshIcon');
+            refreshIcon.classList.add('refresh-animation');
+            
+            try {
+                await Promise.all([
+                    loadCoinSlots(),
+                    loadCoinQueues()
+                ]);
+                updateStatistics();
+            } catch (error) {
+                console.error('Failed to refresh data:', error);
+                showNotification('Failed to refresh data', 'error');
+            } finally {
+                refreshIcon.classList.remove('refresh-animation');
+            }
+        }
+        
+        async function loadCoinSlots() {
+            try {
+                const response = await fetch('/api/coin-slots/slots');
+                const data = await response.json();
+                
+                if (data.success) {
+                    coinSlotsData = data.slots;
+                    renderCoinSlots();
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                console.error('Failed to load coin slots:', error);
+                throw error;
+            }
+        }
+        
+        async function loadCoinQueues() {
+            try {
+                // For now, get queues from slot data
+                // In a real implementation, you might want a separate endpoint
+                coinQueuesData = [];
+                coinSlotsData.forEach(slot => {
+                    if (slot.queued_coins && slot.queued_coins.length > 0) {
+                        coinQueuesData.push({
+                            slot: slot,
+                            queues: slot.queued_coins
+                        });
+                    }
+                });
+                renderCoinQueues();
+            } catch (error) {
+                console.error('Failed to load coin queues:', error);
+                throw error;
+            }
+        }
+        
+        function renderCoinSlots() {
+            const container = document.getElementById('coinSlotsGrid');
+            
+            if (coinSlotsData.length === 0) {
+                container.innerHTML = '<div class="col-span-full text-center py-8 text-gray-500">No coin slots configured</div>';
+                return;
+            }
+            
+            container.innerHTML = coinSlotsData.map(slot => {
+                const statusClass = `slot-${slot.status}`;
+                const statusIcon = slot.status === 'available' ? '✅' : 
+                                 slot.status === 'claimed' ? '🔒' : '🔄';
+                const queueCount = slot.queued_coins ? slot.queued_coins.length : 0;
+                const queueValue = slot.queued_coins ? 
+                    slot.queued_coins.reduce((sum, q) => sum + parseFloat(q.total_value), 0).toFixed(2) : '0.00';
+                
+                return `
+                    <div class="border-2 rounded-lg p-4 ${statusClass}">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="text-lg font-semibold">Slot ${slot.slot_number}</div>
+                            <div class="text-2xl">${statusIcon}</div>
+                        </div>
+                        
+                        <div class="text-sm mb-2">
+                            <div class="font-medium capitalize">${slot.status}</div>
+                            ${slot.claimed_by_ip ? `<div class="text-xs text-gray-600">by ${slot.claimed_by_ip}</div>` : ''}
+                        </div>
+                        
+                        ${queueCount > 0 ? `
+                            <div class="border-t pt-2 mt-2">
+                                <div class="text-xs text-gray-600">Queued: ${queueCount} coins</div>
+                                <div class="text-sm font-medium">₱${queueValue}</div>
+                            </div>
+                        ` : ''}
+                        
+                        ${slot.expires_at ? `
+                            <div class="text-xs text-gray-500 mt-1">
+                                Expires: ${new Date(slot.expires_at).toLocaleTimeString()}
+                            </div>
+                        ` : ''}
+                        
+                        <div class="mt-2 flex space-x-1">
+                            ${slot.status === 'claimed' ? `
+                                <button onclick="releaseSlot(${slot.slot_number})" 
+                                        class="px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600">
+                                    Release
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function renderCoinQueues() {
+            const container = document.getElementById('coinQueuesContainer');
+            
+            if (coinQueuesData.length === 0) {
+                container.innerHTML = '<div class="text-center py-8 text-gray-500">No active coin queues</div>';
+                return;
+            }
+            
+            container.innerHTML = coinQueuesData.map(item => {
+                const totalValue = item.queues.reduce((sum, q) => sum + parseFloat(q.total_value), 0);
+                const totalCoins = item.queues.reduce((sum, q) => sum + q.coin_count, 0);
+                
+                return `
+                    <div class="border rounded-lg p-4 mb-4">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h4 class="font-medium text-gray-900">Slot ${item.slot.slot_number} Queue</h4>
+                                <p class="text-sm text-gray-600">${item.slot.claimed_by_ip || 'Unknown IP'}</p>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-lg font-semibold text-green-600">₱${totalValue.toFixed(2)}</div>
+                                <div class="text-sm text-gray-500">${totalCoins} coins</div>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-2">
+                            ${item.queues.map(queue => `
+                                <div class="coin-queue-item flex justify-between items-center">
+                                    <div class="flex items-center space-x-3">
+                                        <span class="text-lg">🪙</span>
+                                        <div>
+                                            <div class="text-sm font-medium">₱${queue.coin_value} × ${queue.coin_count}</div>
+                                            <div class="text-xs text-gray-500">
+                                                ${new Date(queue.created_at).toLocaleTimeString()}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="font-medium text-green-600">₱${queue.total_value}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        
+                        <div class="mt-3 pt-3 border-t flex justify-end space-x-2">
+                            <button onclick="redeemQueue('${item.slot.claimed_by_ip}', '${item.slot.claimed_by_mac}')" 
+                                    class="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700">
+                                Redeem All
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function updateStatistics() {
+            const availableCount = coinSlotsData.filter(s => s.status === 'available').length;
+            const claimedCount = coinSlotsData.filter(s => s.status === 'claimed').length;
+            
+            let totalQueuedCoins = 0;
+            let totalQueueValue = 0;
+            
+            coinSlotsData.forEach(slot => {
+                if (slot.queued_coins) {
+                    totalQueuedCoins += slot.queued_coins.reduce((sum, q) => sum + q.coin_count, 0);
+                    totalQueueValue += slot.queued_coins.reduce((sum, q) => sum + parseFloat(q.total_value), 0);
+                }
+            });
+            
+            document.getElementById('availableSlots').textContent = availableCount;
+            document.getElementById('claimedSlots').textContent = claimedCount;
+            document.getElementById('queuedCoins').textContent = totalQueuedCoins;
+            document.getElementById('queueValue').textContent = '₱' + totalQueueValue.toFixed(2);
+        }
+        
+        async function releaseSlot(slotNumber) {
+            if (!confirm(`Release slot ${slotNumber}?`)) return;
+            
+            try {
+                const response = await fetch(`/api/coin-slots/slots/${slotNumber}/release`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Slot ${slotNumber} released successfully`, 'success');
+                    refreshData();
+                } else {
+                    showNotification(`Failed to release slot: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Release slot error:', error);
+                showNotification('Failed to release slot', 'error');
+            }
+        }
+        
+        async function redeemQueue(clientIp, clientMac) {
+            if (!confirm('Redeem all queued coins for this client?')) return;
+            
+            try {
+                const response = await fetch('/api/coin-slots/queues/redeem', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        clientIp: clientIp,
+                        clientMac: clientMac || null
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Redeemed ${data.totalCoins} coins worth ₱${data.totalValue.toFixed(2)}`, 'success');
+                    refreshData();
+                } else {
+                    showNotification(`Failed to redeem coins: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Redeem queue error:', error);
+                showNotification('Failed to redeem coins', 'error');
+            }
+        }
+        
+        async function cleanupExpired() {
+            if (!confirm('Cleanup expired slots and queues?')) return;
+            
+            try {
+                const response = await fetch('/api/coin-slots/cleanup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Cleanup completed: ${data.releasedSlots} slots, ${data.expiredQueues} queues`, 'success');
+                    refreshData();
+                } else {
+                    showNotification(`Cleanup failed: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Cleanup error:', error);
+                showNotification('Cleanup failed', 'error');
+            }
+        }
+        
+        function showNotification(message, type = 'info') {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 px-4 py-3 rounded-md shadow-lg z-50 ${
+                type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' :
+                type === 'error' ? 'bg-red-100 text-red-800 border border-red-200' :
+                'bg-blue-100 text-blue-800 border border-blue-200'
+            }`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // Auto-remove after 3 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 3000);
+        }
+    </script>
+    
+</body>
+</html>

@@ -181,6 +181,15 @@ router.post('/portal-settings', authenticateToken, async (req, res) => {
 
 
 
+// Coin Slots & Queues
+router.get('/coin-slots', authenticateToken, (req, res) => {
+  res.render('admin-coin-slots', { 
+    title: 'Coin Slots & Queues',
+    user: req.user,
+    currentPage: 'coin-slots'
+  });
+});
+
 // Coin Rates
 router.get('/rates', authenticateToken, (req, res) => {
   res.render('admin-rates', { 

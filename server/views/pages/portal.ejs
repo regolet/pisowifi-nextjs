@@ -335,6 +335,19 @@
                 </div>
             </div>
             
+            <!-- Coin Denomination Buttons -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 16px 0;">
+                <button onclick="addCoinToQueue(1, 1)" class="secondary-button" style="background: #f0f9ff; border-color: #0ea5e9; color: #0ea5e9;">
+                    +₱1
+                </button>
+                <button onclick="addCoinToQueue(5, 1)" class="secondary-button" style="background: #fef3c7; border-color: #f59e0b; color: #f59e0b;">
+                    +₱5
+                </button>
+                <button onclick="addCoinToQueue(10, 1)" class="secondary-button" style="background: #f0fdf4; border-color: #22c55e; color: #22c55e;">
+                    +₱10
+                </button>
+            </div>
+            
             <button class="main-button btn-success" onclick="connectNow()" id="connectBtn" disabled>
                 ▶️ Connect Now
             </button>
@@ -366,7 +379,11 @@
         let timeLeft = <%= portalSettings.coin_timeout %>;
         let coinsInserted = 0;
         let totalTime = 0;
+        let totalValue = 0;
         let socket;
+        let claimedSlot = null;
+        let clientIP = '<%= clientIP %>';
+        let clientMAC = '<%= clientMAC %>';
         
         // Default rate (will be updated when rates load)
         let coinValue = 5.00;
@@ -382,8 +399,23 @@
             
             socket.on('coin-detected', function(data) {
                 console.log('Coin detected via socket:', data);
-                if (document.getElementById('coinModal').style.display === 'block') {
-                    addCoin();
+                if (document.getElementById('coinModal').style.display === 'block' && claimedSlot) {
+                    // Add coin to queue via API
+                    addCoinToQueue(data.value || coinValue, 1);
+                }
+            });
+            
+            socket.on('coin-slot-claimed', function(data) {
+                console.log('Coin slot claimed:', data);
+                if (data.clientIp === clientIP) {
+                    claimedSlot = data.slot;
+                }
+            });
+            
+            socket.on('coin-added', function(data) {
+                console.log('Coin added to queue:', data);
+                if (data.clientIp === clientIP) {
+                    updateCoinDisplayFromQueue(data.total);
                 }
             });
             
@@ -431,15 +463,91 @@
             }
         }
         
-        function showCoinModal() {
-            document.getElementById('coinModal').style.display = 'block';
-            startCountdown();
-            resetCoins();
+        async function showCoinModal() {
+            // Try to claim a coin slot first
+            try {
+                const response = await fetch('/api/coin-slots/slots/1/claim', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        clientIp: clientIP,
+                        clientMac: clientMAC,
+                        timeoutMinutes: 5
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    claimedSlot = data.slot;
+                    console.log('Claimed slot:', claimedSlot.slot_number);
+                    
+                    document.getElementById('coinModal').style.display = 'block';
+                    startCountdown();
+                    await loadExistingQueue();
+                } else {
+                    // Try other slots if slot 1 is unavailable
+                    let claimed = false;
+                    for (let slotNum = 2; slotNum <= 4; slotNum++) {
+                        try {
+                            const altResponse = await fetch(`/api/coin-slots/slots/${slotNum}/claim`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    clientIp: clientIP,
+                                    clientMac: clientMAC,
+                                    timeoutMinutes: 5
+                                })
+                            });
+                            
+                            const altData = await altResponse.json();
+                            if (altData.success) {
+                                claimedSlot = altData.slot;
+                                claimed = true;
+                                console.log('Claimed alternative slot:', claimedSlot.slot_number);
+                                break;
+                            }
+                        } catch (error) {
+                            console.warn(`Failed to claim slot ${slotNum}:`, error);
+                        }
+                    }
+                    
+                    if (claimed) {
+                        document.getElementById('coinModal').style.display = 'block';
+                        startCountdown();
+                        await loadExistingQueue();
+                    } else {
+                        alert('All coin slots are currently in use. Please try again in a few minutes.');
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to claim coin slot:', error);
+                alert('Unable to access coin slot system. Please try again.');
+            }
         }
         
-        function closeCoinModal() {
+        async function closeCoinModal() {
             document.getElementById('coinModal').style.display = 'none';
             if (countdown) clearInterval(countdown);
+            
+            // Release the claimed slot
+            if (claimedSlot) {
+                try {
+                    await fetch(`/api/coin-slots/slots/${claimedSlot.slot_number}/release`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            clientIp: clientIP,
+                            clientMac: clientMAC
+                        })
+                    });
+                    console.log('Released slot:', claimedSlot.slot_number);
+                } catch (error) {
+                    console.warn('Failed to release slot:', error);
+                }
+                claimedSlot = null;
+            }
         }
         
         function showRates() {
@@ -465,39 +573,81 @@
             }, 1000);
         }
         
+        async function loadExistingQueue() {
+            try {
+                const response = await fetch(`/api/coin-slots/queues/client?clientIp=${encodeURIComponent(clientIP)}&clientMac=${encodeURIComponent(clientMAC)}`);
+                const data = await response.json();
+                
+                if (data.success && data.total) {
+                    updateCoinDisplayFromQueue(data.total);
+                } else {
+                    resetCoins();
+                }
+            } catch (error) {
+                console.warn('Failed to load existing queue:', error);
+                resetCoins();
+            }
+        }
+        
         function resetCoins() {
             coinsInserted = 0;
             totalTime = 0;
+            totalValue = 0;
             updateCoinDisplay();
         }
         
         async function testCoin() {
+            if (!claimedSlot) {
+                alert('No coin slot claimed. Please try again.');
+                return;
+            }
+            
+            // Add test coin to queue
+            await addCoinToQueue(coinValue, 1);
+        }
+        
+        async function addCoinToQueue(value, count = 1) {
+            if (!claimedSlot) {
+                console.warn('No slot claimed, cannot add coin');
+                return;
+            }
+            
             try {
-                console.log('Testing coin detection...');
-                const response = await fetch('/portal/test-coin', {
+                const response = await fetch(`/api/coin-slots/slots/${claimedSlot.slot_number}/add-coin`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        clientIp: clientIP,
+                        clientMac: clientMAC,
+                        coinValue: value,
+                        coinCount: count
+                    })
                 });
                 
-                const result = await response.json();
-                if (result.success) {
-                    console.log('Test coin sent successfully');
-                    // The coin will be added via socket.io event
+                const data = await response.json();
+                if (data.success) {
+                    updateCoinDisplayFromQueue(data.total);
+                    
+                    // Visual feedback
+                    const coinIcon = document.querySelector('.coin-icon');
+                    if (coinIcon) {
+                        coinIcon.style.animation = 'pulse 0.6s ease-in-out';
+                        setTimeout(() => {
+                            coinIcon.style.animation = 'pulse 2s infinite';
+                        }, 600);
+                    }
                 } else {
-                    console.error('Test coin failed:', result.error);
-                    // Fallback to manual coin addition
-                    addCoin();
+                    console.error('Failed to add coin to queue:', data.error);
                 }
             } catch (error) {
-                console.error('Test coin request failed:', error);
-                // Fallback to manual coin addition
-                addCoin();
+                console.error('Add coin to queue error:', error);
             }
         }
         
-        function addCoin() {
-            coinsInserted++;
-            totalTime = coinsInserted * timePerCoin;
+        function updateCoinDisplayFromQueue(queueTotal) {
+            coinsInserted = queueTotal.total_coins || 0;
+            totalValue = parseFloat(queueTotal.total_value) || 0;
+            totalTime = Math.floor((totalValue / coinValue) * timePerCoin);
             updateCoinDisplay();
             
             // Enable connect button if coins added
@@ -509,23 +659,41 @@
         }
         
         function updateCoinDisplay() {
-            document.getElementById('coinCount').textContent = '₱' + (coinsInserted * coinValue).toFixed(2);
+            document.getElementById('coinCount').textContent = '₱' + totalValue.toFixed(2);
             document.getElementById('timeCount').textContent = totalTime + ' min';
         }
         
         async function connectNow() {
-            if (coinsInserted === 0) {
+            if (coinsInserted === 0 || totalValue === 0) {
                 alert('Please insert coins first');
                 return;
             }
             
             const connectBtn = document.getElementById('connectBtn');
-            connectBtn.textContent = '⏳ Connecting...';
+            connectBtn.textContent = '⏳ Redeeming coins...';
             connectBtn.disabled = true;
             
             try {
-                console.log('Connecting with data:', {
-                    coinsInserted: coinsInserted,
+                // First, redeem all queued coins
+                const redeemResponse = await fetch('/api/coin-slots/queues/redeem', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        clientIp: clientIP,
+                        clientMac: clientMAC
+                    })
+                });
+                
+                const redeemData = await redeemResponse.json();
+                if (!redeemData.success) {
+                    throw new Error('Failed to redeem coins: ' + redeemData.error);
+                }
+                
+                connectBtn.textContent = '⏳ Connecting...';
+                
+                console.log('Connecting with redeemed coins:', {
+                    coinsInserted: redeemData.totalCoins,
+                    totalValue: redeemData.totalValue,
                     duration: totalTime * 60,
                     macAddress: 'auto-detect'
                 });
@@ -534,7 +702,8 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        coinsInserted: coinsInserted,
+                        coinsInserted: redeemData.totalCoins,
+                        totalValue: redeemData.totalValue,
                         duration: totalTime * 60, // Convert to seconds
                         macAddress: 'auto-detect'
                     })
@@ -551,6 +720,20 @@
                 
                 if (data.success) {
                     connectBtn.textContent = '✅ Connected!';
+                    
+                    // Release the slot since we're done
+                    if (claimedSlot) {
+                        await fetch(`/api/coin-slots/slots/${claimedSlot.slot_number}/release`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                clientIp: clientIP,
+                                clientMac: clientMAC
+                            })
+                        });
+                        claimedSlot = null;
+                    }
+                    
                     setTimeout(() => {
                         closeCoinModal();
                         window.location.reload();
