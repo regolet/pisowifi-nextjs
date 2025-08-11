@@ -688,8 +688,8 @@ router.post('/:id/block', authenticateToken, async (req, res) => {
   }
 });
 
-// Debug endpoint to check database state
-router.get('/debug-db', authenticateToken, async (req, res) => {
+// Debug endpoint to check database state (unprotected for testing)
+router.get('/debug-db', async (req, res) => {
   try {
     console.log('[DEBUG DB] Checking all clients in database...');
     

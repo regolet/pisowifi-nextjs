@@ -60,12 +60,107 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views/pages'));
 
+// Debug route for troubleshooting (must be before auth middleware)
+app.get('/debug-status', async (req, res) => {
+  try {
+    const db = require('./db/simple-adapter');
+    
+    // Get client IP
+    let clientIP = req.headers['x-forwarded-for'] || 
+                   req.headers['x-real-ip'] ||
+                   req.connection.remoteAddress || 
+                   req.socket.remoteAddress ||
+                   (req.connection.socket ? req.connection.socket.remoteAddress : null);
+
+    if (clientIP && clientIP.startsWith('::ffff:')) {
+      clientIP = clientIP.substring(7);
+    }
+    
+    if (clientIP && clientIP.includes(':') && !clientIP.includes('::')) {
+      clientIP = clientIP.split(':')[0];
+    }
+
+    console.log(`[DEBUG STATUS] Request from IP: ${clientIP}`);
+
+    // Get all clients from database
+    const allClients = await db.query('SELECT * FROM clients ORDER BY last_seen DESC');
+    const authClients = await db.query(
+      'SELECT * FROM clients WHERE status = $1 AND time_remaining > 0 ORDER BY last_seen DESC',
+      ['CONNECTED']
+    );
+    const activeSessions = await db.query(
+      'SELECT * FROM sessions WHERE status = $1 ORDER BY started_at DESC',
+      ['ACTIVE']
+    );
+
+    // Try to detect current client's MAC
+    let detectedMac = null;
+    try {
+      const { exec } = require('child_process');
+      const { promisify } = require('util');
+      const execAsync = promisify(exec);
+      
+      const { stdout: arpOutput } = await execAsync(`arp -n ${clientIP} 2>/dev/null || echo ""`);
+      if (arpOutput) {
+        const arpMatch = arpOutput.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
+        if (arpMatch) {
+          detectedMac = arpMatch[0].toUpperCase();
+        }
+      }
+    } catch (error) {
+      console.warn('MAC detection failed:', error.message);
+    }
+
+    console.log(`[DEBUG STATUS] Detected MAC: ${detectedMac}`);
+    console.log(`[DEBUG STATUS] Found ${authClients.rows.length} authenticated clients in database`);
+
+    const debugInfo = {
+      timestamp: new Date().toISOString(),
+      request_info: {
+        client_ip: clientIP,
+        detected_mac: detectedMac,
+        user_agent: req.headers['user-agent']
+      },
+      database_state: {
+        total_clients: allClients.rows.length,
+        authenticated_clients: authClients.rows.length,
+        active_sessions: activeSessions.rows.length
+      },
+      all_clients: allClients.rows.map(c => ({
+        id: c.id,
+        mac_address: c.mac_address,
+        ip_address: c.ip_address,
+        status: c.status,
+        time_remaining: c.time_remaining,
+        device_name: c.device_name,
+        last_seen: c.last_seen
+      })),
+      authenticated_clients: authClients.rows.map(c => ({
+        id: c.id,
+        mac_address: c.mac_address,
+        ip_address: c.ip_address,
+        status: c.status,
+        time_remaining: c.time_remaining,
+        device_name: c.device_name,
+        last_seen: c.last_seen
+      })),
+      active_sessions: activeSessions.rows
+    };
+
+    res.json(debugInfo);
+  } catch (error) {
+    console.error('Debug status error:', error);
+    res.status(500).json({ error: error.message, stack: error.stack });
+  }
+});
+
 // Authentication middleware for captive portal
 app.use(async (req, res, next) => {
-  // Skip authentication for portal, API, admin routes, and static files
+  // Skip authentication for portal, API, admin routes, debug, and static files
   if (req.path.startsWith('/portal') || 
       req.path.startsWith('/api') || 
       req.path.startsWith('/admin') || 
+      req.path.startsWith('/debug-status') ||
       req.path.startsWith('/socket.io') ||
       req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
     return next();
