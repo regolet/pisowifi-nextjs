@@ -317,38 +317,62 @@ router.post('/connect', async (req, res) => {
       parsedDeviceInfo
     });
     
-    // Create or update client record
-    const clientResult = await pool.query(
-      `INSERT INTO clients (
-        mac_address, ip_address, device_name, device_type, os, browser, 
-        user_agent, platform, language, screen_resolution, timezone,
-        status, time_remaining, created_at, last_seen
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      ON CONFLICT (mac_address) 
-      DO UPDATE SET 
-        ip_address = EXCLUDED.ip_address,
-        device_name = COALESCE(EXCLUDED.device_name, clients.device_name),
-        device_type = COALESCE(EXCLUDED.device_type, clients.device_type),
-        os = COALESCE(EXCLUDED.os, clients.os),
-        browser = COALESCE(EXCLUDED.browser, clients.browser),
-        user_agent = COALESCE(EXCLUDED.user_agent, clients.user_agent),
-        platform = COALESCE(EXCLUDED.platform, clients.platform),
-        language = COALESCE(EXCLUDED.language, clients.language),
-        screen_resolution = COALESCE(EXCLUDED.screen_resolution, clients.screen_resolution),
-        timezone = COALESCE(EXCLUDED.timezone, clients.timezone),
-        status = EXCLUDED.status,
-        time_remaining = EXCLUDED.time_remaining,
-        last_seen = CURRENT_TIMESTAMP
-      RETURNING id`,
-      [
-        detectedMac.toUpperCase(), clientIP, 
-        parsedDeviceInfo.device_name, parsedDeviceInfo.device_type,
-        parsedDeviceInfo.os, parsedDeviceInfo.browser, parsedDeviceInfo.user_agent,
-        parsedDeviceInfo.platform, parsedDeviceInfo.language,
-        parsedDeviceInfo.screen_resolution, parsedDeviceInfo.timezone,
-        'CONNECTED', sessionDuration
-      ]
-    );
+    // Create or update client record - simplified version first
+    let clientResult;
+    try {
+      // Try full insert first
+      clientResult = await pool.query(
+        `INSERT INTO clients (
+          mac_address, ip_address, device_name, device_type, os, browser, 
+          user_agent, platform, language, screen_resolution, timezone,
+          status, time_remaining, created_at, last_seen
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (mac_address) 
+        DO UPDATE SET 
+          ip_address = EXCLUDED.ip_address,
+          device_name = COALESCE(EXCLUDED.device_name, clients.device_name),
+          device_type = COALESCE(EXCLUDED.device_type, clients.device_type),
+          os = COALESCE(EXCLUDED.os, clients.os),
+          browser = COALESCE(EXCLUDED.browser, clients.browser),
+          user_agent = COALESCE(EXCLUDED.user_agent, clients.user_agent),
+          platform = COALESCE(EXCLUDED.platform, clients.platform),
+          language = COALESCE(EXCLUDED.language, clients.language),
+          screen_resolution = COALESCE(EXCLUDED.screen_resolution, clients.screen_resolution),
+          timezone = COALESCE(EXCLUDED.timezone, clients.timezone),
+          status = EXCLUDED.status,
+          time_remaining = EXCLUDED.time_remaining,
+          last_seen = CURRENT_TIMESTAMP
+        RETURNING id`,
+        [
+          detectedMac.toUpperCase(), clientIP, 
+          parsedDeviceInfo.device_name || 'Unknown Device', 
+          parsedDeviceInfo.device_type || 'desktop',
+          parsedDeviceInfo.os || 'Unknown OS', 
+          parsedDeviceInfo.browser || 'Unknown Browser',
+          parsedDeviceInfo.user_agent || deviceInfo?.userAgent || 'Unknown',
+          parsedDeviceInfo.platform || deviceInfo?.platform || 'Unknown',
+          parsedDeviceInfo.language || deviceInfo?.language || 'en-US',
+          parsedDeviceInfo.screen_resolution || `${deviceInfo?.screenWidth || 1920}x${deviceInfo?.screenHeight || 1080}`,
+          parsedDeviceInfo.timezone || deviceInfo?.timezone || 'UTC',
+          'CONNECTED', sessionDuration
+        ]
+      );
+    } catch (clientError) {
+      console.warn('Full client insert failed, trying simplified version:', clientError.message);
+      // Fallback to basic client record
+      clientResult = await pool.query(
+        `INSERT INTO clients (mac_address, ip_address, status, time_remaining, created_at, last_seen)
+         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         ON CONFLICT (mac_address) 
+         DO UPDATE SET 
+           ip_address = EXCLUDED.ip_address,
+           status = EXCLUDED.status,
+           time_remaining = EXCLUDED.time_remaining,
+           last_seen = CURRENT_TIMESTAMP
+         RETURNING id`,
+        [detectedMac.toUpperCase(), clientIP, 'CONNECTED', sessionDuration]
+      );
+    }
     
     const clientId = clientResult.rows[0].id;
     console.log('Client record created with ID:', clientId);

@@ -11,7 +11,13 @@
       "Bash(chmod:*)",
       "Bash(npm view:*)",
       "Bash(npm audit:*)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(node:*)",
+      "Bash(pg_ctl:*)",
+      "Bash(psql:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(rm:*)",
+      "Bash(cat:*)"
     ],
     "deny": []
   }
