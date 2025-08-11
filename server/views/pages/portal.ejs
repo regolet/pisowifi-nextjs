@@ -321,7 +321,7 @@
             <p>Insert coins to get internet access</p>
             
             <div class="countdown">
-                Time left: <span id="timeLeft"><%= portalSettings.coin_timeout %></span>s
+                Time left: <span id="timeLeft"><%= portalSettings.coin_timeout %></span>
             </div>
             
             <div class="coin-stats">
@@ -409,6 +409,21 @@
                 console.log('Coin slot claimed:', data);
                 if (data.clientIp === clientIP) {
                     claimedSlot = data.slot;
+                    // Update countdown with actual expiration time
+                    if (document.getElementById('coinModal').style.display === 'block') {
+                        if (countdown) clearInterval(countdown);
+                        startCountdown();
+                    }
+                }
+            });
+            
+            socket.on('coin-slot-released', function(data) {
+                console.log('Coin slot released:', data);
+                if (data.clientIp === clientIP || (claimedSlot && data.slot && data.slot.slot_number === claimedSlot.slot_number)) {
+                    claimedSlot = null;
+                    if (document.getElementById('coinModal').style.display === 'block') {
+                        closeCoinModal();
+                    }
                 }
             });
             
@@ -529,18 +544,50 @@
         }
         
         function startCountdown() {
-            timeLeft = <%= portalSettings.coin_timeout %>;
-            document.getElementById('timeLeft').textContent = timeLeft;
-            
-            countdown = setInterval(() => {
-                timeLeft--;
+            // Use the actual slot expiration time from the server
+            if (claimedSlot && claimedSlot.expires_at) {
+                const expiresAt = new Date(claimedSlot.expires_at);
+                updateCountdownDisplay(expiresAt);
+                
+                countdown = setInterval(() => {
+                    updateCountdownDisplay(expiresAt);
+                }, 1000);
+            } else {
+                // Fallback to portal settings timeout
+                timeLeft = <%= portalSettings.coin_timeout %>;
                 document.getElementById('timeLeft').textContent = timeLeft;
                 
-                if (timeLeft <= 0) {
-                    clearInterval(countdown);
-                    closeCoinModal();
-                }
-            }, 1000);
+                countdown = setInterval(() => {
+                    timeLeft--;
+                    document.getElementById('timeLeft').textContent = timeLeft;
+                    
+                    if (timeLeft <= 0) {
+                        clearInterval(countdown);
+                        closeCoinModal();
+                    }
+                }, 1000);
+            }
+        }
+        
+        function updateCountdownDisplay(expiresAt) {
+            const now = new Date();
+            const remainingMs = expiresAt - now;
+            
+            if (remainingMs > 0) {
+                const minutes = Math.floor(remainingMs / 60000);
+                const seconds = Math.floor((remainingMs % 60000) / 1000);
+                const timeLeftSeconds = Math.floor(remainingMs / 1000);
+                
+                // Update display with MM:SS format
+                document.getElementById('timeLeft').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                
+                // Update global timeLeft for compatibility
+                timeLeft = timeLeftSeconds;
+            } else {
+                document.getElementById('timeLeft').textContent = 'Expired';
+                clearInterval(countdown);
+                closeCoinModal();
+            }
         }
         
         async function loadExistingQueue() {

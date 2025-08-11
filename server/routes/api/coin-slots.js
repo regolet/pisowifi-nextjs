@@ -355,6 +355,39 @@ router.post('/queues/redeem', async (req, res) => {
   }
 });
 
+// Get all coin queues (admin function)
+router.get('/queues', async (req, res) => {
+  try {
+    console.log('Fetching all coin queues');
+    
+    // Get all active queues with slot and client information
+    const result = await pool.query(`
+      SELECT 
+        cq.*,
+        cs.slot_number,
+        cs.claimed_by_ip,
+        cs.claimed_by_mac,
+        c.username as client_username
+      FROM coin_queues cq
+      LEFT JOIN coin_slots cs ON cq.slot_id = cs.id
+      LEFT JOIN clients c ON cq.client_id = c.id
+      WHERE cq.status = 'queued'
+      ORDER BY cq.created_at DESC
+    `);
+    
+    res.json({
+      success: true,
+      queues: result.rows
+    });
+  } catch (error) {
+    console.error('Get coin queues error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get coin queues'
+    });
+  }
+});
+
 // Cleanup expired queues (admin function)
 router.post('/cleanup', async (req, res) => {
   try {

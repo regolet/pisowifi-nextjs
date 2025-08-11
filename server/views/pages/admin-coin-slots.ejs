@@ -142,10 +142,40 @@
                     <h3 class="text-lg font-medium text-gray-900">Active Coin Queues</h3>
                     <p class="text-sm text-gray-500">Clients with queued coins ready for redemption</p>
                 </div>
-                <div class="p-6">
-                    <div id="coinQueuesContainer">
-                        <!-- Coin queues will be populated here -->
-                    </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Client Info
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Coin Slot
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    MAC Address
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Queued Coins
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Total Value
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Queue Status
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Time Queued
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    Actions
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="coinQueuesTable" class="bg-white divide-y divide-gray-200">
+                            <!-- Coin queues will be populated here -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
             
@@ -233,21 +263,33 @@
         
         async function loadCoinQueues() {
             try {
-                // For now, get queues from slot data
-                // In a real implementation, you might want a separate endpoint
+                // Get detailed coin queues data
+                const response = await fetch('/api/coin-slots/queues');
+                const data = await response.json();
+                
+                if (data.success) {
+                    coinQueuesData = data.queues || [];
+                    renderCoinQueues();
+                } else {
+                    throw new Error(data.error || 'Failed to load coin queues');
+                }
+            } catch (error) {
+                console.error('Failed to load coin queues:', error);
+                // Fallback to extracting from slot data
                 coinQueuesData = [];
                 coinSlotsData.forEach(slot => {
                     if (slot.queued_coins && slot.queued_coins.length > 0) {
-                        coinQueuesData.push({
-                            slot: slot,
-                            queues: slot.queued_coins
+                        slot.queued_coins.forEach(queue => {
+                            coinQueuesData.push({
+                                ...queue,
+                                slot_number: slot.slot_number,
+                                claimed_by_ip: slot.claimed_by_ip,
+                                claimed_by_mac: slot.claimed_by_mac
+                            });
                         });
                     }
                 });
                 renderCoinQueues();
-            } catch (error) {
-                console.error('Failed to load coin queues:', error);
-                throw error;
             }
         }
         
@@ -405,56 +447,144 @@
         }
         
         function renderCoinQueues() {
-            const container = document.getElementById('coinQueuesContainer');
+            const container = document.getElementById('coinQueuesTable');
             
             if (coinQueuesData.length === 0) {
-                container.innerHTML = '<div class="text-center py-8 text-gray-500">No active coin queues</div>';
+                container.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-gray-500">No active coin queues</td></tr>';
                 return;
             }
             
-            container.innerHTML = coinQueuesData.map(item => {
-                const totalValue = item.queues.reduce((sum, q) => sum + parseFloat(q.total_value), 0);
-                const totalCoins = item.queues.reduce((sum, q) => sum + q.coin_count, 0);
+            // Group queues by client (IP + MAC combination)
+            const groupedQueues = {};
+            coinQueuesData.forEach(queue => {
+                const clientKey = `${queue.client_ip || queue.claimed_by_ip}-${queue.client_mac || queue.claimed_by_mac}`;
+                if (!groupedQueues[clientKey]) {
+                    groupedQueues[clientKey] = {
+                        client_ip: queue.client_ip || queue.claimed_by_ip,
+                        client_mac: queue.client_mac || queue.claimed_by_mac,
+                        slot_number: queue.slot_number || queue.slot_id,
+                        queues: []
+                    };
+                }
+                groupedQueues[clientKey].queues.push(queue);
+            });
+            
+            container.innerHTML = Object.values(groupedQueues).map(clientData => {
+                const totalCoins = clientData.queues.reduce((sum, q) => sum + (q.coin_count || 1), 0);
+                const totalValue = clientData.queues.reduce((sum, q) => sum + parseFloat(q.total_value || q.coin_value || 0), 0);
+                const oldestQueue = clientData.queues.reduce((oldest, current) => {
+                    return new Date(current.created_at) < new Date(oldest.created_at) ? current : oldest;
+                });
+                const queueStatus = clientData.queues.every(q => q.status === 'queued') ? 'Ready' : 'Processing';
                 
                 return `
-                    <div class="border rounded-lg p-4 mb-4">
-                        <div class="flex justify-between items-start mb-3">
-                            <div>
-                                <h4 class="font-medium text-gray-900">Slot ${item.slot.slot_number} Queue</h4>
-                                <p class="text-sm text-gray-600">${item.slot.claimed_by_ip || 'Unknown IP'}</p>
-                            </div>
-                            <div class="text-right">
-                                <div class="text-lg font-semibold text-green-600">₱${totalValue.toFixed(2)}</div>
-                                <div class="text-sm text-gray-500">${totalCoins} coins</div>
-                            </div>
-                        </div>
-                        
-                        <div class="space-y-2">
-                            ${item.queues.map(queue => `
-                                <div class="coin-queue-item flex justify-between items-center">
-                                    <div class="flex items-center space-x-3">
-                                        <span class="text-lg">🪙</span>
-                                        <div>
-                                            <div class="text-sm font-medium">₱${queue.coin_value} × ${queue.coin_count}</div>
-                                            <div class="text-xs text-gray-500">
-                                                ${new Date(queue.created_at).toLocaleTimeString()}
-                                            </div>
-                                        </div>
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <div class="text-2xl mr-3">👤</div>
+                                <div>
+                                    <div class="text-sm font-medium text-gray-900">Client ${clientData.client_ip || 'Unknown'}</div>
+                                    <div class="text-sm text-gray-500">
+                                        ${clientData.queues.length} queue${clientData.queues.length > 1 ? 's' : ''}
                                     </div>
-                                    <div class="font-medium text-green-600">₱${queue.total_value}</div>
                                 </div>
-                            `).join('')}
-                        </div>
-                        
-                        <div class="mt-3 pt-3 border-t flex justify-end space-x-2">
-                            <button onclick="redeemQueue('${item.slot.claimed_by_ip}', '${item.slot.claimed_by_mac}')" 
-                                    class="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700">
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <div class="text-lg mr-2">🪙</div>
+                                <div class="text-sm font-medium text-gray-900">
+                                    Slot ${clientData.slot_number || 1}
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-mono text-gray-900">
+                                ${clientData.client_mac || '-'}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-900">
+                                ${totalCoins} coin${totalCoins > 1 ? 's' : ''}
+                            </div>
+                            <div class="text-xs text-gray-500">
+                                ${clientData.queues.map(q => `₱${q.coin_value || 0} × ${q.coin_count || 1}`).join(', ')}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-semibold text-green-600">
+                                ₱${totalValue.toFixed(2)}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                queueStatus === 'Ready' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                            }">
+                                ${queueStatus}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-900">
+                                ${new Date(oldestQueue.created_at).toLocaleTimeString()}
+                            </div>
+                            <div class="text-xs text-gray-500">
+                                ${Math.floor((new Date() - new Date(oldestQueue.created_at)) / 60000)}m ago
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button onclick="redeemQueue('${clientData.client_ip}', '${clientData.client_mac || ''}')" 
+                                    class="text-green-600 hover:text-green-900 mr-3">
                                 Redeem All
                             </button>
-                        </div>
-                    </div>
+                            <button onclick="viewQueueDetails('${clientData.client_ip}', '${clientData.client_mac || ''}')" 
+                                    class="text-blue-600 hover:text-blue-900">
+                                Details
+                            </button>
+                        </td>
+                    </tr>
                 `;
             }).join('');
+        }
+        
+        function viewQueueDetails(clientIp, clientMac) {
+            const clientQueues = coinQueuesData.filter(q => 
+                (q.client_ip === clientIp || q.claimed_by_ip === clientIp) && 
+                (q.client_mac === clientMac || q.claimed_by_mac === clientMac)
+            );
+            
+            const detailsHtml = clientQueues.map(queue => `
+                <div class="border rounded p-3 mb-2">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <span class="font-medium">₱${queue.coin_value || 0} × ${queue.coin_count || 1}</span>
+                            <span class="text-gray-500 text-sm ml-2">
+                                ${new Date(queue.created_at).toLocaleString()}
+                            </span>
+                        </div>
+                        <div class="text-green-600 font-medium">
+                            ₱${parseFloat(queue.total_value || queue.coin_value || 0).toFixed(2)}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                    <h3 class="text-lg font-semibold mb-4">Queue Details - ${clientIp}</h3>
+                    <div class="max-h-60 overflow-y-auto">
+                        ${detailsHtml}
+                    </div>
+                    <div class="mt-4 flex justify-end space-x-2">
+                        <button onclick="this.closest('.fixed').remove()" 
+                                class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
         }
         
         function updateStatistics() {
