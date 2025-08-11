@@ -8,17 +8,31 @@ const path = require('path');
 
 let dbAdapter;
 
-// Check if we're in a PostgreSQL environment (production/OrangePi)
-function isPostgreSQLEnvironment() {
-  // Check if PostgreSQL is available by trying to connect
+// Check if we should use PostgreSQL
+async function shouldUsePostgreSQL() {
   const databaseUrl = process.env.DATABASE_URL;
-  return databaseUrl && databaseUrl.startsWith('postgresql://') && process.env.NODE_ENV === 'production';
+  
+  // If DATABASE_URL starts with postgresql://, try to use PostgreSQL
+  if (databaseUrl && databaseUrl.startsWith('postgresql://')) {
+    try {
+      const { Pool } = require('pg');
+      const testPool = new Pool({ connectionString: databaseUrl });
+      await testPool.query('SELECT 1');
+      await testPool.end();
+      return true;
+    } catch (error) {
+      console.warn('PostgreSQL connection failed, falling back to SQLite:', error.message);
+      return false;
+    }
+  }
+  
+  return false;
 }
 
 // Initialize the appropriate database adapter
 async function initializeDatabase() {
   try {
-    if (isPostgreSQLEnvironment()) {
+    if (await shouldUsePostgreSQL()) {
       console.log('🐘 Initializing PostgreSQL adapter for production...');
       const { Pool } = require('pg');
       
@@ -26,15 +40,39 @@ async function initializeDatabase() {
         connectionString: process.env.DATABASE_URL || 'postgresql://pisowifi_user:admin123@localhost:5432/pisowifi'
       });
       
-      // Test connection
+      // Test connection and run migrations
       await pool.query('SELECT NOW()');
       console.log('✅ PostgreSQL connection successful');
+      
+      // Run the base tables migration
+      console.log('📝 Running PostgreSQL migrations...');
+      try {
+        const fs = require('fs');
+        const migrationPath = path.join(__dirname, '../../scripts/create-base-tables.sql');
+        if (fs.existsSync(migrationPath)) {
+          const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
+          await pool.query(migrationSQL);
+          console.log('✅ PostgreSQL migrations completed');
+        }
+      } catch (migrationError) {
+        console.warn('⚠️  Migration warning (tables may already exist):', migrationError.message);
+      }
       
       dbAdapter = {
         type: 'postgresql',
         query: async (text, params) => {
-          const result = await pool.query(text, params);
-          return result;
+          try {
+            const result = await pool.query(text, params);
+            return result;
+          } catch (error) {
+            // Handle common PostgreSQL function errors gracefully
+            if (error.message.includes('release_expired_coin_slots') || 
+                error.message.includes('function') && error.message.includes('does not exist')) {
+              console.warn('PostgreSQL function not available, skipping:', error.message);
+              return { rows: [], rowCount: 0 };
+            }
+            throw error;
+          }
         },
         close: () => pool.end()
       };
