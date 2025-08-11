@@ -60,6 +60,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views/pages'));
 
+// Captive portal detection routes (MUST be first, before auth middleware)
+app.use('/', require('./routes/captive'));
+
 // Debug route for troubleshooting (must be before auth middleware)
 app.get('/debug-status', async (req, res) => {
   try {
@@ -239,9 +242,6 @@ app.use(async (req, res, next) => {
     return res.redirect(302, '/portal');
   }
 });
-
-// Captive portal detection routes (must be first)
-app.use('/', require('./routes/captive'));
 
 // Routes
 app.use('/portal', require('./routes/portal'));
