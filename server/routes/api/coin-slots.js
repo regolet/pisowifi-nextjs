@@ -220,7 +220,29 @@ router.post('/slots/:slotNumber/add-coin', async (req, res) => {
     const { slotNumber } = req.params;
     const { clientId, clientIp, clientMac, coinValue, coinCount = 1 } = req.body;
     
-    console.log(`Adding ${coinCount} coins of ₱${coinValue} to slot ${slotNumber}`);
+    console.log(`Adding ${coinCount} coins of ₱${coinValue} to slot ${slotNumber} for client ${clientIp}`);
+    
+    // Validate input parameters
+    if (!clientIp && !clientMac) {
+      return res.status(400).json({
+        success: false,
+        error: 'Client IP or MAC address required'
+      });
+    }
+    
+    if (!coinValue || isNaN(coinValue) || coinValue <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid coin value'
+      });
+    }
+    
+    if (!coinCount || isNaN(coinCount) || coinCount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid coin count'
+      });
+    }
     
     // Verify slot is claimed by this client
     const slotResult = await pool.query(`
@@ -231,6 +253,7 @@ router.post('/slots/:slotNumber/add-coin', async (req, res) => {
     `, [slotNumber, clientIp, clientMac]);
     
     if (slotResult.rows.length === 0) {
+      console.log(`Slot ${slotNumber} not found or not claimed by ${clientIp}/${clientMac}`);
       return res.status(403).json({
         success: false,
         error: 'Coin slot not claimed by this client'
@@ -240,11 +263,16 @@ router.post('/slots/:slotNumber/add-coin', async (req, res) => {
     const slotId = slotResult.rows[0].id;
     const totalValue = parseFloat(coinValue) * parseInt(coinCount);
     
+    console.log(`Slot ID: ${slotId}, Total Value: ₱${totalValue}`);
+    
     // Begin transaction to handle coin addition and queue re-association
     await pool.query('BEGIN');
     
     try {
+      console.log('Starting transaction for coin addition...');
+      
       // Re-associate any preserved queues (slot_id = NULL) with this slot
+      console.log('Checking for preserved queues...');
       const reAssociated = await pool.query(`
         UPDATE coin_queues 
         SET slot_id = $1
@@ -256,9 +284,12 @@ router.post('/slots/:slotNumber/add-coin', async (req, res) => {
       
       if (reAssociated.rows.length > 0) {
         console.log(`Re-associated ${reAssociated.rows.length} preserved queues with slot ${slotNumber}`);
+      } else {
+        console.log('No preserved queues found to re-associate');
       }
       
       // Add new coin to queue
+      console.log('Inserting new coin into queue...');
       const queueResult = await pool.query(`
         INSERT INTO coin_queues (
           slot_id, client_id, client_ip, client_mac, 
@@ -267,11 +298,20 @@ router.post('/slots/:slotNumber/add-coin', async (req, res) => {
         RETURNING *
       `, [slotId, clientId, clientIp, clientMac, coinValue, coinCount, totalValue]);
       
-      await pool.query('COMMIT');
+      console.log('New coin inserted successfully:', queueResult.rows[0]);
       
-      // Get total queued amount for client
+      await pool.query('COMMIT');
+      console.log('Transaction committed successfully');
+      
+      // Get total queued amount for client (using direct query instead of function)
       const totalResult = await pool.query(`
-        SELECT * FROM get_client_queued_total($1, $2)
+        SELECT 
+          COALESCE(SUM(cq.coin_count), 0)::INTEGER as total_coins,
+          COALESCE(SUM(cq.total_value), 0.00)::DECIMAL(10,2) as total_value,
+          COUNT(cq.id)::INTEGER as queue_count
+        FROM coin_queues cq
+        WHERE cq.status = 'queued'
+        AND (cq.client_ip = $1 OR cq.client_mac = $2)
       `, [clientIp, clientMac]);
       
       const queuedTotal = totalResult.rows[0];
@@ -305,7 +345,7 @@ router.post('/slots/:slotNumber/add-coin', async (req, res) => {
     console.error('Add coin error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to add coin to queue'
+      error: 'Failed to add coin to queue: ' + error.message
     });
   }
 });

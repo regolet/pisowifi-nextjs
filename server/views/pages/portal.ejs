@@ -669,6 +669,12 @@
                     })
                 });
                 
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('HTTP Error:', response.status, response.statusText, errorText);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
                 if (data.success) {
                     updateCoinDisplayFromQueue(data.total);
@@ -681,11 +687,15 @@
                             coinIcon.style.animation = 'pulse 2s infinite';
                         }, 600);
                     }
+                    
+                    console.log('Coin added successfully:', data.message);
                 } else {
                     console.error('Failed to add coin to queue:', data.error);
+                    alert('Failed to add coin: ' + data.error);
                 }
             } catch (error) {
-                console.error('Add coin to queue error:', error);
+                console.error('Add coin to queue error:', error.message);
+                alert('Error adding coin: ' + error.message);
             }
         }
         
