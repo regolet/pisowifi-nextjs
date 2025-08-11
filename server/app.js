@@ -60,14 +60,99 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views/pages'));
 
+// Authentication middleware for captive portal
+app.use(async (req, res, next) => {
+  // Skip authentication for portal, API, admin routes, and static files
+  if (req.path.startsWith('/portal') || 
+      req.path.startsWith('/api') || 
+      req.path.startsWith('/admin') || 
+      req.path.startsWith('/socket.io') ||
+      req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+    return next();
+  }
+  
+  try {
+    // Get client IP
+    let clientIP = req.headers['x-forwarded-for'] || 
+                   req.headers['x-real-ip'] ||
+                   req.connection.remoteAddress || 
+                   req.socket.remoteAddress ||
+                   (req.connection.socket ? req.connection.socket.remoteAddress : null);
+
+    if (clientIP && clientIP.startsWith('::ffff:')) {
+      clientIP = clientIP.substring(7);
+    }
+    
+    if (clientIP && clientIP.includes(':') && !clientIP.includes('::')) {
+      clientIP = clientIP.split(':')[0];
+    }
+
+    // Try to get MAC address using multiple methods
+    let detectedMac = null;
+    const { exec } = require('child_process');
+    const { promisify } = require('util');
+    const execAsync = promisify(exec);
+    
+    try {
+      // Try ARP table
+      const { stdout: arpOutput } = await execAsync(`arp -n ${clientIP} 2>/dev/null || echo ""`);
+      if (arpOutput) {
+        const arpMatch = arpOutput.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
+        if (arpMatch) {
+          detectedMac = arpMatch[0].toUpperCase();
+        }
+      }
+      
+      // Try neighbor table if ARP failed
+      if (!detectedMac) {
+        const { stdout: neighborOutput } = await execAsync(`ip neighbor show 2>/dev/null || echo ""`);
+        const neighborLines = neighborOutput.split('\n');
+        for (const line of neighborLines) {
+          if (line.includes(clientIP)) {
+            const macMatch = line.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
+            if (macMatch) {
+              detectedMac = macMatch[0].toUpperCase();
+              break;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('MAC detection failed in auth middleware:', error.message);
+    }
+
+    // Check if client is authenticated
+    if (detectedMac) {
+      const db = require('./db/simple-adapter');
+      const authCheck = await db.query(
+        'SELECT * FROM clients WHERE mac_address = $1 AND status = $2 AND time_remaining > 0',
+        [detectedMac, 'CONNECTED']
+      );
+      
+      if (authCheck.rows.length > 0) {
+        // Client is authenticated, allow through
+        return next();
+      }
+    }
+    
+    // Client is not authenticated, redirect to portal
+    return res.redirect(302, `/portal?redirect=${encodeURIComponent(req.originalUrl)}`);
+    
+  } catch (error) {
+    console.warn('Auth middleware error:', error.message);
+    // On error, redirect to portal to be safe
+    return res.redirect(302, '/portal');
+  }
+});
+
+// Captive portal detection routes (must be first)
+app.use('/', require('./routes/captive'));
+
 // Routes
-app.use('/', require('./routes/index'));
+app.use('/portal', require('./routes/portal'));
 app.use('/api', require('./routes/api'));
 app.use('/admin', require('./routes/admin'));
-app.use('/portal', require('./routes/portal'));
-
-// Captive portal detection routes (must be before catch-all)
-app.use('/', require('./routes/captive'));
+app.use('/', require('./routes/index'));
 
 // Socket.io for real-time coin detection
 io.on('connection', (socket) => {
