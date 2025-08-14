@@ -37,8 +37,7 @@ router.get('/', async (req, res) => {
         s.id as session_id,
         s.duration as session_duration,
         s.status as session_status,
-        s.started_at as session_started,
-        s.time_used as session_time_used
+        s.started_at as session_started
       FROM clients c
       LEFT JOIN sessions s ON c.id = s.client_id AND s.status = 'ACTIVE'
       ORDER BY c.last_seen DESC`
