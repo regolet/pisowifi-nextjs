@@ -10,7 +10,7 @@ const db = require('../../db/sqlite-adapter');
 const execAsync = promisify(exec);
 
 // Settings file paths
-const NETWORK_CONFIG_PATH = '/etc/dnsmasq.conf';
+const NETWORK_CONFIG_PATH = '/etc/dnsmasq.d/pisowifi.conf';
 const NGINX_CONFIG_PATH = '/etc/nginx/sites-available/portal';
 const SETTINGS_FILE = path.join(process.cwd(), 'config', 'settings.json');
 
@@ -109,8 +109,8 @@ log-dhcp
 `;
     
     // Write config (requires sudo)
-    await fs.writeFile('/tmp/dnsmasq.conf', dnsmasqConfig);
-    await execAsync('sudo cp /tmp/dnsmasq.conf /etc/dnsmasq.conf');
+    await fs.writeFile('/tmp/pisowifi.conf', dnsmasqConfig);
+    await execAsync('sudo cp /tmp/pisowifi.conf /etc/dnsmasq.d/pisowifi.conf');
     
     // Update nginx redirect
     const nginxConfig = `
