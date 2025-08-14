@@ -178,7 +178,15 @@ async function ensureBasicTables() {
 
 function runQuery(sql, params = []) {
   try {
-    const result = db.prepare(sql).run(...params);
+    // Convert PostgreSQL-style $1, $2, $3... to SQLite-style ?
+    let sqliteQuery = sql;
+    if (params.length > 0) {
+      for (let i = params.length; i >= 1; i--) {
+        sqliteQuery = sqliteQuery.replace(new RegExp('\\$' + i, 'g'), '?');
+      }
+    }
+    
+    const result = db.prepare(sqliteQuery).run(...params);
     return { lastID: result.lastInsertRowid, changes: result.changes };
   } catch (error) {
     throw error;
@@ -191,14 +199,23 @@ async function query(text, params = []) {
   }
   
   try {
+    // Convert PostgreSQL-style $1, $2, $3... to SQLite-style ?
+    let sqliteQuery = text;
+    if (params.length > 0) {
+      // Replace $1, $2, $3, etc. with ?
+      for (let i = params.length; i >= 1; i--) {
+        sqliteQuery = sqliteQuery.replace(new RegExp('\\$' + i, 'g'), '?');
+      }
+    }
+    
     // Handle SELECT queries
-    if (text.trim().toUpperCase().startsWith('SELECT')) {
-      const stmt = db.prepare(text);
+    if (sqliteQuery.trim().toUpperCase().startsWith('SELECT')) {
+      const stmt = db.prepare(sqliteQuery);
       const rows = stmt.all(...params);
       return { rows: rows || [], rowCount: rows ? rows.length : 0 };
     } else {
       // Handle INSERT, UPDATE, DELETE queries
-      const result = runQuery(text, params);
+      const result = runQuery(sqliteQuery, params);
       return { rows: [], rowCount: result.changes };
     }
   } catch (error) {
