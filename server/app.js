@@ -334,13 +334,19 @@ function startTimeCountdownSystem() {
       const db = require('./db/sqlite-adapter');
       
       // Decrement time_remaining for all connected clients
-      const result = await db.query(`
+      await db.query(`
         UPDATE clients 
-        SET time_remaining = GREATEST(0, time_remaining - 1),
+        SET time_remaining = MAX(0, time_remaining - 1),
             last_seen = CURRENT_TIMESTAMP
         WHERE status = 'CONNECTED' 
         AND time_remaining > 0
-        RETURNING id, mac_address, time_remaining
+      `);
+      
+      // Get updated clients for logging
+      const result = await db.query(`
+        SELECT id, mac_address, time_remaining
+        FROM clients
+        WHERE status = 'CONNECTED' AND time_remaining >= 0
       `);
       
       // Check for expired clients
