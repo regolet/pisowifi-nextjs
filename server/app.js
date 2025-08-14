@@ -60,9 +60,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views/pages'));
 
-// Captive portal detection routes (MUST be first, before auth middleware)
-app.use('/', require('./routes/captive'));
-
 // Debug route for troubleshooting (must be before auth middleware)
 app.get('/debug-status', async (req, res) => {
   try {
@@ -157,14 +154,30 @@ app.get('/debug-status', async (req, res) => {
   }
 });
 
-// Authentication middleware for captive portal
+// Captive portal detection routes (MUST be first, before auth middleware)
+// Using enhanced captive portal with better device support
+app.use('/', require('./routes/captive-enhanced'));
+
+// Global catch-all middleware for unauthenticated access
+// This ensures any HTTP request from non-authenticated clients gets redirected
 app.use(async (req, res, next) => {
-  // Skip authentication for portal, API, admin routes, debug, and static files
+  // Skip authentication for portal, API, admin routes, debug, captive detection, and static files
   if (req.path.startsWith('/portal') || 
       req.path.startsWith('/api') || 
       req.path.startsWith('/admin') || 
       req.path.startsWith('/debug-status') ||
       req.path.startsWith('/socket.io') ||
+      req.path === '/hotspot-detect.html' ||
+      req.path === '/library/test/success.html' ||
+      req.path === '/generate_204' ||
+      req.path === '/gen_204' ||
+      req.path === '/connecttest.txt' ||
+      req.path === '/ncsi.txt' ||
+      req.path === '/connectivity-check.html' ||
+      req.path === '/canonical.html' ||
+      req.path === '/success.txt' ||
+      req.path === '/chrome-variations/seed' ||
+      req.path === '/redirect' ||
       req.path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
     return next();
   }
@@ -263,8 +276,14 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, async () => {
-  console.log(`🚀 PISOWifi Express server running on port ${PORT}`);
+const HOST = '0.0.0.0'; // Listen on all interfaces
+
+server.listen(PORT, HOST, async () => {
+  console.log(`🚀 PISOWifi Express server running on ${HOST}:${PORT}`);
+  console.log(`📡 Portal accessible at:`);
+  console.log(`   - http://localhost:${PORT}/portal`);
+  console.log(`   - http://192.168.100.1:${PORT}/portal`);
+  console.log(`   - http://[your-ip]:${PORT}/portal`);
   
   // Initialize network stack for captive portal
   try {
@@ -280,8 +299,28 @@ server.listen(PORT, async () => {
     console.log('⚠️ Network manager not available:', error.message);
   }
   
+  // Initialize DNS interceptor for captive portal (optional)
+  if (process.env.ENABLE_DNS_INTERCEPTOR === 'true') {
+    try {
+      const DNSInterceptor = require('./services/dns-interceptor');
+      const dnsInterceptor = new DNSInterceptor({
+        portalIP: process.env.PISOWIFI_GATEWAY || '192.168.100.1'
+      });
+      await dnsInterceptor.start();
+      console.log('✅ DNS Interceptor started for enhanced captive portal');
+    } catch (error) {
+      console.log('⚠️ DNS Interceptor not available:', error.message);
+    }
+  }
+  
   // Start time countdown system for authenticated clients
   startTimeCountdownSystem();
+  
+  console.log('\n🔍 Captive Portal Detection URLs:');
+  console.log('   Android: /generate_204');
+  console.log('   iOS/macOS: /hotspot-detect.html');
+  console.log('   Windows: /connecttest.txt');
+  console.log('   Firefox: /canonical.html');
 });
 
 // Time countdown system - decrements time_remaining in database every second
