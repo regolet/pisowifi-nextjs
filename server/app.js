@@ -158,6 +158,9 @@ app.get('/debug-status', async (req, res) => {
 // Using enhanced captive portal with better device support
 app.use('/', require('./routes/captive-enhanced'));
 
+// Admin routes (before auth middleware to allow admin access from any IP)
+app.use('/admin', require('./routes/admin'));
+
 // Global catch-all middleware for unauthenticated access
 // This ensures any HTTP request from non-authenticated clients gets redirected
 app.use(async (req, res, next) => {
@@ -259,7 +262,6 @@ app.use(async (req, res, next) => {
 // Routes
 app.use('/portal', require('./routes/portal'));
 app.use('/api', require('./routes/api'));
-app.use('/admin', require('./routes/admin'));
 app.use('/', require('./routes/index'));
 
 // Socket.io for real-time coin detection
