@@ -34,9 +34,17 @@ const authenticateToken = (req, res, next) => {
 // Get all settings
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    // Load settings from file or create default
-    let settings = {
-      network: {
+    // Get all settings from database
+    const [networkResult, portalResult, gpioResult, systemResult, ratesResult] = await Promise.all([
+      db.query('SELECT * FROM network_settings WHERE id = 1'),
+      db.query('SELECT * FROM portal_settings WHERE id = 1'), 
+      db.query('SELECT * FROM gpio_settings WHERE id = 1'),
+      db.query('SELECT * FROM system_settings WHERE id = 1'),
+      db.query('SELECT * FROM rates ORDER BY duration')
+    ]);
+    
+    const settings = {
+      network: networkResult.rows[0] || {
         gateway_ip: '192.168.100.1',
         dhcp_start: '192.168.100.10',
         dhcp_end: '192.168.100.100',
@@ -44,43 +52,31 @@ router.get('/', authenticateToken, async (req, res) => {
         interface: 'enx00e04c68276e',
         dns_server: '8.8.8.8'
       },
-      portal: {
-        title: 'PISOWifi Portal',
-        subtitle: 'Insert coins for internet access',
-        logo_url: '/images/logo.png',
-        background: 'gradient',
-        primary_color: '#3B82F6',
-        coin_slot_enabled: true,
-        test_mode: true
+      portal: portalResult.rows[0] || {
+        portal_title: 'PISOWifi Portal',
+        portal_subtitle: 'Insert coins for internet access',
+        coin_timeout: 300
       },
-      gpio: {
+      gpio: gpioResult.rows[0] || {
         coin_pin: 3,
         coin_pin_mode: 'BCM',
         led_pin: 5,
         led_pin_mode: 'BCM',
         debounce_time: 200,
-        pulse_width: 50
+        pulse_width: 50,
+        coin_value: 5.00,
+        pulses_per_coin: 1,
+        pulse_duration: 100
       },
-      rates: [],
-      system: {
+      system: systemResult.rows[0] || {
         auto_restart: true,
         restart_time: '03:00',
         max_clients: 100,
         session_timeout: 7200,
         log_level: 'info'
-      }
+      },
+      rates: ratesResult.rows
     };
-    
-    try {
-      const fileContent = await fs.readFile(SETTINGS_FILE, 'utf-8');
-      settings = { ...settings, ...JSON.parse(fileContent) };
-    } catch (err) {
-      // Settings file doesn't exist, use defaults
-    }
-    
-    // Get rates from database
-    const ratesResult = await db.query('SELECT * FROM rates ORDER BY duration');
-    settings.rates = ratesResult.rows;
     
     res.json(settings);
   } catch (error) {
@@ -139,8 +135,11 @@ server {
     await execAsync('sudo systemctl restart dnsmasq');
     await execAsync('sudo systemctl restart nginx');
     
-    // Save settings
-    await saveSettings({ network: req.body });
+    // Save settings to database
+    await db.query(`
+      INSERT OR REPLACE INTO network_settings (id, gateway_ip, dhcp_start, dhcp_end, lease_time, interface, dns_server, updated_at) 
+      VALUES (1, $1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+    `, [gateway_ip, dhcp_start, dhcp_end, lease_time, interface, req.body.dns_server || '8.8.8.8']);
     
     // Log action
     await db.query(
@@ -158,10 +157,13 @@ server {
 // Update portal settings
 router.put('/portal', authenticateToken, async (req, res) => {
   try {
-    const settings = req.body;
+    const { portal_title, portal_subtitle, coin_timeout } = req.body;
     
-    // Save portal settings
-    await saveSettings({ portal: settings });
+    // Save portal settings to database (reuse existing portal_settings table)
+    await db.query(`
+      INSERT OR REPLACE INTO portal_settings (id, portal_title, portal_subtitle, coin_timeout, updated_at) 
+      VALUES (1, $1, $2, $3, CURRENT_TIMESTAMP)
+    `, [portal_title || 'PISOWifi Portal', portal_subtitle || 'Insert coins for internet access', coin_timeout || 300]);
     
     // Log action
     await db.query(
@@ -179,10 +181,14 @@ router.put('/portal', authenticateToken, async (req, res) => {
 // Update GPIO settings
 router.put('/gpio', authenticateToken, async (req, res) => {
   try {
-    const settings = req.body;
+    const { coin_pin, coin_pin_mode, led_pin, led_pin_mode, debounce_time, pulse_width, coin_value, pulses_per_coin, pulse_duration } = req.body;
     
-    // Save GPIO settings
-    await saveSettings({ gpio: settings });
+    // Save GPIO settings to database
+    await db.query(`
+      INSERT OR REPLACE INTO gpio_settings 
+      (id, coin_pin, coin_pin_mode, led_pin, led_pin_mode, debounce_time, pulse_width, coin_value, pulses_per_coin, pulse_duration, updated_at) 
+      VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
+    `, [coin_pin, coin_pin_mode || 'BCM', led_pin, led_pin_mode || 'BCM', debounce_time, pulse_width, coin_value, pulses_per_coin, pulse_duration]);
     
     // Restart GPIO service with new settings
     try {
@@ -194,7 +200,7 @@ router.put('/gpio', authenticateToken, async (req, res) => {
     // Log action
     await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
-      ['INFO', 'GPIO settings updated', 'admin', JSON.stringify({ admin: req.user.username, settings })]
+      ['INFO', 'GPIO settings updated', 'admin', JSON.stringify({ admin: req.user.username, settings: req.body })]
     );
     
     res.json({ success: true, message: 'GPIO settings updated' });
@@ -220,10 +226,7 @@ router.put('/rates', authenticateToken, async (req, res) => {
       );
     }
     
-    // Save coin settings if provided
-    if (coinSettings) {
-      await saveSettings({ coin: coinSettings });
-    }
+    // Coin settings are now handled in GPIO settings
     
     // Log action
     await db.query(
@@ -238,37 +241,28 @@ router.put('/rates', authenticateToken, async (req, res) => {
   }
 });
 
-// Update coin settings
-router.put('/coin', authenticateToken, async (req, res) => {
+// Add system settings route
+router.put('/system', authenticateToken, async (req, res) => {
   try {
-    const coinSettings = req.body;
+    const { auto_restart, restart_time, max_clients, session_timeout, log_level } = req.body;
     
-    // Validate coin settings
-    if (coinSettings.coin_value < 0.01 || coinSettings.coin_value > 1000) {
-      return res.status(400).json({ error: 'Invalid coin value' });
-    }
-    
-    if (coinSettings.pulses_per_coin < 1 || coinSettings.pulses_per_coin > 10) {
-      return res.status(400).json({ error: 'Invalid pulse count' });
-    }
-    
-    if (coinSettings.pulse_duration < 10 || coinSettings.pulse_duration > 2000) {
-      return res.status(400).json({ error: 'Invalid pulse duration' });
-    }
-    
-    // Save coin settings
-    await saveSettings({ coin: coinSettings });
+    // Save system settings to database
+    await db.query(`
+      INSERT OR REPLACE INTO system_settings 
+      (id, auto_restart, restart_time, max_clients, session_timeout, log_level, updated_at) 
+      VALUES (1, $1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+    `, [auto_restart ? 1 : 0, restart_time || '03:00', max_clients || 100, session_timeout || 7200, log_level || 'info']);
     
     // Log action
     await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
-      ['INFO', 'Coin settings updated', 'admin', JSON.stringify({ admin: req.user.username, settings: coinSettings })]
+      ['INFO', 'System settings updated', 'admin', JSON.stringify({ admin: req.user.username, settings: req.body })]
     );
     
-    res.json({ success: true, message: 'Coin settings updated' });
+    res.json({ success: true, message: 'System settings updated' });
   } catch (error) {
-    console.error('Update coin settings error:', error);
-    res.status(500).json({ error: 'Failed to update coin settings' });
+    console.error('Update system settings error:', error);
+    res.status(500).json({ error: 'Failed to update system settings' });
   }
 });
 
@@ -289,30 +283,11 @@ router.post('/gpio/test-coin', authenticateToken, async (req, res) => {
   }
 });
 
-// Helper function to save settings
-async function saveSettings(updates) {
-  try {
-    // Ensure config directory exists
-    await fs.mkdir(path.join(process.cwd(), 'config'), { recursive: true });
-    
-    // Read existing settings
-    let settings = {};
-    try {
-      const fileContent = await fs.readFile(SETTINGS_FILE, 'utf-8');
-      settings = JSON.parse(fileContent);
-    } catch (err) {
-      // File doesn't exist
-    }
-    
-    // Merge updates
-    settings = { ...settings, ...updates };
-    
-    // Save to file
-    await fs.writeFile(SETTINGS_FILE, JSON.stringify(settings, null, 2));
-  } catch (error) {
-    console.error('Save settings error:', error);
-    throw error;
-  }
-}
+// All settings are now stored in SQLite database tables:
+// - network_settings: DHCP, DNS, network configuration
+// - portal_settings: Portal title, subtitle, coin timeout
+// - gpio_settings: GPIO pins, coin detection settings
+// - system_settings: System-wide configuration
+// - rates: Coin rates and pricing
 
 module.exports = router;

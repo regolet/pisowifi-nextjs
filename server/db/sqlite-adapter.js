@@ -148,6 +148,44 @@ async function ensureBasicTables() {
       total_value DECIMAL(10,2) DEFAULT 0.00,
       status VARCHAR(20) DEFAULT 'queued',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS network_settings (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      gateway_ip VARCHAR(45) DEFAULT '192.168.100.1',
+      dhcp_start VARCHAR(45) DEFAULT '192.168.100.10',
+      dhcp_end VARCHAR(45) DEFAULT '192.168.100.100',
+      lease_time VARCHAR(10) DEFAULT '12h',
+      interface VARCHAR(50) DEFAULT 'enx00e04c68276e',
+      dns_server VARCHAR(45) DEFAULT '8.8.8.8',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS gpio_settings (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      coin_pin INTEGER DEFAULT 3,
+      coin_pin_mode VARCHAR(10) DEFAULT 'BCM',
+      led_pin INTEGER DEFAULT 5,
+      led_pin_mode VARCHAR(10) DEFAULT 'BCM',
+      debounce_time INTEGER DEFAULT 200,
+      pulse_width INTEGER DEFAULT 50,
+      coin_value DECIMAL(10,2) DEFAULT 5.00,
+      pulses_per_coin INTEGER DEFAULT 1,
+      pulse_duration INTEGER DEFAULT 100,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+
+    `CREATE TABLE IF NOT EXISTS system_settings (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      auto_restart BOOLEAN DEFAULT 1,
+      restart_time VARCHAR(10) DEFAULT '03:00',
+      max_clients INTEGER DEFAULT 100,
+      session_timeout INTEGER DEFAULT 7200,
+      log_level VARCHAR(10) DEFAULT 'info',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`
   ];
 
@@ -169,6 +207,18 @@ async function ensureBasicTables() {
     
     const insertSlot = db.prepare(`INSERT OR IGNORE INTO coin_slots (slot_number, status) VALUES (?, ?)`);
     insertSlot.run(1, 'available');
+    
+    // Insert default network settings
+    const insertNetworkSettings = db.prepare(`INSERT OR IGNORE INTO network_settings (id, gateway_ip, dhcp_start, dhcp_end, lease_time, interface, dns_server) VALUES (?, ?, ?, ?, ?, ?, ?)`);
+    insertNetworkSettings.run(1, '192.168.100.1', '192.168.100.10', '192.168.100.100', '12h', 'enx00e04c68276e', '8.8.8.8');
+    
+    // Insert default GPIO settings
+    const insertGpioSettings = db.prepare(`INSERT OR IGNORE INTO gpio_settings (id, coin_pin, led_pin, coin_value) VALUES (?, ?, ?, ?)`);
+    insertGpioSettings.run(1, 3, 5, 5.00);
+    
+    // Insert default system settings  
+    const insertSystemSettings = db.prepare(`INSERT OR IGNORE INTO system_settings (id, auto_restart, max_clients, session_timeout) VALUES (?, ?, ?, ?)`);
+    insertSystemSettings.run(1, 1, 100, 7200);
     
     console.log('✅ Default data ensured');
   } catch (error) {
