@@ -18,7 +18,10 @@
       "Bash(npm uninstall:*)",
       "Bash(rm:*)",
       "Bash(cat:*)",
-      "Bash(timeout 10s npm start)"
+      "Bash(timeout 10s npm start)",
+      "Bash(netsh wlan show profiles:*)",
+      "Bash(ipconfig:*)",
+      "Bash(git rm:*)"
     ],
     "deny": []
   }
