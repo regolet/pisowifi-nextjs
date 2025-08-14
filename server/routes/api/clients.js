@@ -5,7 +5,7 @@ const { promisify } = require('util');
 const UAParser = require('ua-parser-js');
 const jwt = require('jsonwebtoken');
 const NetworkManager = require('../../services/network-manager');
-const db = require('../../db/simple-adapter');
+const db = require('../../db/sqlite-adapter');
 
 const execAsync = promisify(exec);
 const networkManager = new NetworkManager();
@@ -530,12 +530,12 @@ router.get('/:id/analytics', authenticateToken, async (req, res) => {
     // Get usage by hour of day
     const hourlyResult = await db.query(
       `SELECT 
-        EXTRACT(hour FROM started_at) as hour,
+        strftime('%H', started_at) as hour,
         COUNT(*) as sessions,
         SUM(duration) as total_duration
       FROM sessions
       WHERE client_id = $1
-      GROUP BY EXTRACT(hour FROM started_at)
+      GROUP BY strftime('%H', started_at)
       ORDER BY hour`,
       [id]
     );
@@ -543,12 +543,12 @@ router.get('/:id/analytics', authenticateToken, async (req, res) => {
     // Get usage by day of week
     const weeklyResult = await db.query(
       `SELECT 
-        EXTRACT(dow FROM started_at) as day_of_week,
+        strftime('%w', started_at) as day_of_week,
         COUNT(*) as sessions,
         SUM(duration) as total_duration
       FROM sessions
       WHERE client_id = $1
-      GROUP BY EXTRACT(dow FROM started_at)
+      GROUP BY strftime('%w', started_at)
       ORDER BY day_of_week`,
       [id]
     );
@@ -571,7 +571,7 @@ router.post('/cleanup', authenticateToken, async (req, res) => {
     
     let query = `
       DELETE FROM clients 
-      WHERE last_seen < NOW() - INTERVAL '${olderThanDays} days'
+      WHERE last_seen < datetime('now', '-${olderThanDays} days')
     `;
     
     if (inactiveOnly) {

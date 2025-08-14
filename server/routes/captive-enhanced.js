@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db/simple-adapter');
+const db = require('../db/sqlite-adapter');
 
 // Enhanced captive portal detection endpoints with better device support
 // These URLs are requested by devices to detect internet connectivity

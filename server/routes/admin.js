@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
-const db = require('../db/simple-adapter');
+const db = require('../db/sqlite-adapter');
 
 
 // Auth middleware
@@ -81,7 +81,7 @@ router.get('/', authenticateToken, async (req, res) => {
     // Get dashboard stats
     const clientsResult = await db.query('SELECT COUNT(*) as count FROM clients');
     const sessionsResult = await db.query('SELECT COUNT(*) as count FROM sessions WHERE status = $1', ['ACTIVE']);
-    const revenueResult = await db.query('SELECT SUM(amount) as total FROM transactions WHERE DATE(created_at) = CURRENT_DATE');
+    const revenueResult = await db.query('SELECT SUM(amount) as total FROM transactions WHERE DATE(created_at) = DATE()');
     
     const stats = {
       totalClients: clientsResult.rows[0].count,
@@ -158,13 +158,8 @@ router.post('/portal-settings', authenticateToken, async (req, res) => {
     
     // Create or update portal settings
     await db.query(`
-      INSERT INTO portal_settings (coin_timeout, portal_title, portal_subtitle, updated_at)
-      VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-      ON CONFLICT (id) DO UPDATE SET
-        coin_timeout = EXCLUDED.coin_timeout,
-        portal_title = EXCLUDED.portal_title,
-        portal_subtitle = EXCLUDED.portal_subtitle,
-        updated_at = CURRENT_TIMESTAMP
+      INSERT OR REPLACE INTO portal_settings (id, coin_timeout, portal_title, portal_subtitle, updated_at)
+      VALUES (1, $1, $2, $3, CURRENT_TIMESTAMP)
     `, [coin_timeout, portal_title, portal_subtitle]);
     
     res.redirect('/admin/portal-settings?updated=true');

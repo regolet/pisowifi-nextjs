@@ -4,7 +4,7 @@ const { exec } = require('child_process');
 const { promisify } = require('util');
 const UAParser = require('ua-parser-js');
 const NetworkManager = require('../services/network-manager');
-const db = require('../db/simple-adapter');
+const db = require('../db/sqlite-adapter');
 
 const execAsync = promisify(exec);
 const networkManager = new NetworkManager();

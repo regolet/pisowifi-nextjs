@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { exec } = require('child_process');
 const { promisify } = require('util');
-const db = require('../../db/simple-adapter');
+const db = require('../../db/sqlite-adapter');
 
 const execAsync = promisify(exec);
 

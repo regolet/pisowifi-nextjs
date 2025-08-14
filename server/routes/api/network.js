@@ -4,7 +4,7 @@ const { exec } = require('child_process');
 const { promisify } = require('util');
 const jwt = require('jsonwebtoken');
 const fs = require('fs').promises;
-const db = require('../../db/simple-adapter');
+const db = require('../../db/sqlite-adapter');
 
 const execAsync = promisify(exec);
 

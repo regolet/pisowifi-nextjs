@@ -167,7 +167,7 @@ class DNSInterceptor {
   async isClientAuthenticated(ip) {
     try {
       // Check database for authenticated client
-      const db = require('../db/simple-adapter');
+      const db = require('../db/sqlite-adapter');
       const result = await db.query(
         'SELECT * FROM clients WHERE ip_address = $1 AND status = $2 AND time_remaining > 0',
         [ip, 'CONNECTED']

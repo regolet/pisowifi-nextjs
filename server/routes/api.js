@@ -10,7 +10,7 @@ router.use('/coin-slots', require('./api/coin-slots'));
 // Keep existing general API routes
 const { exec } = require('child_process');
 const { promisify } = require('util');
-const db = require('../db/simple-adapter');
+const db = require('../db/sqlite-adapter');
 
 const execAsync = promisify(exec);
 
