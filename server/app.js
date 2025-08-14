@@ -63,7 +63,7 @@ app.set('views', path.join(__dirname, 'views/pages'));
 // Debug route for troubleshooting (must be before auth middleware)
 app.get('/debug-status', async (req, res) => {
   try {
-    const db = require('./db/simple-adapter');
+    const db = require('./db/sqlite-adapter');
     
     // Get client IP
     let clientIP = req.headers['x-forwarded-for'] || 
@@ -237,7 +237,7 @@ app.use(async (req, res, next) => {
 
     // Check if client is authenticated
     if (detectedMac) {
-      const db = require('./db/simple-adapter');
+      const db = require('./db/sqlite-adapter');
       const authCheck = await db.query(
         'SELECT * FROM clients WHERE mac_address = $1 AND status = $2 AND time_remaining > 0',
         [detectedMac, 'CONNECTED']
@@ -331,7 +331,7 @@ function startTimeCountdownSystem() {
   
   setInterval(async () => {
     try {
-      const db = require('./db/simple-adapter');
+      const db = require('./db/sqlite-adapter');
       
       // Decrement time_remaining for all connected clients
       const result = await db.query(`
