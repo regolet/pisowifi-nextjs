@@ -81,7 +81,7 @@ router.get('/', authenticateToken, async (req, res) => {
     // Get dashboard stats
     const clientsResult = await db.query('SELECT COUNT(*) as count FROM clients');
     const sessionsResult = await db.query('SELECT COUNT(*) as count FROM sessions WHERE status = $1', ['ACTIVE']);
-    const revenueResult = await db.query('SELECT SUM(amount) as total FROM transactions WHERE DATE(created_at) = DATE()');
+    const revenueResult = await db.query('SELECT SUM(amount) as total FROM transactions WHERE date(created_at) = date()');
     
     const stats = {
       totalClients: clientsResult.rows[0].count,
