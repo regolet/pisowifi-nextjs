@@ -1,4 +1,4 @@
-const sqlite3 = require('sqlite3').verbose();
+const Database = require('better-sqlite3');
 const path = require('path');
 
 /**
@@ -17,17 +17,12 @@ async function initializeDatabase() {
   console.log('📁 Connecting to SQLite database...');
   
   try {
-    db = new sqlite3.Database(DB_PATH, (err) => {
-      if (err) {
-        console.error('❌ SQLite connection failed:', err.message);
-        throw err;
-      }
-    });
+    db = new Database(DB_PATH);
     
     console.log('✅ SQLite connection successful');
     
     // Enable foreign keys
-    await runQuery('PRAGMA foreign_keys = ON');
+    db.exec('PRAGMA foreign_keys = ON');
     
     // Ensure basic tables exist
     await ensureBasicTables();
@@ -158,7 +153,7 @@ async function ensureBasicTables() {
 
   for (const table of basicTables) {
     try {
-      await runQuery(table);
+      db.exec(table);
     } catch (error) {
       console.warn(`Table creation warning: ${error.message}`);
     }
@@ -166,20 +161,14 @@ async function ensureBasicTables() {
 
   // Insert default data
   try {
-    await runQuery(`
-      INSERT OR IGNORE INTO rates (name, price, duration, coins_required, is_active) 
-      VALUES ('15 Minutes', 5.00, 900, 1, 1)
-    `);
+    const insertRate = db.prepare(`INSERT OR IGNORE INTO rates (name, price, duration, coins_required, is_active) VALUES (?, ?, ?, ?, ?)`);
+    insertRate.run('15 Minutes', 5.00, 900, 1, 1);
     
-    await runQuery(`
-      INSERT OR IGNORE INTO portal_settings (id, coin_timeout, portal_title, portal_subtitle) 
-      VALUES (1, 300, 'PISOWifi Portal', 'Insert coins for internet access')
-    `);
+    const insertSettings = db.prepare(`INSERT OR IGNORE INTO portal_settings (id, coin_timeout, portal_title, portal_subtitle) VALUES (?, ?, ?, ?)`);
+    insertSettings.run(1, 300, 'PISOWifi Portal', 'Insert coins for internet access');
     
-    await runQuery(`
-      INSERT OR IGNORE INTO coin_slots (slot_number, status) 
-      VALUES (1, 'available')
-    `);
+    const insertSlot = db.prepare(`INSERT OR IGNORE INTO coin_slots (slot_number, status) VALUES (?, ?)`);
+    insertSlot.run(1, 'available');
     
     console.log('✅ Default data ensured');
   } catch (error) {
@@ -188,15 +177,12 @@ async function ensureBasicTables() {
 }
 
 function runQuery(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function(err) {
-      if (err) {
-        reject(err);
-      } else {
-        resolve({ lastID: this.lastID, changes: this.changes });
-      }
-    });
-  });
+  try {
+    const result = db.prepare(sql).run(...params);
+    return { lastID: result.lastInsertRowid, changes: result.changes };
+  } catch (error) {
+    throw error;
+  }
 }
 
 async function query(text, params = []) {
@@ -207,21 +193,12 @@ async function query(text, params = []) {
   try {
     // Handle SELECT queries
     if (text.trim().toUpperCase().startsWith('SELECT')) {
-      return new Promise((resolve, reject) => {
-        db.all(text, params, (err, rows) => {
-          if (err) {
-            console.error('Query error:', err.message);
-            console.error('Query:', text);
-            console.error('Params:', params);
-            reject(err);
-          } else {
-            resolve({ rows: rows || [], rowCount: rows ? rows.length : 0 });
-          }
-        });
-      });
+      const stmt = db.prepare(text);
+      const rows = stmt.all(...params);
+      return { rows: rows || [], rowCount: rows ? rows.length : 0 };
     } else {
       // Handle INSERT, UPDATE, DELETE queries
-      const result = await runQuery(text, params);
+      const result = runQuery(text, params);
       return { rows: [], rowCount: result.changes };
     }
   } catch (error) {
@@ -234,15 +211,12 @@ async function query(text, params = []) {
 
 async function close() {
   if (db) {
-    return new Promise((resolve) => {
-      db.close((err) => {
-        if (err) {
-          console.error('Error closing database:', err.message);
-        }
-        isInitialized = false;
-        resolve();
-      });
-    });
+    try {
+      db.close();
+      isInitialized = false;
+    } catch (error) {
+      console.error('Error closing database:', error.message);
+    }
   }
 }
 
