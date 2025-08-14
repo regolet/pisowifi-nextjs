@@ -399,9 +399,14 @@ function startTimeCountdownSystem() {
         }
       }
       
+      // Auto-cleanup disconnected unauthenticated devices (every 30 seconds)
+      const now = new Date();
+      if (now.getSeconds() % 30 === 0) {
+        await cleanupDisconnectedDevices();
+      }
+      
       // Log active clients count every minute
       if (result.rows.length > 0) {
-        const now = new Date();
         if (now.getSeconds() === 0) { // Log only at the start of each minute
           console.log(`⏰ ${result.rows.length} active clients with time remaining`);
         }
@@ -411,6 +416,84 @@ function startTimeCountdownSystem() {
       console.error('Time countdown system error:', error.message);
     }
   }, 1000); // Run every second
+}
+
+// Auto-cleanup function for disconnected unauthenticated devices
+async function cleanupDisconnectedDevices() {
+  try {
+    const db = require('./db/sqlite-adapter');
+    const NetworkManager = require('./services/network-manager');
+    const networkManager = new NetworkManager();
+    
+    // Get all unauthenticated clients from database
+    const unauthenticatedClients = await db.query(`
+      SELECT id, mac_address, ip_address, device_name, last_seen
+      FROM clients 
+      WHERE status IN ('DISCONNECTED', 'UNAUTHENTICATED')
+      AND time_remaining <= 0
+    `);
+    
+    if (unauthenticatedClients.rows.length === 0) return;
+    
+    // Get currently connected devices from network
+    const connectedDevices = await networkManager.getConnectedClients();
+    const connectedMACs = new Set(connectedDevices.map(device => device.mac_address.toUpperCase()));
+    
+    const devicesToRemove = [];
+    
+    // Check each unauthenticated client
+    for (const client of unauthenticatedClients.rows) {
+      const isConnected = connectedMACs.has(client.mac_address.toUpperCase());
+      
+      if (!isConnected) {
+        // Device is not connected - check how long it's been disconnected
+        const lastSeenDate = new Date(client.last_seen);
+        const minutesDisconnected = (Date.now() - lastSeenDate.getTime()) / (1000 * 60);
+        
+        // Remove devices that have been disconnected for more than 5 minutes
+        if (minutesDisconnected > 5) {
+          devicesToRemove.push(client);
+        }
+      } else {
+        // Device is still connected but unauthenticated - update last_seen
+        await db.query(`
+          UPDATE clients 
+          SET last_seen = CURRENT_TIMESTAMP 
+          WHERE id = $1
+        `, [client.id]);
+      }
+    }
+    
+    // Remove disconnected devices
+    if (devicesToRemove.length > 0) {
+      console.log(`🧹 Auto-cleanup: Removing ${devicesToRemove.length} disconnected unauthenticated devices`);
+      
+      for (const device of devicesToRemove) {
+        try {
+          // Delete related records first (foreign key constraints)
+          await db.query('DELETE FROM sessions WHERE client_id = $1', [device.id]);
+          await db.query('DELETE FROM transactions WHERE client_id = $1', [device.id]);
+          
+          // Delete the client
+          await db.query('DELETE FROM clients WHERE id = $1', [device.id]);
+          
+          console.log(`🧹 Removed disconnected device: ${device.device_name || 'Unknown'} (${device.mac_address})`);
+          
+          // Emit socket event to update admin frontend
+          io.emit('client-removed', {
+            mac_address: device.mac_address,
+            reason: 'auto_cleanup_disconnected'
+          });
+          
+        } catch (deleteError) {
+          console.error(`Failed to remove device ${device.mac_address}:`, deleteError.message);
+        }
+      }
+    }
+    
+  } catch (error) {
+    console.error('Auto-cleanup error:', error.message);
+  }
 }
 
 module.exports = { app, io };
