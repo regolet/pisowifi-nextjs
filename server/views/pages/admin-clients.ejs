@@ -317,6 +317,15 @@
                 `);
             }
             
+            // Add remove button for all clients
+            buttons.push(`
+                <button onclick="deleteClient(${client.id})" 
+                        class="px-2 py-1 bg-gray-600 hover:bg-gray-700 text-white rounded text-xs" 
+                        title="Remove client from database">
+                    🗑️
+                </button>
+            `);
+            
             return buttons.join('');
         }
 
@@ -360,12 +369,27 @@
         }
 
         async function deleteClient(id) {
-            if (confirm('Delete this client? This cannot be undone.')) {
-                await fetch(`/api/clients/${id}`, {
-                    method: 'DELETE',
-                    credentials: 'include'
-                });
-                loadClients();
+            const client = clients.find(c => c.id === id);
+            const deviceName = client ? (client.device_name || 'Unknown Device') : 'Unknown Device';
+            
+            if (confirm(`Remove "${deviceName}" from database?\n\nThis will:\n- Delete all session history\n- Delete all transaction records\n- Permanently remove the client\n\nThis cannot be undone!`)) {
+                try {
+                    const response = await fetch(`/api/clients/${id}`, {
+                        method: 'DELETE',
+                        credentials: 'include'
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        alert(`Client "${deviceName}" removed successfully`);
+                        loadClients();
+                    } else {
+                        alert('Failed to remove client');
+                    }
+                } catch (error) {
+                    console.error('Delete failed:', error);
+                    alert('Failed to remove client');
+                }
             }
         }
 
@@ -496,6 +520,11 @@
                             <button onclick="blockUnauthenticatedDevice('${device.mac_address}')" 
                                     class="px-2 py-1 bg-red-600 hover:bg-red-700 text-black rounded text-xs">
                                 Block
+                            </button>
+                            <button onclick="removeUnauthenticatedDevice('${device.mac_address}')" 
+                                    class="px-2 py-1 bg-gray-600 hover:bg-gray-700 text-white rounded text-xs" 
+                                    title="Remove from list">
+                                🗑️
                             </button>
                         </div>
                     </td>
@@ -631,6 +660,24 @@
                 } catch (error) {
                     console.error('Block failed:', error);
                     alert('Block failed');
+                }
+            }
+        }
+        
+        async function removeUnauthenticatedDevice(macAddress) {
+            if (confirm(`Remove device ${macAddress} from the list? This device can reconnect later.`)) {
+                try {
+                    // Remove from local array (device can reconnect later)
+                    unauthenticatedDevices = unauthenticatedDevices.filter(device => device.mac_address !== macAddress);
+                    updateUnauthenticatedTable();
+                    updateStats();
+                    
+                    // You could also implement server-side removal if needed
+                    // await fetch(`/api/clients/unauthenticated/${macAddress}`, { method: 'DELETE' });
+                    
+                } catch (error) {
+                    console.error('Remove failed:', error);
+                    alert('Remove failed');
                 }
             }
         }
