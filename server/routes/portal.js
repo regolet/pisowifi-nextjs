@@ -2,50 +2,141 @@ const express = require('express');
 const router = express.Router();
 const { exec } = require('child_process');
 const { promisify } = require('util');
+const crypto = require('crypto');
 const UAParser = require('ua-parser-js');
 const NetworkManager = require('../services/network-manager');
 const db = require('../db/sqlite-adapter');
+const { isValidIPv4, sanitizeMacAddress } = require('../utils/validators');
 
 const execAsync = promisify(exec);
 const networkManager = new NetworkManager();
+
+// Generate a unique session token
+function generateSessionToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+// Helper function to find client by session token, IP, or MAC (with fallback)
+async function findClientByIdentifiers(sessionToken, clientIP, detectedMac) {
+  let client = null;
+
+  // Priority 1: Try to find by MAC address (most reliable if available)
+  if (detectedMac && detectedMac !== 'Unknown') {
+    const macResult = await db.query(
+      'SELECT * FROM clients WHERE mac_address = $1 AND status = $2 AND time_remaining > 0',
+      [detectedMac, 'CONNECTED']
+    );
+    if (macResult.rows.length > 0) {
+      client = macResult.rows[0];
+      console.log(`[SESSION] Found client by MAC: ${detectedMac}`);
+    }
+  }
+
+  // Priority 2: Try to find by session token (handles random MAC)
+  if (!client && sessionToken) {
+    const tokenResult = await db.query(
+      'SELECT * FROM clients WHERE session_token = $1 AND status = $2 AND time_remaining > 0',
+      [sessionToken, 'CONNECTED']
+    );
+    if (tokenResult.rows.length > 0) {
+      client = tokenResult.rows[0];
+      console.log(`[SESSION] Found client by session token (random MAC fallback)`);
+      // Update MAC address if we have a new one
+      if (detectedMac && detectedMac !== 'Unknown' && detectedMac !== client.mac_address) {
+        console.log(`[SESSION] Updating MAC from ${client.mac_address} to ${detectedMac}`);
+        await db.query(
+          'UPDATE clients SET mac_address = $1, last_seen = CURRENT_TIMESTAMP WHERE id = $2',
+          [detectedMac, client.id]
+        );
+        client.mac_address = detectedMac;
+      }
+    }
+  }
+
+  // Priority 3: Try to find by IP address (least reliable but useful backup)
+  if (!client && clientIP) {
+    const ipResult = await db.query(
+      'SELECT * FROM clients WHERE ip_address = $1 AND status = $2 AND time_remaining > 0 ORDER BY last_seen DESC LIMIT 1',
+      [clientIP, 'CONNECTED']
+    );
+    if (ipResult.rows.length > 0) {
+      client = ipResult.rows[0];
+      console.log(`[SESSION] Found client by IP fallback: ${clientIP}`);
+      // Update MAC if available
+      if (detectedMac && detectedMac !== 'Unknown' && detectedMac !== client.mac_address) {
+        console.log(`[SESSION] Updating MAC from ${client.mac_address} to ${detectedMac}`);
+        await db.query(
+          'UPDATE clients SET mac_address = $1, last_seen = CURRENT_TIMESTAMP WHERE id = $2',
+          [detectedMac, client.id]
+        );
+        client.mac_address = detectedMac;
+      }
+    }
+  }
+
+  return client;
+}
+
+// Helper function to find coin queues by multiple identifiers
+async function findCoinQueuesByIdentifiers(sessionToken, clientIP, clientMac) {
+  const result = await db.query(`
+    SELECT 
+      COALESCE(SUM(cq.coin_count), 0) as total_coins,
+      COALESCE(SUM(cq.total_value), 0.00) as total_value
+    FROM coin_queues cq
+    WHERE cq.status = 'queued'
+    AND (cq.session_token = $1 OR cq.client_ip = $2 OR cq.client_mac = $3)
+  `, [sessionToken, clientIP, clientMac]);
+  
+  return result.rows[0];
+}
 
 // Portal page
 router.get('/', async (req, res) => {
   try {
     // Get client IP and clean it
-    let clientIP = req.headers['x-forwarded-for'] || 
-                   req.headers['x-real-ip'] ||
-                   req.connection.remoteAddress || 
-                   req.socket.remoteAddress ||
-                   (req.connection.socket ? req.connection.socket.remoteAddress : null);
+    let clientIP = req.headers['x-forwarded-for'] ||
+      req.headers['x-real-ip'] ||
+      req.connection.remoteAddress ||
+      req.socket.remoteAddress ||
+      (req.connection.socket ? req.connection.socket.remoteAddress : null);
 
     // Clean IPv6-mapped IPv4 addresses (remove ::ffff: prefix)
     if (clientIP && clientIP.startsWith('::ffff:')) {
       clientIP = clientIP.substring(7);
     }
-    
+
     // Remove port if present
     if (clientIP && clientIP.includes(':') && !clientIP.includes('::')) {
       clientIP = clientIP.split(':')[0];
     }
 
+    // SECURITY: Validate IP format to prevent command injection
+    if (clientIP && !isValidIPv4(clientIP)) {
+      console.warn(`Invalid IP format detected: ${clientIP?.substring(0, 20)}`);
+      clientIP = null; // Treat as invalid
+    }
+
     console.log(`Portal access from cleaned IP: ${clientIP}`);
-    
+
     // Try to detect MAC address from multiple sources
     let detectedMac = null;
     let clientInfo = null;
-    
+
     try {
-      // First try ARP table for Ethernet interface
-      const { stdout: arpOutput } = await execAsync(`arp -n ${clientIP} 2>/dev/null || echo ""`);
-      if (arpOutput) {
-        const arpMatch = arpOutput.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
-        if (arpMatch) {
-          detectedMac = arpMatch[0].toUpperCase();
-          console.log(`Detected MAC from ARP: ${detectedMac} for IP: ${clientIP}`);
+      // SECURITY: Only run ARP if IP is valid
+      if (clientIP && isValidIPv4(clientIP)) {
+        // First try ARP table for Ethernet interface
+        const { stdout: arpOutput } = await execAsync(`arp -n ${clientIP} 2>/dev/null || echo ""`);
+        if (arpOutput) {
+          const arpMatch = arpOutput.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
+          if (arpMatch) {
+            detectedMac = arpMatch[0].toUpperCase();
+            console.log(`Detected MAC from ARP: ${detectedMac} for IP: ${clientIP}`);
+          }
         }
       }
-      
+
       // Try DHCP leases if no ARP entry
       if (!detectedMac) {
         const { stdout: dhcpLeases } = await execAsync(`cat /var/lib/dhcp/dhcpd.leases /var/lib/misc/dnsmasq.leases 2>/dev/null || echo ""`);
@@ -61,7 +152,7 @@ router.get('/', async (req, res) => {
           }
         }
       }
-      
+
       // Try getting MAC from ethernet interface neighbor table
       if (!detectedMac) {
         const { stdout: neighborOutput } = await execAsync(`ip neighbor show dev enx00e04c68276e 2>/dev/null || echo ""`);
@@ -81,33 +172,53 @@ router.get('/', async (req, res) => {
       console.warn('MAC detection failed:', error.message);
     }
 
-    // Check if client is already authenticated
+    // Check if client is already authenticated using multi-identifier lookup
     let isAuthenticated = false;
-    if (detectedMac) {
-      console.log(`[DEBUG PORTAL] Checking auth for MAC: ${detectedMac}`);
-      try {
-        const authCheck = await db.query(
-          'SELECT * FROM clients WHERE mac_address = $1 AND status = $2 AND time_remaining > 0',
-          [detectedMac, 'CONNECTED']
-        );
+    
+    // Get or create session token from cookie
+    let sessionToken = req.cookies?.pisowifi_session || null;
+    
+    console.log(`[DEBUG PORTAL] Checking auth for MAC: ${detectedMac || 'Unknown'}, Token: ${sessionToken ? 'present' : 'none'}, IP: ${clientIP}`);
+    
+    try {
+      // Use the new multi-identifier lookup
+      clientInfo = await findClientByIdentifiers(sessionToken, clientIP, detectedMac);
+      
+      if (clientInfo) {
+        isAuthenticated = true;
+        console.log(`[DEBUG PORTAL] Client authenticated: MAC=${clientInfo.mac_address}, TimeRemaining=${clientInfo.time_remaining}`);
         
-        console.log(`[DEBUG PORTAL] Auth check result: ${authCheck.rows.length} rows found`);
-        if (authCheck.rows.length > 0) {
-          isAuthenticated = true;
-          clientInfo = authCheck.rows[0];
-          console.log(`[DEBUG PORTAL] Client ${detectedMac} is authenticated with time_remaining=${clientInfo.time_remaining}`);
-        } else {
-          console.log(`[DEBUG PORTAL] Client ${detectedMac} is NOT authenticated`);
+        // Update the session token in cookie if client has one
+        if (clientInfo.session_token && !sessionToken) {
+          res.cookie('pisowifi_session', clientInfo.session_token, {
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+            httpOnly: true,
+            sameSite: 'lax'
+          });
+          sessionToken = clientInfo.session_token;
         }
-      } catch (dbError) {
-        console.warn('Database auth check failed:', dbError.message);
+      } else {
+        console.log(`[DEBUG PORTAL] Client NOT authenticated`);
       }
+    } catch (dbError) {
+      console.warn('Database auth check failed:', dbError.message);
+    }
+    
+    // Generate a new session token for the portal page if none exists
+    if (!sessionToken) {
+      sessionToken = generateSessionToken();
+      res.cookie('pisowifi_session', sessionToken, {
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        httpOnly: true,
+        sameSite: 'lax'
+      });
+      console.log(`[SESSION] Generated new session token for client`);
     }
 
     // Get active rates
     const result = await db.query('SELECT * FROM rates WHERE is_active = true ORDER BY duration');
     const rates = result.rows;
-    
+
     // Get WAN connectivity status
     let wanStatus = 'unknown';
     try {
@@ -116,28 +227,33 @@ router.get('/', async (req, res) => {
     } catch (pingError) {
       wanStatus = 'disconnected';
     }
-    
+
     // Get portal settings
     let portalSettings = {
       coin_timeout: 60,
       portal_title: 'PISOWifi Portal',
-      portal_subtitle: 'Insert coins for internet access'
+      portal_subtitle: 'Insert coins for internet access',
+      banner_image_url: '',
+      coin_insert_audio_url: '',
+      coin_success_audio_url: '',
+      coin_background_audio_url: ''
     };
-    
+
     try {
-      const settingsResult = await db.query('SELECT coin_timeout, portal_title, portal_subtitle FROM portal_settings LIMIT 1');
+      const settingsResult = await db.query('SELECT coin_timeout, portal_title, portal_subtitle, banner_image_url, coin_insert_audio_url, coin_success_audio_url, coin_background_audio_url FROM portal_settings LIMIT 1');
       if (settingsResult.rows.length > 0) {
         portalSettings = settingsResult.rows[0];
       }
     } catch (settingsError) {
       console.warn('Failed to load portal settings, using defaults:', settingsError.message);
     }
-    
+
     res.render('portal', {
       title: portalSettings.portal_title,
       rates: rates,
       clientIP: clientIP,
       clientMAC: detectedMac || 'Unknown',
+      sessionToken: sessionToken,
       isAuthenticated: isAuthenticated,
       clientInfo: clientInfo,
       wanStatus: wanStatus,
@@ -154,44 +270,52 @@ router.post('/connect', async (req, res) => {
   try {
     console.log('=== CONNECT REQUEST START ===');
     console.log('Connect request received:', req.body);
-    
-    const { coinsInserted, duration, rateId, macAddress, deviceInfo } = req.body;
+
+    const { coinsInserted, duration, rateId, macAddress, deviceInfo, sessionToken: bodyToken } = req.body;
     console.log('Extracted request data:', { coinsInserted, duration, rateId, macAddress, deviceInfo });
-    let clientIP = req.headers['x-forwarded-for'] || 
-                   req.connection.remoteAddress || 
-                   req.socket.remoteAddress ||
-                   (req.connection.socket ? req.connection.socket.remoteAddress : null);
     
+    // Get session token from cookie or body
+    let sessionToken = req.cookies?.pisowifi_session || bodyToken || null;
+    
+    let clientIP = req.headers['x-forwarded-for'] ||
+      req.connection.remoteAddress ||
+      req.socket.remoteAddress ||
+      (req.connection.socket ? req.connection.socket.remoteAddress : null);
+
     // Clean IPv6-mapped IPv4 addresses
     if (clientIP && clientIP.startsWith('::ffff:')) {
       clientIP = clientIP.substring(7);
     }
-    
+
     // Remove port if present
     if (clientIP && clientIP.includes(':') && !clientIP.includes('::')) {
       clientIP = clientIP.split(':')[0];
     }
-    
+
     console.log(`Connection request from IP: ${clientIP}, Coins: ${coinsInserted}, Duration: ${duration}`);
-    
+
     console.log('Step 1: Validating required fields...');
     // Validate required fields
     if (!coinsInserted || coinsInserted <= 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        error: 'No coins inserted. Please insert coins first.' 
+        error: 'No coins inserted. Please insert coins first.'
       });
     }
-    
+
     console.log('Step 2: Detecting MAC address...');
     // Auto-detect MAC address if not provided
     let detectedMac = macAddress;
     if (!detectedMac || detectedMac === 'auto-detect') {
       try {
         console.log('Attempting MAC detection for IP:', clientIP);
-        
+
         // Try ARP table first
         try {
+          // SECURITY: Validate clientIP before using in shell command to prevent command injection
+          if (!clientIP || !isValidIPv4(clientIP)) {
+            throw new Error('Invalid or missing client IP');
+          }
           const { stdout: arpOutput } = await execAsync(`arp -n ${clientIP}`);
           const arpMatch = arpOutput.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
           if (arpMatch) {
@@ -201,7 +325,7 @@ router.post('/connect', async (req, res) => {
         } catch (arpError) {
           console.log('ARP lookup failed:', arpError.message);
         }
-        
+
         // Try neighbor table if ARP failed
         if (!detectedMac) {
           try {
@@ -221,7 +345,7 @@ router.post('/connect', async (req, res) => {
             console.log('Neighbor lookup failed:', neighborError.message);
           }
         }
-        
+
         // If still no MAC, generate a temporary one based on IP
         if (!detectedMac) {
           console.log('MAC detection failed, generating temporary MAC');
@@ -235,13 +359,13 @@ router.post('/connect', async (req, res) => {
         }
       } catch (err) {
         console.error('MAC detection completely failed:', err.message);
-        return res.status(400).json({ 
+        return res.status(400).json({
           success: false,
-          error: 'Unable to detect device. Please try again.' 
+          error: 'Unable to detect device. Please try again.'
         });
       }
     }
-    
+
     // Get rate information if rateId is provided
     let selectedRate = null;
     if (rateId) {
@@ -254,11 +378,11 @@ router.post('/connect', async (req, res) => {
         console.warn('Rate lookup failed:', rateError.message);
       }
     }
-    
+
     // Calculate duration and cost based on rates
     let sessionDuration = duration || 3600; // Default 1 hour
     let sessionCost = 0;
-    
+
     if (selectedRate) {
       sessionDuration = selectedRate.duration;
       sessionCost = selectedRate.price;
@@ -272,7 +396,7 @@ router.post('/connect', async (req, res) => {
           const coinsNeeded = defaultRate.coins_required;
           const pricePerCoin = defaultRate.price / coinsNeeded;
           const timePerCoin = defaultRate.duration / coinsNeeded;
-          
+
           sessionCost = coinsInserted * pricePerCoin;
           sessionDuration = coinsInserted * timePerCoin;
         } else {
@@ -286,7 +410,7 @@ router.post('/connect', async (req, res) => {
         sessionDuration = coinsInserted * 30 * 60; // 30 minutes per coin
       }
     }
-    
+
     console.log('Step 3: Parsing device information...');
     // Parse device information if provided
     let parsedDeviceInfo = {};
@@ -295,7 +419,7 @@ router.post('/connect', async (req, res) => {
       const parser = new UAParser(deviceInfo.userAgent);
       const result = parser.getResult();
       console.log('UAParser result:', result);
-      
+
       parsedDeviceInfo = {
         device_name: result.device.model || result.device.vendor || 'Unknown Device',
         device_type: result.device.type || 'desktop',
@@ -308,28 +432,41 @@ router.post('/connect', async (req, res) => {
         timezone: deviceInfo.timezone
       };
     }
-    
+
     console.log('Step 4: Creating client record...');
     console.log('Client data to insert:', {
       macAddress: detectedMac,
       clientIP,
+      sessionToken,
       sessionDuration,
       parsedDeviceInfo
     });
     
+    // Generate session token if not present
+    if (!sessionToken) {
+      sessionToken = generateSessionToken();
+      res.cookie('pisowifi_session', sessionToken, {
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        httpOnly: true,
+        sameSite: 'lax'
+      });
+      console.log('[SESSION] Generated new session token for connect');
+    }
+
     // Create or update client record - simplified version first
     let clientResult;
     try {
-      // Try full insert first
+      // Try full insert first with session_token
       clientResult = await db.query(
         `INSERT INTO clients (
-          mac_address, ip_address, device_name, device_type, os, browser, 
+          mac_address, ip_address, session_token, device_name, device_type, os, browser, 
           user_agent, platform, language, screen_resolution, timezone,
           status, time_remaining, created_at, last_seen
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         ON CONFLICT (mac_address) 
         DO UPDATE SET 
           ip_address = EXCLUDED.ip_address,
+          session_token = COALESCE(EXCLUDED.session_token, clients.session_token),
           device_name = COALESCE(EXCLUDED.device_name, clients.device_name),
           device_type = COALESCE(EXCLUDED.device_type, clients.device_type),
           os = COALESCE(EXCLUDED.os, clients.os),
@@ -344,10 +481,10 @@ router.post('/connect', async (req, res) => {
           last_seen = CURRENT_TIMESTAMP
         RETURNING id`,
         [
-          detectedMac.toUpperCase(), clientIP, 
-          parsedDeviceInfo.device_name || 'Unknown Device', 
+          detectedMac.toUpperCase(), clientIP, sessionToken,
+          parsedDeviceInfo.device_name || 'Unknown Device',
           parsedDeviceInfo.device_type || 'desktop',
-          parsedDeviceInfo.os || 'Unknown OS', 
+          parsedDeviceInfo.os || 'Unknown OS',
           parsedDeviceInfo.browser || 'Unknown Browser',
           parsedDeviceInfo.user_agent || deviceInfo?.userAgent || 'Unknown',
           parsedDeviceInfo.platform || deviceInfo?.platform || 'Unknown',
@@ -359,34 +496,35 @@ router.post('/connect', async (req, res) => {
       );
     } catch (clientError) {
       console.warn('Full client insert failed, trying simplified version:', clientError.message);
-      // Fallback to basic client record
+      // Fallback to basic client record with session_token
       clientResult = await db.query(
-        `INSERT INTO clients (mac_address, ip_address, status, time_remaining, created_at, last_seen)
-         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `INSERT INTO clients (mac_address, ip_address, session_token, status, time_remaining, created_at, last_seen)
+         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
          ON CONFLICT (mac_address) 
          DO UPDATE SET 
            ip_address = EXCLUDED.ip_address,
+           session_token = COALESCE(EXCLUDED.session_token, clients.session_token),
            status = EXCLUDED.status,
            time_remaining = EXCLUDED.time_remaining,
            last_seen = CURRENT_TIMESTAMP
          RETURNING id`,
-        [detectedMac.toUpperCase(), clientIP, 'CONNECTED', sessionDuration]
+        [detectedMac.toUpperCase(), clientIP, sessionToken, 'CONNECTED', sessionDuration]
       );
     }
-    
+
     const clientId = clientResult.rows[0].id;
     console.log('Client record created with ID:', clientId);
-    
+
     console.log('Step 5: Creating session record...');
-    // Create session record
+    // Create session record with session_token
     const sessionResult = await db.query(
-      `INSERT INTO sessions (client_id, mac_address, ip_address, duration, status, started_at)
-       VALUES ($1, $2, $3, $4, 'ACTIVE', CURRENT_TIMESTAMP)
+      `INSERT INTO sessions (client_id, mac_address, ip_address, session_token, duration, status, started_at)
+       VALUES ($1, $2, $3, $4, $5, 'ACTIVE', CURRENT_TIMESTAMP)
        RETURNING id`,
-      [clientId, detectedMac.toUpperCase(), clientIP, sessionDuration]
+      [clientId, detectedMac.toUpperCase(), clientIP, sessionToken, sessionDuration]
     );
     console.log('Session record created with ID:', sessionResult.rows[0].id);
-    
+
     console.log('Step 6: Creating transaction record...');
     // Create transaction record
     await db.query(
@@ -395,7 +533,7 @@ router.post('/connect', async (req, res) => {
       [clientId, sessionResult.rows[0].id, sessionCost, coinsInserted || 0]
     );
     console.log('Transaction record created successfully');
-    
+
     console.log('Step 7: Authenticating client...');
     // Try network authentication but don't fail if it doesn't work
     try {
@@ -409,27 +547,34 @@ router.post('/connect', async (req, res) => {
     } catch (networkError) {
       console.warn('NetworkManager authentication error (non-critical):', networkError.message);
     }
-    
+
     // Try allow script as backup
     try {
       console.log('Running backup allow script...');
-      await execAsync(`sudo ${__dirname}/../../scripts/pisowifi-allow-client ${detectedMac}`);
-      console.log('Allow script executed successfully');
+      // SECURITY: Validate MAC address before shell execution
+      const { isValidMacAddress, sanitizeMacAddress } = require('../utils/validators');
+      if (isValidMacAddress(detectedMac)) {
+        const safeMac = sanitizeMacAddress(detectedMac);
+        await execAsync(`sudo ${__dirname}/../../scripts/pisowifi-allow-client ${safeMac}`);
+        console.log('Allow script executed successfully');
+      } else {
+        console.warn('Invalid MAC format, skipping allow script');
+      }
     } catch (scriptError) {
       console.warn('Allow script failed (non-critical):', scriptError.message);
     }
-    
+
     console.log('Authentication step completed (with fallbacks)');
-    
+
     console.log('Step 8: Logging connection...');
     // Log the connection
     await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
-      ['INFO', `Client connected: ${detectedMac}`, 'portal', 
-       JSON.stringify({ ip: clientIP, duration, coins: coinsInserted })]
+      ['INFO', `Client connected: ${detectedMac}`, 'portal',
+        JSON.stringify({ ip: clientIP, duration, coins: coinsInserted })]
     );
     console.log('Connection logged successfully');
-    
+
     console.log('Step 9: Sending success response...');
     res.json({
       success: true,
@@ -444,75 +589,86 @@ router.post('/connect', async (req, res) => {
       expires_at: new Date(Date.now() + (sessionDuration * 1000))
     });
     console.log('=== CONNECT REQUEST SUCCESS ===');
-    
+
   } catch (error) {
     console.error('Connect error details:', {
       message: error.message,
       stack: error.stack,
       requestBody: req.body
     });
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      error: 'Connection failed: ' + error.message 
+      error: 'Connection failed: ' + error.message
     });
   }
 });
 
-// Test coin detection endpoint
+// Test coin detection endpoint - DEVELOPMENT ONLY
 router.post('/test-coin', async (req, res) => {
+  // Block in production
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Not found' });
+  }
   try {
     console.log('Test coin detection triggered');
-    
+
     // Emit coin detection event via socket.io
     const { io } = require('../app');
-    io.emit('coin-detected', { 
+    io.emit('coin-detected', {
       timestamp: new Date().toISOString(),
       value: 5.00,
-      source: 'test' 
+      source: 'test'
     });
-    
-    res.json({ 
-      success: true, 
-      message: 'Test coin detection sent' 
+
+    res.json({
+      success: true,
+      message: 'Test coin detection sent'
     });
   } catch (error) {
     console.error('Test coin error:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: 'Test failed' 
+    res.status(500).json({
+      success: false,
+      error: 'Test failed'
     });
   }
 });
 
-// Debug endpoint to check portal authentication state
+// Debug endpoint to check portal authentication state - DEVELOPMENT ONLY
 router.get('/debug-auth', async (req, res) => {
+  // Block in production
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Not found' });
+  }
   try {
-    let clientIP = req.headers['x-forwarded-for'] || 
-                   req.headers['x-real-ip'] ||
-                   req.connection.remoteAddress || 
-                   req.socket.remoteAddress ||
-                   (req.connection.socket ? req.connection.socket.remoteAddress : null);
+    let clientIP = req.headers['x-forwarded-for'] ||
+      req.headers['x-real-ip'] ||
+      req.connection.remoteAddress ||
+      req.socket.remoteAddress ||
+      (req.connection.socket ? req.connection.socket.remoteAddress : null);
 
     // Clean IPv6-mapped IPv4 addresses
     if (clientIP && clientIP.startsWith('::ffff:')) {
       clientIP = clientIP.substring(7);
     }
-    
+
     // Remove port if present
     if (clientIP && clientIP.includes(':') && !clientIP.includes('::')) {
       clientIP = clientIP.split(':')[0];
     }
 
     console.log(`[DEBUG AUTH] Portal debug auth check from IP: ${clientIP}`);
-    
+
     // Try to detect MAC address
     let detectedMac = null;
     try {
-      const { stdout: arpOutput } = await execAsync(`arp -n ${clientIP} 2>/dev/null || echo ""`);
-      if (arpOutput) {
-        const arpMatch = arpOutput.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
-        if (arpMatch) {
-          detectedMac = arpMatch[0].toUpperCase();
+      // SECURITY: Validate clientIP before using in shell command to prevent command injection
+      if (clientIP && isValidIPv4(clientIP)) {
+        const { stdout: arpOutput } = await execAsync(`arp -n ${clientIP} 2>/dev/null || echo ""`);
+        if (arpOutput) {
+          const arpMatch = arpOutput.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
+          if (arpMatch) {
+            detectedMac = arpMatch[0].toUpperCase();
+          }
         }
       }
     } catch (error) {
@@ -535,29 +691,29 @@ router.get('/debug-auth', async (req, res) => {
           'SELECT * FROM clients WHERE mac_address = $1 AND status = $2 AND time_remaining > 0',
           [detectedMac, 'CONNECTED']
         );
-        
+
         authState.database_query_result = {
           rows_found: authCheck.rows.length,
           query_used: `SELECT * FROM clients WHERE mac_address = '${detectedMac}' AND status = 'CONNECTED' AND time_remaining > 0`,
           rows: authCheck.rows
         };
-        
+
         if (authCheck.rows.length > 0) {
           authState.authenticated = true;
           authState.client_info = authCheck.rows[0];
         }
-        
+
         console.log(`[DEBUG AUTH] Database check for ${detectedMac}: ${authCheck.rows.length} rows found`);
         authCheck.rows.forEach(client => {
           console.log(`[DEBUG AUTH] Found client: Status=${client.status}, TimeRemaining=${client.time_remaining}, LastSeen=${client.last_seen}`);
         });
-        
+
       } catch (dbError) {
         console.warn('[DEBUG AUTH] Database check failed:', dbError.message);
         authState.database_error = dbError.message;
       }
     }
-    
+
     res.json(authState);
   } catch (error) {
     console.error('[DEBUG AUTH] Portal debug auth error:', error);
@@ -568,35 +724,38 @@ router.get('/debug-auth', async (req, res) => {
 // Session status endpoint for authenticated clients
 router.get('/session-status', async (req, res) => {
   try {
-    const clientIP = req.headers['x-forwarded-for'] || 
-                     req.connection.remoteAddress || 
-                     req.socket.remoteAddress ||
-                     (req.connection.socket ? req.connection.socket.remoteAddress : null);
-    
+    const clientIP = req.headers['x-forwarded-for'] ||
+      req.connection.remoteAddress ||
+      req.socket.remoteAddress ||
+      (req.connection.socket ? req.connection.socket.remoteAddress : null);
+
     // Try to get MAC address
     let detectedMac = null;
     try {
-      const { stdout: arpOutput } = await execAsync(`arp -n ${clientIP} 2>/dev/null || echo ""`);
-      if (arpOutput) {
-        const arpMatch = arpOutput.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
-        if (arpMatch) {
-          detectedMac = arpMatch[0].toUpperCase();
+      // SECURITY: Validate clientIP before using in shell command to prevent command injection
+      if (clientIP && isValidIPv4(clientIP)) {
+        const { stdout: arpOutput } = await execAsync(`arp -n ${clientIP} 2>/dev/null || echo ""`);
+        if (arpOutput) {
+          const arpMatch = arpOutput.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
+          if (arpMatch) {
+            detectedMac = arpMatch[0].toUpperCase();
+          }
         }
       }
     } catch (error) {
       console.warn('MAC detection failed for session status:', error.message);
     }
-    
+
     if (!detectedMac) {
       return res.json({ authenticated: false, time_remaining: 0 });
     }
-    
+
     // Check client status in database
     const clientResult = await db.query(
       'SELECT * FROM clients WHERE mac_address = $1 AND status = $2 AND time_remaining > 0',
       [detectedMac, 'CONNECTED']
     );
-    
+
     if (clientResult.rows.length > 0) {
       const client = clientResult.rows[0];
       res.json({
@@ -617,17 +776,17 @@ router.get('/session-status', async (req, res) => {
 // Captive portal diagnostic test page
 router.get('/test', async (req, res) => {
   try {
-    let clientIP = req.headers['x-forwarded-for'] || 
-                   req.headers['x-real-ip'] ||
-                   req.connection.remoteAddress || 
-                   req.socket.remoteAddress ||
-                   (req.connection.socket ? req.connection.socket.remoteAddress : null);
+    let clientIP = req.headers['x-forwarded-for'] ||
+      req.headers['x-real-ip'] ||
+      req.connection.remoteAddress ||
+      req.socket.remoteAddress ||
+      (req.connection.socket ? req.connection.socket.remoteAddress : null);
 
     // Clean IPv6-mapped IPv4 addresses
     if (clientIP && clientIP.startsWith('::ffff:')) {
       clientIP = clientIP.substring(7);
     }
-    
+
     // Remove port if present
     if (clientIP && clientIP.includes(':') && !clientIP.includes('::')) {
       clientIP = clientIP.split(':')[0];
@@ -641,6 +800,58 @@ router.get('/test', async (req, res) => {
   } catch (error) {
     console.error('Captive test page error:', error);
     res.status(500).send('Test page error: ' + error.message);
+  }
+});
+
+// Client pause/resume endpoint (for self-service)
+router.post('/pause-resume', async (req, res) => {
+  try {
+    const { sessionToken, mac_address } = req.body;
+
+    if (!sessionToken && !mac_address) {
+      return res.status(400).json({ error: 'Session token or MAC address required' });
+    }
+
+    // Find client by session token or MAC
+    let client = null;
+    if (sessionToken) {
+      const result = await db.query('SELECT * FROM clients WHERE session_token = $1', [sessionToken]);
+      if (result.rows.length > 0) {
+        client = result.rows[0];
+      }
+    } else if (mac_address) {
+      const result = await db.query('SELECT * FROM clients WHERE mac_address = $1', [mac_address]);
+      if (result.rows.length > 0) {
+        client = result.rows[0];
+      }
+    }
+
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    // Toggle status between CONNECTED and PAUSED
+    const newStatus = client.status === 'PAUSED' ? 'CONNECTED' : 'PAUSED';
+
+    // Update status
+    await db.query('UPDATE clients SET status = $1, last_seen = CURRENT_TIMESTAMP WHERE id = $2', [newStatus, client.id]);
+
+    // Apply or remove network restrictions
+    if (newStatus === 'PAUSED') {
+      await networkManager.deauthenticateClient(client.mac_address);
+    } else {
+      await networkManager.authenticateClient(client.mac_address, client.ip_address, client.time_remaining);
+    }
+
+    res.json({ 
+      success: true, 
+      status: newStatus,
+      message: newStatus === 'PAUSED' ? 'Session paused' : 'Session resumed'
+    });
+
+  } catch (error) {
+    console.error('Pause/resume error:', error);
+    res.status(500).json({ error: 'Failed to pause/resume session' });
   }
 });
 

@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GPIO Settings - PISOWifi Admin</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .pin-diagram {
             display: grid;
@@ -12,490 +13,552 @@
             gap: 2px;
             max-width: 300px;
         }
+
         .pin {
             padding: 4px 8px;
             text-align: center;
             font-size: 12px;
             border-radius: 4px;
         }
-        .pin.power { background-color: #dc2626; }
-        .pin.ground { background-color: #374151; }
-        .pin.gpio { background-color: #059669; }
-        .pin.selected { ring: 2px ring-yellow-400; }
+
+        .pin.power {
+            background-color: #dc2626;
+        }
+
+        .pin.ground {
+            background-color: #374151;
+        }
+
+        .pin.gpio {
+            background-color: #059669;
+        }
+
+        .pin.selected {
+            ring: 2px ring-yellow-400;
+        }
+        
+        /* Mobile responsive */
+        @media (max-width: 1023px) {
+            .p-8 {
+                padding: 1rem !important;
+            }
+            .grid-cols-1.md\\:grid-cols-2 {
+                grid-template-columns: 1fr !important;
+            }
+        }
     </style>
 </head>
-<body class="bg-gray-200 flex h-screen">
+
+<body class="bg-gray-200 min-h-screen lg:flex">
     <%- include('../partials/admin-sidebar') %>
-    
-    <!-- Main Content -->
-    <div class="flex-1 overflow-y-auto">
-        <div class="p-8">
-            <div class="mb-8">
-                <h2 class="text-2xl font-bold text-gray-800">GPIO Configuration</h2>
-                <p class="text-gray-600">Configure coin acceptor and LED pins for Orange Pi</p>
+
+        <!-- Main Content -->
+        <div class="flex-1 overflow-y-auto pt-14 lg:pt-0 lg:ml-0">
+            <div class="p-6">
+                <div class="mb-6">
+                    <h1 class="text-xl font-bold text-black">GPIO Configuration</h1>
+                    <p class="text-sm text-gray-600 mt-1">Configure coin acceptor and LED pins for Orange Pi</p>
+                </div>
+
+                <!-- GPIO Status -->
+                <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
+                    <div class="px-4 py-3 border-b border-gray-300">
+                        <h2 class="text-sm font-semibold text-black">GPIO Service Status</h2>
+                    </div>
+                    <div class="p-4 grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <h3 class="text-gray-800 font-medium mb-2">Service Status</h3>
+                            <div class="space-y-2">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-700">GPIO Service</span>
+                                    <span id="gpio-service-status"
+                                        class="px-2 py-1 bg-gray-500 text-black text-xs rounded">Checking...</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-700">Coin Detection</span>
+                                    <span id="coin-detection-status"
+                                        class="px-2 py-1 bg-gray-500 text-black text-xs rounded">Unknown</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-700">LED Control</span>
+                                    <span id="led-control-status"
+                                        class="px-2 py-1 bg-gray-500 text-black text-xs rounded">Unknown</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 class="text-gray-800 font-medium mb-2">Hardware Stats</h3>
+                            <div class="space-y-2">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-700">Coins Detected Today</span>
+                                    <span id="coins-today" class="text-black font-medium">0</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-700">Total Coins</span>
+                                    <span id="total-coins" class="text-black font-medium">0</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-700">Last Coin</span>
+                                    <span id="last-coin" class="text-black font-medium">Never</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 class="text-gray-800 font-medium mb-2">Test Controls</h3>
+                            <div class="space-y-2">
+                                <button onclick="testCoinDetection()"
+                                    class="w-full px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-black rounded text-sm flex items-center justify-center gap-2">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"></path></svg>
+                                    Test Coin Detection
+                                </button>
+                                <button onclick="testLED()"
+                                    class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-black rounded text-sm flex items-center justify-center gap-2">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6z"></path></svg>
+                                    Test LED Flash
+                                </button>
+                                <button onclick="calibrateCoins()"
+                                    class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-black rounded text-sm flex items-center justify-center gap-2">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-2.05-.71-3.92-1.9-5.4l1.32-1.32c-.78-.93-1.8-1.64-2.97-2.05l-.96 1.37c-1.33-.81-2.88-1.28-4.55-1.28-1.67 0-3.22.47-4.55 1.28L6.44 1.28c-1.17.41-2.19 1.12-2.97 2.05l1.32 1.32C3.65 6.08 2.94 7.95 2.94 10c0 .33.02.64.06.94.09.76.18 1.53.34 2.27-.72 1.31-1.15 2.79-1.15 4.39 0 4.97 4.03 9 9 9 2.46 0 4.68-.99 6.3-2.6.15-.74.25-1.5.34-2.27.04-.3.06-.61.06-.94 0-2.05-.71-3.92-1.9-5.4zm-7.1.27c-.5-.02-.95-.07-1.36-.07s-.86.05-1.36.07c0-1.42.59-2.71 1.53-3.62.42.14.84.26 1.24.33.38.07.74.09 1.09.09.35 0 .71-.02 1.09-.09.4-.07.82-.19 1.24-.33.94.91 1.53 2.2 1.53 3.62-.5-.02-.95-.07-1.36-.07-.41 0-.86.05-1.36.07z"></path></svg>
+                                    Calibrate Sensors
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- GPIO Configuration -->
+                    <div class="bg-gray-50 border border-gray-300 rounded-lg">
+                        <div class="px-4 py-3 border-b border-gray-300">
+                            <h2 class="text-sm font-semibold text-black">Pin Configuration</h2>
+                        </div>
+                        <div class="p-4">
+                        <form id="gpio-form" class="space-y-6">
+                            <div class="border border-white/10 rounded-lg p-4">
+                                <h3 class="text-black font-medium mb-3 flex items-center gap-2"><svg class="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1zm0 20c-4.962 0-9-4.038-9-9s4.038-9 9-9 9 4.038 9 9-4.038 9-9 9zm3.5-9c0 1.933-1.567 3.5-3.5 3.5S8.5 13.933 8.5 12 10.067 8.5 12 8.5s3.5 1.567 3.5 3.5z"></path></svg> Coin Acceptor</h3>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-gray-800 text-sm font-medium mb-2">
+                                            GPIO Pin
+                                        </label>
+                                        <select id="coin_pin" name="coin_pin"
+                                            class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black">
+                                            <option value="3">Pin 3 (GPIO 2)</option>
+                                            <option value="5">Pin 5 (GPIO 3)</option>
+                                            <option value="7">Pin 7 (GPIO 4)</option>
+                                            <option value="11">Pin 11 (GPIO 17)</option>
+                                            <option value="13">Pin 13 (GPIO 27)</option>
+                                            <option value="15">Pin 15 (GPIO 22)</option>
+                                            <option value="19">Pin 19 (GPIO 10)</option>
+                                            <option value="21">Pin 21 (GPIO 9)</option>
+                                            <option value="23">Pin 23 (GPIO 11)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-gray-800 text-sm font-medium mb-2">
+                                            Trigger Mode
+                                        </label>
+                                        <select id="coin_trigger" name="coin_trigger"
+                                            class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black">
+                                            <option value="FALLING">Falling Edge</option>
+                                            <option value="RISING">Rising Edge</option>
+                                            <option value="BOTH">Both Edges</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-4 mt-4">
+                                    <div>
+                                        <label class="block text-gray-800 text-sm font-medium mb-2">
+                                            Debounce (ms)
+                                        </label>
+                                        <input type="number" id="debounce_time" name="debounce_time"
+                                            class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black"
+                                            value="200" min="50" max="1000">
+                                    </div>
+                                    <div>
+                                        <label class="block text-gray-800 text-sm font-medium mb-2">
+                                            Pulse Width (ms)
+                                        </label>
+                                        <input type="number" id="pulse_width" name="pulse_width"
+                                            class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black"
+                                            value="50" min="10" max="500">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="border border-white/10 rounded-lg p-4">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6z"></path></svg>
+                                    <h3 class="text-black font-medium">Status LED</h3>
+                                </div>
+                                <div class="grid grid-cols-2 gap-4 mt-3">
+                                    <div>
+                                        <label class="block text-gray-800 text-sm font-medium mb-2">
+                                            GPIO Pin
+                                        </label>
+                                        <select id="led_pin" name="led_pin"
+                                            class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black">
+                                            <option value="5">Pin 5 (GPIO 3)</option>
+                                            <option value="3">Pin 3 (GPIO 2)</option>
+                                            <option value="7">Pin 7 (GPIO 4)</option>
+                                            <option value="11">Pin 11 (GPIO 17)</option>
+                                            <option value="13">Pin 13 (GPIO 27)</option>
+                                            <option value="15">Pin 15 (GPIO 22)</option>
+                                            <option value="19">Pin 19 (GPIO 10)</option>
+                                            <option value="21">Pin 21 (GPIO 9)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-gray-800 text-sm font-medium mb-2">
+                                            LED Mode
+                                        </label>
+                                        <select id="led_mode" name="led_mode"
+                                            class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black">
+                                            <option value="flash">Flash on Coin</option>
+                                            <option value="steady">Always On</option>
+                                            <option value="pulse">Pulse Pattern</option>
+                                            <option value="off">Disabled</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="mt-4">
+                                    <label class="block text-gray-800 text-sm font-medium mb-2">
+                                        Flash Duration (ms)
+                                    </label>
+                                    <input type="number" id="flash_duration" name="flash_duration"
+                                        class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black"
+                                        value="500" min="100" max="2000">
+                                </div>
+                            </div>
+
+                            <div class="border border-white/10 rounded-lg p-4">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-2.05-.71-3.92-1.9-5.4l1.32-1.32c-.78-.93-1.8-1.64-2.97-2.05l-.96 1.37c-1.33-.81-2.88-1.28-4.55-1.28-1.67 0-3.22.47-4.55 1.28L6.44 1.28c-1.17.41-2.19 1.12-2.97 2.05l1.32 1.32C3.65 6.08 2.94 7.95 2.94 10c0 .33.02.64.06.94.09.76.18 1.53.34 2.27-.72 1.31-1.15 2.79-1.15 4.39 0 4.97 4.03 9 9 9 2.46 0 4.68-.99 6.3-2.6.15-.74.25-1.5.34-2.27.04-.3.06-.61.06-.94 0-2.05-.71-3.92-1.9-5.4zm-7.1.27c-.5-.02-.95-.07-1.36-.07s-.86.05-1.36.07c0-1.42.59-2.71 1.53-3.62.42.14.84.26 1.24.33.38.07.74.09 1.09.09.35 0 .71-.02 1.09-.09.4-.07.82-.19 1.24-.33.94.91 1.53 2.2 1.53 3.62-.5-.02-.95-.07-1.36-.07-.41 0-.86.05-1.36.07z"></path></svg>
+                                    <h3 class="text-black font-medium">Advanced Settings</h3>
+                                </div>
+                                <div class="space-y-3 mt-3">
+                                    <label class="flex items-center text-gray-800">
+                                        <input type="checkbox" id="pull_up" name="pull_up"
+                                            class="mr-2 rounded bg-gray-100 border-gray-300">
+                                        Enable Pull-up Resistor
+                                    </label>
+                                    <label class="flex items-center text-gray-800">
+                                        <input type="checkbox" id="interrupt_mode" name="interrupt_mode"
+                                            class="mr-2 rounded bg-gray-100 border-gray-300" checked>
+                                        Use Interrupt Mode (Recommended)
+                                    </label>
+                                    <label class="flex items-center text-gray-800">
+                                        <input type="checkbox" id="coin_validation" name="coin_validation"
+                                            class="mr-2 rounded bg-gray-100 border-gray-300">
+                                        Enable Coin Validation
+                                    </label>
+                                </div>
+                            </div>
+
+                            <button type="submit"
+                                class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+                                Save GPIO Configuration
+                            </button>
+                        </form>
+                        </div>
+                    </div>
+
+                    <!-- GPIO Pin Diagram -->
+                    <div class="bg-gray-50 border border-gray-300 rounded-lg">
+                        <div class="px-4 py-3 border-b border-gray-300">
+                            <h2 class="text-sm font-semibold text-black">Orange Pi GPIO Pinout</h2>
+                        </div>
+                        <div class="p-4">
+                        <div class="pin-diagram mb-6">
+                            <!-- Pin layout for Orange Pi -->
+                            <div class="pin power text-black">3.3V</div>
+                            <div class="pin power text-black">5V</div>
+                            <div class="pin gpio text-black" data-pin="3">GPIO 2</div>
+                            <div class="pin power text-black">5V</div>
+                            <div class="pin gpio text-black" data-pin="5">GPIO 3</div>
+                            <div class="pin ground text-black">GND</div>
+                            <div class="pin gpio text-black" data-pin="7">GPIO 4</div>
+                            <div class="pin gpio text-black" data-pin="8">GPIO 14</div>
+                            <div class="pin ground text-black">GND</div>
+                            <div class="pin gpio text-black" data-pin="10">GPIO 15</div>
+                            <div class="pin gpio text-black" data-pin="11">GPIO 17</div>
+                            <div class="pin gpio text-black" data-pin="12">GPIO 18</div>
+                            <div class="pin gpio text-black" data-pin="13">GPIO 27</div>
+                            <div class="pin ground text-black">GND</div>
+                            <div class="pin gpio text-black" data-pin="15">GPIO 22</div>
+                            <div class="pin gpio text-black" data-pin="16">GPIO 23</div>
+                            <div class="pin power text-black">3.3V</div>
+                            <div class="pin gpio text-black" data-pin="18">GPIO 24</div>
+                            <div class="pin gpio text-black" data-pin="19">GPIO 10</div>
+                            <div class="pin ground text-black">GND</div>
+                            <div class="pin gpio text-black" data-pin="21">GPIO 9</div>
+                            <div class="pin gpio text-black" data-pin="22">GPIO 25</div>
+                            <div class="pin gpio text-black" data-pin="23">GPIO 11</div>
+                            <div class="pin gpio text-black" data-pin="24">GPIO 8</div>
+                            <div class="pin ground text-black">GND</div>
+                            <div class="pin gpio text-black" data-pin="26">GPIO 7</div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div class="border border-white/10 rounded-lg p-3">
+                                <h3 class="text-gray-800 font-medium mb-2">Legend</h3>
+                                <div class="flex flex-wrap gap-2 text-xs">
+                                    <span class="px-2 py-1 bg-red-600 text-black rounded">Power</span>
+                                    <span class="px-2 py-1 bg-gray-600 text-black rounded">Ground</span>
+                                    <span class="px-2 py-1 bg-green-600 text-black rounded">GPIO</span>
+                                </div>
+                            </div>
+
+                            <div class="border border-white/10 rounded-lg p-3">
+                                <h3 class="text-gray-800 font-medium mb-2">Current Assignment</h3>
+                                <div class="space-y-1 text-sm">
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-700">Coin Acceptor:</span>
+                                        <span class="text-black" id="current-coin-pin">Pin 3 (GPIO 2)</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-700">Status LED:</span>
+                                        <span class="text-black" id="current-led-pin">Pin 5 (GPIO 3)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GPIO Logs -->
+                <div class="bg-gray-50 border border-gray-300 rounded-lg mt-6">
+                    <div class="px-4 py-3 border-b border-gray-300 flex justify-between items-center">
+                        <h2 class="text-sm font-semibold text-black">GPIO Activity Log</h2>
+                        <div class="flex gap-2">
+                            <button onclick="clearGPIOLogs()"
+                                class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs">
+                                Clear Logs
+                            </button>
+                            <button onclick="exportLogs()"
+                                class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs">
+                                Export Logs
+                            </button>
+                        </div>
+                    </div>
+                    <div class="p-4">
+                        <div id="gpio-logs" class="bg-gray-100 rounded-lg p-4 h-64 overflow-y-auto border border-gray-200">
+                            <div class="text-gray-600 text-sm">GPIO activity logs will appear here...</div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-        <!-- GPIO Status -->
-        <div class="bg-gray-50 border border-gray-300 rounded-lg p-6 mb-8">
-            <h2 class="text-xl font-semibold text-black mb-4">GPIO Service Status</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div>
-                    <h3 class="text-gray-800 font-medium mb-2">Service Status</h3>
-                    <div class="space-y-2">
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-700">GPIO Service</span>
-                            <span id="gpio-service-status" class="px-2 py-1 bg-gray-500 text-black text-xs rounded">Checking...</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-700">Coin Detection</span>
-                            <span id="coin-detection-status" class="px-2 py-1 bg-gray-500 text-black text-xs rounded">Unknown</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-700">LED Control</span>
-                            <span id="led-control-status" class="px-2 py-1 bg-gray-500 text-black text-xs rounded">Unknown</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div>
-                    <h3 class="text-gray-800 font-medium mb-2">Hardware Stats</h3>
-                    <div class="space-y-2">
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-700">Coins Detected Today</span>
-                            <span id="coins-today" class="text-black font-medium">0</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-700">Total Coins</span>
-                            <span id="total-coins" class="text-black font-medium">0</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-700">Last Coin</span>
-                            <span id="last-coin" class="text-black font-medium">Never</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div>
-                    <h3 class="text-gray-800 font-medium mb-2">Test Controls</h3>
-                    <div class="space-y-2">
-                        <button onclick="testCoinDetection()" 
-                                class="w-full px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-black rounded text-sm">
-                            🪙 Test Coin Detection
-                        </button>
-                        <button onclick="testLED()" 
-                                class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-black rounded text-sm">
-                            💡 Test LED Flash
-                        </button>
-                        <button onclick="calibrateCoins()" 
-                                class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-black rounded text-sm">
-                            🔧 Calibrate Sensors
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+            <script>
+                // Load GPIO settings on page load
+                loadGPIOSettings();
+                checkGPIOStatus();
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <!-- GPIO Configuration -->
-            <div class="bg-gray-50 border border-gray-300 rounded-lg p-6">
-                <h2 class="text-xl font-semibold text-black mb-4">Pin Configuration</h2>
-                <form id="gpio-form" class="space-y-6">
-                    <div class="border border-white/10 rounded-lg p-4">
-                        <h3 class="text-black font-medium mb-3">🪙 Coin Acceptor</h3>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-gray-800 text-sm font-medium mb-2">
-                                    GPIO Pin
-                                </label>
-                                <select id="coin_pin" name="coin_pin" 
-                                        class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black">
-                                    <option value="3">Pin 3 (GPIO 2)</option>
-                                    <option value="5">Pin 5 (GPIO 3)</option>
-                                    <option value="7">Pin 7 (GPIO 4)</option>
-                                    <option value="11">Pin 11 (GPIO 17)</option>
-                                    <option value="13">Pin 13 (GPIO 27)</option>
-                                    <option value="15">Pin 15 (GPIO 22)</option>
-                                    <option value="19">Pin 19 (GPIO 10)</option>
-                                    <option value="21">Pin 21 (GPIO 9)</option>
-                                    <option value="23">Pin 23 (GPIO 11)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-gray-800 text-sm font-medium mb-2">
-                                    Trigger Mode
-                                </label>
-                                <select id="coin_trigger" name="coin_trigger" 
-                                        class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black">
-                                    <option value="FALLING">Falling Edge</option>
-                                    <option value="RISING">Rising Edge</option>
-                                    <option value="BOTH">Both Edges</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <label class="block text-gray-800 text-sm font-medium mb-2">
-                                    Debounce (ms)
-                                </label>
-                                <input type="number" id="debounce_time" name="debounce_time" 
-                                       class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black"
-                                       value="200" min="50" max="1000">
-                            </div>
-                            <div>
-                                <label class="block text-gray-800 text-sm font-medium mb-2">
-                                    Pulse Width (ms)
-                                </label>
-                                <input type="number" id="pulse_width" name="pulse_width" 
-                                       class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black"
-                                       value="50" min="10" max="500">
-                            </div>
-                        </div>
-                    </div>
+                async function loadGPIOSettings() {
+                    try {
+                        const response = await fetch('/api/settings', {
+                            credentials: 'include'
+                        });
 
-                    <div class="border border-white/10 rounded-lg p-4">
-                        <h3 class="text-black font-medium mb-3">💡 Status LED</h3>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-gray-800 text-sm font-medium mb-2">
-                                    GPIO Pin
-                                </label>
-                                <select id="led_pin" name="led_pin" 
-                                        class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black">
-                                    <option value="5">Pin 5 (GPIO 3)</option>
-                                    <option value="3">Pin 3 (GPIO 2)</option>
-                                    <option value="7">Pin 7 (GPIO 4)</option>
-                                    <option value="11">Pin 11 (GPIO 17)</option>
-                                    <option value="13">Pin 13 (GPIO 27)</option>
-                                    <option value="15">Pin 15 (GPIO 22)</option>
-                                    <option value="19">Pin 19 (GPIO 10)</option>
-                                    <option value="21">Pin 21 (GPIO 9)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-gray-800 text-sm font-medium mb-2">
-                                    LED Mode
-                                </label>
-                                <select id="led_mode" name="led_mode" 
-                                        class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black">
-                                    <option value="flash">Flash on Coin</option>
-                                    <option value="steady">Always On</option>
-                                    <option value="pulse">Pulse Pattern</option>
-                                    <option value="off">Disabled</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mt-4">
-                            <label class="block text-gray-800 text-sm font-medium mb-2">
-                                Flash Duration (ms)
-                            </label>
-                            <input type="number" id="flash_duration" name="flash_duration" 
-                                   class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black"
-                                   value="500" min="100" max="2000">
-                        </div>
-                    </div>
+                        if (response.ok) {
+                            const settings = await response.json();
+                            const gpio = settings.gpio || {};
 
-                    <div class="border border-white/10 rounded-lg p-4">
-                        <h3 class="text-black font-medium mb-3">⚙️ Advanced Settings</h3>
-                        <div class="space-y-3">
-                            <label class="flex items-center text-gray-800">
-                                <input type="checkbox" id="pull_up" name="pull_up" 
-                                       class="mr-2 rounded bg-gray-100 border-gray-300">
-                                Enable Pull-up Resistor
-                            </label>
-                            <label class="flex items-center text-gray-800">
-                                <input type="checkbox" id="interrupt_mode" name="interrupt_mode" 
-                                       class="mr-2 rounded bg-gray-100 border-gray-300" checked>
-                                Use Interrupt Mode (Recommended)
-                            </label>
-                            <label class="flex items-center text-gray-800">
-                                <input type="checkbox" id="coin_validation" name="coin_validation" 
-                                       class="mr-2 rounded bg-gray-100 border-gray-300">
-                                Enable Coin Validation
-                            </label>
-                        </div>
-                    </div>
+                            document.getElementById('coin_pin').value = gpio.coin_pin || 3;
+                            document.getElementById('coin_trigger').value = gpio.coin_pin_mode || 'FALLING';
+                            document.getElementById('led_pin').value = gpio.led_pin || 5;
+                            document.getElementById('led_mode').value = gpio.led_pin_mode || 'flash';
+                            document.getElementById('debounce_time').value = gpio.debounce_time || 200;
+                            document.getElementById('pulse_width').value = gpio.pulse_width || 50;
+                            document.getElementById('flash_duration').value = gpio.pulse_duration || 500;
+
+                            updatePinHighlights();
+                        }
+                    } catch (error) {
+                        addGPIOLog('Failed to load GPIO settings: ' + error.message, 'error');
+                    }
+                }
+
+                async function checkGPIOStatus() {
+                    // Simulate GPIO service status check
+                    document.getElementById('gpio-service-status').textContent = 'Online';
+                    document.getElementById('gpio-service-status').className = 'px-2 py-1 bg-green-500 text-black text-xs rounded';
+
+                    document.getElementById('coin-detection-status').textContent = 'Ready';
+                    document.getElementById('coin-detection-status').className = 'px-2 py-1 bg-green-500 text-black text-xs rounded';
+
+                    document.getElementById('led-control-status').textContent = 'Ready';
+                    document.getElementById('led-control-status').className = 'px-2 py-1 bg-green-500 text-black text-xs rounded';
+                }
+
+                document.getElementById('gpio-form').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+
+                    const formData = new FormData(e.target);
                     
-                    <button type="submit" 
-                            class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-black font-medium rounded-lg transition-colors">
-                        Save GPIO Configuration
-                    </button>
-                </form>
-            </div>
+                    // Map form fields to API expected fields
+                    const settings = {
+                        coin_pin: parseInt(formData.get('coin_pin')) || 3,
+                        coin_pin_mode: formData.get('coin_trigger') || 'FALLING',
+                        led_pin: parseInt(formData.get('led_pin')) || 5,
+                        led_pin_mode: formData.get('led_mode') || 'flash',
+                        debounce_time: parseInt(formData.get('debounce_time')) || 200,
+                        pulse_width: parseInt(formData.get('pulse_width')) || 50,
+                        coin_value: parseFloat(document.getElementById('coin-value-display')?.textContent || 5) || 5,
+                        pulses_per_coin: 1,  // Default value
+                        pulse_duration: parseInt(formData.get('flash_duration')) || 500,
+                        pull_up: formData.has('pull_up'),
+                        interrupt_mode: formData.has('interrupt_mode'),
+                        coin_validation: formData.has('coin_validation')
+                    };
 
-            <!-- GPIO Pin Diagram -->
-            <div class="bg-gray-50 border border-gray-300 rounded-lg p-6">
-                <h2 class="text-xl font-semibold text-black mb-4">Orange Pi GPIO Pinout</h2>
-                
-                <div class="pin-diagram mb-6">
-                    <!-- Pin layout for Orange Pi -->
-                    <div class="pin power text-black">3.3V</div>
-                    <div class="pin power text-black">5V</div>
-                    <div class="pin gpio text-black" data-pin="3">GPIO 2</div>
-                    <div class="pin power text-black">5V</div>
-                    <div class="pin gpio text-black" data-pin="5">GPIO 3</div>
-                    <div class="pin ground text-black">GND</div>
-                    <div class="pin gpio text-black" data-pin="7">GPIO 4</div>
-                    <div class="pin gpio text-black" data-pin="8">GPIO 14</div>
-                    <div class="pin ground text-black">GND</div>
-                    <div class="pin gpio text-black" data-pin="10">GPIO 15</div>
-                    <div class="pin gpio text-black" data-pin="11">GPIO 17</div>
-                    <div class="pin gpio text-black" data-pin="12">GPIO 18</div>
-                    <div class="pin gpio text-black" data-pin="13">GPIO 27</div>
-                    <div class="pin ground text-black">GND</div>
-                    <div class="pin gpio text-black" data-pin="15">GPIO 22</div>
-                    <div class="pin gpio text-black" data-pin="16">GPIO 23</div>
-                    <div class="pin power text-black">3.3V</div>
-                    <div class="pin gpio text-black" data-pin="18">GPIO 24</div>
-                    <div class="pin gpio text-black" data-pin="19">GPIO 10</div>
-                    <div class="pin ground text-black">GND</div>
-                    <div class="pin gpio text-black" data-pin="21">GPIO 9</div>
-                    <div class="pin gpio text-black" data-pin="22">GPIO 25</div>
-                    <div class="pin gpio text-black" data-pin="23">GPIO 11</div>
-                    <div class="pin gpio text-black" data-pin="24">GPIO 8</div>
-                    <div class="pin ground text-black">GND</div>
-                    <div class="pin gpio text-black" data-pin="26">GPIO 7</div>
-                </div>
+                    try {
+                        const response = await fetch('/api/settings/gpio', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify(settings)
+                        });
 
-                <div class="space-y-4">
-                    <div class="border border-white/10 rounded-lg p-3">
-                        <h3 class="text-gray-800 font-medium mb-2">Legend</h3>
-                        <div class="flex flex-wrap gap-2 text-xs">
-                            <span class="px-2 py-1 bg-red-600 text-black rounded">Power</span>
-                            <span class="px-2 py-1 bg-gray-600 text-black rounded">Ground</span>
-                            <span class="px-2 py-1 bg-green-600 text-black rounded">GPIO</span>
-                        </div>
-                    </div>
-                    
-                    <div class="border border-white/10 rounded-lg p-3">
-                        <h3 class="text-gray-800 font-medium mb-2">Current Assignment</h3>
-                        <div class="space-y-1 text-sm">
-                            <div class="flex justify-between">
-                                <span class="text-gray-700">Coin Acceptor:</span>
-                                <span class="text-black" id="current-coin-pin">Pin 3 (GPIO 2)</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-700">Status LED:</span>
-                                <span class="text-black" id="current-led-pin">Pin 5 (GPIO 3)</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+                        const result = await response.json();
 
-        <!-- GPIO Logs -->
-        <div class="bg-gray-50 border border-gray-300 rounded-lg p-6 mt-8">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-semibold text-black">GPIO Activity Log</h2>
-                <div class="flex gap-2">
-                    <button onclick="clearGPIOLogs()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-black rounded text-sm">
-                        Clear Logs
-                    </button>
-                    <button onclick="exportLogs()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-black rounded text-sm">
-                        Export Logs
-                    </button>
-                </div>
-            </div>
-            <div id="gpio-logs" class="bg-black/20 rounded-lg p-4 h-64 overflow-y-auto">
-                <div class="text-gray-600 text-sm">GPIO activity logs will appear here...</div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // Load GPIO settings on page load
-        loadGPIOSettings();
-        checkGPIOStatus();
-
-        async function loadGPIOSettings() {
-            try {
-                const response = await fetch('/api/settings', {
-                    credentials: 'include'
+                        if (result.success) {
+                            addGPIOLog('GPIO settings updated successfully', 'success');
+                            addGPIOLog('GPIO service restarted with new configuration', 'info');
+                            updatePinHighlights();
+                        } else {
+                            addGPIOLog('Failed to update GPIO settings: ' + result.error, 'error');
+                        }
+                    } catch (error) {
+                        addGPIOLog('Update failed: ' + error.message, 'error');
+                    }
                 });
-                
-                if (response.ok) {
-                    const settings = await response.json();
-                    const gpio = settings.gpio || {};
-                    
-                    document.getElementById('coin_pin').value = gpio.coin_pin || 3;
-                    document.getElementById('led_pin').value = gpio.led_pin || 5;
-                    document.getElementById('debounce_time').value = gpio.debounce_time || 200;
-                    document.getElementById('pulse_width').value = gpio.pulse_width || 50;
-                    document.getElementById('flash_duration').value = gpio.flash_duration || 500;
-                    
-                    updatePinHighlights();
+
+                async function testCoinDetection() {
+                    addGPIOLog('Testing coin detection...', 'info');
+
+                    try {
+                        const response = await fetch('/api/settings/gpio/test-coin', {
+                            method: 'POST',
+                            credentials: 'include'
+                        });
+
+                        if (response.ok) {
+                            addGPIOLog('Coin detection test triggered successfully', 'success');
+
+                            // Update coin counter
+                            const currentCount = parseInt(document.getElementById('coins-today').textContent) || 0;
+                            document.getElementById('coins-today').textContent = currentCount + 1;
+                            document.getElementById('last-coin').textContent = new Date().toLocaleTimeString();
+                        } else {
+                            addGPIOLog('Coin detection test failed', 'error');
+                        }
+                    } catch (error) {
+                        addGPIOLog('Test failed: ' + error.message, 'error');
+                    }
                 }
-            } catch (error) {
-                addGPIOLog('Failed to load GPIO settings: ' + error.message, 'error');
-            }
-        }
 
-        async function checkGPIOStatus() {
-            // Simulate GPIO service status check
-            document.getElementById('gpio-service-status').textContent = 'Online';
-            document.getElementById('gpio-service-status').className = 'px-2 py-1 bg-green-500 text-black text-xs rounded';
-            
-            document.getElementById('coin-detection-status').textContent = 'Ready';
-            document.getElementById('coin-detection-status').className = 'px-2 py-1 bg-green-500 text-black text-xs rounded';
-            
-            document.getElementById('led-control-status').textContent = 'Ready';
-            document.getElementById('led-control-status').className = 'px-2 py-1 bg-green-500 text-black text-xs rounded';
-        }
+                async function testLED() {
+                    addGPIOLog('Testing LED flash...', 'info');
 
-        document.getElementById('gpio-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const settings = Object.fromEntries(formData);
-            
-            // Convert checkboxes
-            settings.pull_up = formData.has('pull_up');
-            settings.interrupt_mode = formData.has('interrupt_mode');
-            settings.coin_validation = formData.has('coin_validation');
-            
-            try {
-                const response = await fetch('/api/settings/gpio', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify(settings)
+                    setTimeout(() => {
+                        addGPIOLog('LED flash test completed', 'success');
+                    }, 1000);
+                }
+
+                async function calibrateCoins() {
+                    addGPIOLog('Starting coin sensor calibration...', 'info');
+
+                    setTimeout(() => {
+                        addGPIOLog('Calibration completed successfully', 'success');
+                        addGPIOLog('New sensitivity threshold: 2.3V', 'info');
+                    }, 3000);
+                }
+
+                function updatePinHighlights() {
+                    // Clear previous highlights
+                    document.querySelectorAll('.pin').forEach(pin => {
+                        pin.classList.remove('ring', 'ring-yellow-400');
+                    });
+
+                    // Highlight selected pins
+                    const coinPin = document.getElementById('coin_pin').value;
+                    const ledPin = document.getElementById('led_pin').value;
+
+                    const coinPinElement = document.querySelector(`[data-pin="${coinPin}"]`);
+                    const ledPinElement = document.querySelector(`[data-pin="${ledPin}"]`);
+
+                    if (coinPinElement) {
+                        coinPinElement.classList.add('ring', 'ring-yellow-400');
+                        coinPinElement.style.backgroundColor = '#f59e0b';
+                    }
+
+                    if (ledPinElement) {
+                        ledPinElement.classList.add('ring', 'ring-blue-400');
+                        ledPinElement.style.backgroundColor = '#3b82f6';
+                    }
+
+                    // Update current assignment display
+                    document.getElementById('current-coin-pin').textContent = `Pin ${coinPin} (Coin)`;
+                    document.getElementById('current-led-pin').textContent = `Pin ${ledPin} (LED)`;
+                }
+
+                function addGPIOLog(message, type) {
+                    const logsDiv = document.getElementById('gpio-logs');
+                    const timestamp = new Date().toLocaleTimeString();
+                    const color = {
+                        'info': 'text-blue-400',
+                        'success': 'text-green-400',
+                        'error': 'text-red-400',
+                        'warning': 'text-yellow-400'
+                    }[type] || 'text-gray-700';
+
+                    const logEntry = document.createElement('div');
+                    logEntry.className = `${color} text-sm mb-1`;
+                    logEntry.innerHTML = `[${timestamp}] ${message}`;
+
+                    logsDiv.appendChild(logEntry);
+                    logsDiv.scrollTop = logsDiv.scrollHeight;
+                }
+
+                function clearGPIOLogs() {
+                    document.getElementById('gpio-logs').innerHTML = '';
+                    addGPIOLog('GPIO logs cleared', 'info');
+                }
+
+                function exportLogs() {
+                    const logs = document.getElementById('gpio-logs').innerText;
+                    const blob = new Blob([logs], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `gpio-logs-${new Date().toISOString().split('T')[0]}.txt`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                }
+
+                // Add pin selection interaction
+                document.querySelectorAll('.pin.gpio').forEach(pin => {
+                    pin.addEventListener('click', function () {
+                        const pinNumber = this.getAttribute('data-pin');
+                        if (pinNumber) {
+                            // Show pin info or selection dialog
+                            addGPIOLog(`Pin ${pinNumber} selected`, 'info');
+                        }
+                    });
                 });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    addGPIOLog('GPIO settings updated successfully', 'success');
-                    addGPIOLog('GPIO service restarted with new configuration', 'info');
-                    updatePinHighlights();
-                } else {
-                    addGPIOLog('Failed to update GPIO settings: ' + result.error, 'error');
-                }
-            } catch (error) {
-                addGPIOLog('Update failed: ' + error.message, 'error');
-            }
-        });
 
-        async function testCoinDetection() {
-            addGPIOLog('Testing coin detection...', 'info');
-            
-            try {
-                const response = await fetch('/api/settings/gpio/test-coin', {
-                    method: 'POST',
-                    credentials: 'include'
-                });
-                
-                if (response.ok) {
-                    addGPIOLog('Coin detection test triggered successfully', 'success');
-                    
-                    // Update coin counter
-                    const currentCount = parseInt(document.getElementById('coins-today').textContent) || 0;
-                    document.getElementById('coins-today').textContent = currentCount + 1;
-                    document.getElementById('last-coin').textContent = new Date().toLocaleTimeString();
-                } else {
-                    addGPIOLog('Coin detection test failed', 'error');
-                }
-            } catch (error) {
-                addGPIOLog('Test failed: ' + error.message, 'error');
-            }
-        }
+                // Initialize pin highlights
+                document.getElementById('coin_pin').addEventListener('change', updatePinHighlights);
+                document.getElementById('led_pin').addEventListener('change', updatePinHighlights);
 
-        async function testLED() {
-            addGPIOLog('Testing LED flash...', 'info');
-            
-            setTimeout(() => {
-                addGPIOLog('LED flash test completed', 'success');
-            }, 1000);
-        }
-
-        async function calibrateCoins() {
-            addGPIOLog('Starting coin sensor calibration...', 'info');
-            
-            setTimeout(() => {
-                addGPIOLog('Calibration completed successfully', 'success');
-                addGPIOLog('New sensitivity threshold: 2.3V', 'info');
-            }, 3000);
-        }
-
-        function updatePinHighlights() {
-            // Clear previous highlights
-            document.querySelectorAll('.pin').forEach(pin => {
-                pin.classList.remove('ring', 'ring-yellow-400');
-            });
-            
-            // Highlight selected pins
-            const coinPin = document.getElementById('coin_pin').value;
-            const ledPin = document.getElementById('led_pin').value;
-            
-            const coinPinElement = document.querySelector(`[data-pin="${coinPin}"]`);
-            const ledPinElement = document.querySelector(`[data-pin="${ledPin}"]`);
-            
-            if (coinPinElement) {
-                coinPinElement.classList.add('ring', 'ring-yellow-400');
-                coinPinElement.style.backgroundColor = '#f59e0b';
-            }
-            
-            if (ledPinElement) {
-                ledPinElement.classList.add('ring', 'ring-blue-400');
-                ledPinElement.style.backgroundColor = '#3b82f6';
-            }
-            
-            // Update current assignment display
-            document.getElementById('current-coin-pin').textContent = `Pin ${coinPin} (Coin)`;
-            document.getElementById('current-led-pin').textContent = `Pin ${ledPin} (LED)`;
-        }
-
-        function addGPIOLog(message, type) {
-            const logsDiv = document.getElementById('gpio-logs');
-            const timestamp = new Date().toLocaleTimeString();
-            const color = {
-                'info': 'text-blue-400',
-                'success': 'text-green-400',
-                'error': 'text-red-400',
-                'warning': 'text-yellow-400'
-            }[type] || 'text-gray-700';
-            
-            const logEntry = document.createElement('div');
-            logEntry.className = `${color} text-sm mb-1`;
-            logEntry.innerHTML = `[${timestamp}] ${message}`;
-            
-            logsDiv.appendChild(logEntry);
-            logsDiv.scrollTop = logsDiv.scrollHeight;
-        }
-
-        function clearGPIOLogs() {
-            document.getElementById('gpio-logs').innerHTML = '';
-            addGPIOLog('GPIO logs cleared', 'info');
-        }
-
-        function exportLogs() {
-            const logs = document.getElementById('gpio-logs').innerText;
-            const blob = new Blob([logs], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `gpio-logs-${new Date().toISOString().split('T')[0]}.txt`;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        // Add pin selection interaction
-        document.querySelectorAll('.pin.gpio').forEach(pin => {
-            pin.addEventListener('click', function() {
-                const pinNumber = this.getAttribute('data-pin');
-                if (pinNumber) {
-                    // Show pin info or selection dialog
-                    addGPIOLog(`Pin ${pinNumber} selected`, 'info');
-                }
-            });
-        });
-
-        // Initialize pin highlights
-        document.getElementById('coin_pin').addEventListener('change', updatePinHighlights);
-        document.getElementById('led_pin').addEventListener('change', updatePinHighlights);
-
-        // Add some initial logs
-        addGPIOLog('GPIO configuration page loaded', 'info');
-        addGPIOLog('Hardware interface ready', 'success');
-    </script>
+                // Add some initial logs
+                addGPIOLog('GPIO configuration page loaded', 'info');
+                addGPIOLog('Hardware interface ready', 'success');
+            </script>
 </body>
+
 </html>

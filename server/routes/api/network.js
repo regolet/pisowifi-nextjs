@@ -2,28 +2,15 @@ const express = require('express');
 const router = express.Router();
 const { exec } = require('child_process');
 const { promisify } = require('util');
-const jwt = require('jsonwebtoken');
 const fs = require('fs').promises;
 const db = require('../../db/sqlite-adapter');
+const { authenticateAPI, apiLimiter } = require('../../middleware/security');
+const { isValidServiceName, isAllowedService, isValidIPv4, isValidInterfaceName } = require('../../utils/validators');
 
 const execAsync = promisify(exec);
 
-// Auth middleware
-const authenticateToken = (req, res, next) => {
-  const token = req.cookies['auth-token'] || req.headers['authorization']?.split(' ')[1];
-  
-  if (!token) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  
-  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid token' });
-    }
-    req.user = user;
-    next();
-  });
-};
+// Use centralized auth middleware
+const authenticateToken = authenticateAPI;
 
 // Get network configuration
 router.get('/config', authenticateToken, async (req, res) => {
@@ -37,7 +24,7 @@ router.get('/config', authenticateToken, async (req, res) => {
     } catch (dbError) {
       console.log('Database not available, using file-based config');
     }
-    
+
     // Fallback to file-based config
     try {
       const configData = await fs.readFile('/tmp/network-config.json', 'utf8');
@@ -46,17 +33,20 @@ router.get('/config', authenticateToken, async (req, res) => {
       // Return default configuration
       const config = {
         dhcp_enabled: true,
-        dhcp_range_start: '192.168.100.10',
-        dhcp_range_end: '192.168.100.200',
+        dhcp_range_start: '10.0.0.10',
+        dhcp_range_end: '10.0.0.200',
         subnet_mask: '255.255.255.0',
-        gateway: '192.168.100.1',
+        gateway: '10.0.0.1',
         dns_primary: '8.8.8.8',
         dns_secondary: '8.8.4.4',
         lease_time: 3600,
         wifi_interface: 'wlan0',
-        ethernet_interface: 'eth0'
+        ethernet_interface: 'eth0',
+        bandwidth_enabled: false,
+        bandwidth_download_limit: 10,
+        bandwidth_upload_limit: 5
       };
-      
+
       res.json(config);
     }
   } catch (error) {
@@ -80,7 +70,7 @@ router.put('/config', authenticateToken, async (req, res) => {
       wifi_interface,
       ethernet_interface
     } = req.body;
-    
+
     // Try to save to database first
     try {
       await db.query(
@@ -111,7 +101,7 @@ router.put('/config', authenticateToken, async (req, res) => {
     } catch (dbError) {
       console.log('Database not available, saving to file:', dbError.message);
     }
-    
+
     // Also save to file as backup
     const config = {
       dhcp_enabled,
@@ -127,21 +117,21 @@ router.put('/config', authenticateToken, async (req, res) => {
       updated_at: new Date().toISOString(),
       updated_by: req.user?.username || 'admin'
     };
-    
+
     await fs.writeFile('/tmp/network-config.json', JSON.stringify(config, null, 2));
-    
+
     // Apply dynamic configuration
     try {
       const { execAsync } = require('child_process');
       const { promisify } = require('util');
       const exec = promisify(execAsync);
-      
+
       // Run the dynamic configuration updater
       await exec('node /root/pisowifi-nextjs/update-network-config.js');
       console.log('Dynamic network configuration applied');
     } catch (applyError) {
       console.warn('Dynamic config application warning:', applyError.message);
-      
+
       // Fallback to static config
       try {
         await applyNetworkConfig(config);
@@ -149,7 +139,7 @@ router.put('/config', authenticateToken, async (req, res) => {
         console.warn('Static config also failed:', staticError.message);
       }
     }
-    
+
     res.json({ success: true, message: 'Network configuration updated successfully' });
   } catch (error) {
     console.error('Update network config error:', error);
@@ -180,9 +170,9 @@ router.get('/interfaces', authenticateToken, async (req, res) => {
         addresses: ['192.168.1.105/24']
       },
       {
-        name: 'wlan0', 
+        name: 'wlan0',
         status: 'up',
-        addresses: ['192.168.100.1/24']
+        addresses: ['10.0.0.1/24']
       },
       {
         name: 'lo',
@@ -190,7 +180,7 @@ router.get('/interfaces', authenticateToken, async (req, res) => {
         addresses: ['127.0.0.1/8']
       }
     ];
-    
+
     res.json(interfaces);
   } catch (error) {
     console.error('Get network interfaces error:', error);
@@ -213,12 +203,23 @@ router.get('/traffic', authenticateToken, async (req, res) => {
 router.post('/restart-services', authenticateToken, async (req, res) => {
   try {
     const { services } = req.body; // ['dnsmasq', 'hostapd', 'pisowifi-captive']
-    
+
+    // SECURITY: Validate service names to prevent command injection
+    if (!Array.isArray(services)) {
+      return res.status(400).json({ error: 'Services must be an array' });
+    }
+
     const results = {};
     for (const service of services) {
+      // Validate each service name
+      if (service !== 'pisowifi-captive' && service !== 'iptables' && !isAllowedService(service)) {
+        results[service] = `denied: service not in allowed list`;
+        continue;
+      }
+
       try {
         console.log(`Restarting service: ${service}`);
-        
+
         if (service === 'pisowifi-captive' || service === 'iptables') {
           // Restart iptables/captive portal rules
           await execAsync('/etc/iptables/captive-portal.sh 2>/dev/null || /etc/iptables/ethernet-captive.sh 2>/dev/null || echo "No captive portal script found"');
@@ -231,7 +232,7 @@ router.post('/restart-services', authenticateToken, async (req, res) => {
       } catch (error) {
         console.error(`Failed to restart ${service}:`, error.message);
         results[service] = `failed: ${error.message}`;
-        
+
         // Try alternative methods
         if (service === 'hostapd') {
           try {
@@ -250,7 +251,7 @@ router.post('/restart-services', authenticateToken, async (req, res) => {
         }
       }
     }
-    
+
     // Log to file
     const logEntry = {
       timestamp: new Date().toISOString(),
@@ -260,13 +261,13 @@ router.post('/restart-services', authenticateToken, async (req, res) => {
       admin: req.user?.username || 'admin',
       results
     };
-    
+
     try {
       await fs.appendFile('/tmp/network-logs.json', JSON.stringify(logEntry) + '\n');
     } catch (logError) {
       console.warn('Failed to write log file:', logError.message);
     }
-    
+
     res.json({ success: true, results });
   } catch (error) {
     console.error('Restart services error:', error);
@@ -278,10 +279,10 @@ router.post('/restart-services', authenticateToken, async (req, res) => {
 router.post('/bandwidth-limit', authenticateToken, async (req, res) => {
   try {
     const { clientId, uploadLimit, downloadLimit, ipAddress } = req.body;
-    
+
     // Simplified: Use provided IP or mock data to avoid database dependency
-    const clientIP = ipAddress || '192.168.100.10'; // Fallback IP
-    
+    const clientIP = ipAddress || '10.0.0.10'; // Fallback IP
+
     // Apply bandwidth limiting (simplified)
     try {
       console.log(`Would apply bandwidth limits to ${clientIP}: Upload: ${uploadLimit}kbps, Download: ${downloadLimit}kbps`);
@@ -290,7 +291,7 @@ router.post('/bandwidth-limit', authenticateToken, async (req, res) => {
     } catch (applyError) {
       console.warn('Bandwidth limit application failed:', applyError.message);
     }
-    
+
     // Store configuration in file instead of database
     const bandwidthConfig = {
       timestamp: new Date().toISOString(),
@@ -300,13 +301,13 @@ router.post('/bandwidth-limit', authenticateToken, async (req, res) => {
       downloadLimit,
       appliedBy: req.user?.username || 'admin'
     };
-    
+
     try {
       await fs.appendFile('/tmp/bandwidth-config.json', JSON.stringify(bandwidthConfig) + '\n');
     } catch (fileError) {
       console.warn('Failed to save bandwidth config:', fileError.message);
     }
-    
+
     res.json({ success: true, message: 'Bandwidth limits configured successfully' });
   } catch (error) {
     console.error('Bandwidth limit error:', error);
@@ -363,27 +364,27 @@ server=${config.dns_primary}
 server=${config.dns_secondary}
 log-dhcp
 `;
-    
+
     // Save to tmp directory (safe location)
     await fs.writeFile('/tmp/dnsmasq.conf.pisowifi', dnsmasqConfig);
     console.log('Network configuration saved to /tmp/dnsmasq.conf.pisowifi');
-    
+
     // In development/testing mode, just log what would happen
     console.log('Would execute system commands:');
     console.log('- sudo cp /etc/dnsmasq.conf /etc/dnsmasq.conf.backup');
     console.log('- sudo cp /tmp/dnsmasq.conf.pisowifi /etc/dnsmasq.conf');
-    
+
     if (config.dhcp_enabled) {
       console.log('- sudo systemctl restart dnsmasq');
     }
-    
+
     // For production, uncomment these lines:
     // await execAsync('sudo cp /etc/dnsmasq.conf /etc/dnsmasq.conf.backup');
     // await execAsync('sudo cp /tmp/dnsmasq.conf.pisowifi /etc/dnsmasq.conf');
     // if (config.dhcp_enabled) {
     //   await execAsync('sudo systemctl restart dnsmasq');
     // }
-    
+
   } catch (error) {
     console.error('Apply network config error:', error);
     throw error;
@@ -409,11 +410,11 @@ async function getNetworkInterfaces() {
   try {
     const { stdout } = await execAsync('ip addr show');
     const interfaces = [];
-    
+
     // Parse ip addr output
     const lines = stdout.split('\n');
     let currentInterface = null;
-    
+
     for (const line of lines) {
       if (line.match(/^\d+:/)) {
         const match = line.match(/^\d+: ([^:]+):/);
@@ -432,9 +433,9 @@ async function getNetworkInterfaces() {
         }
       }
     }
-    
+
     if (currentInterface) interfaces.push(currentInterface);
-    
+
     return interfaces;
   } catch (error) {
     return [];
@@ -446,7 +447,7 @@ async function getNetworkTraffic() {
     const { stdout } = await execAsync('cat /proc/net/dev');
     const lines = stdout.split('\n');
     const traffic = {};
-    
+
     for (const line of lines) {
       if (line.includes(':')) {
         const parts = line.trim().split(/\s+/);
@@ -461,7 +462,7 @@ async function getNetworkTraffic() {
         }
       }
     }
-    
+
     return traffic;
   } catch (error) {
     return {};
@@ -470,10 +471,25 @@ async function getNetworkTraffic() {
 
 async function applyBandwidthLimit(ipAddress, uploadLimit, downloadLimit) {
   try {
+    // SECURITY: Validate inputs to prevent command injection
+    if (!isValidIPv4(ipAddress)) {
+      console.error('Invalid IP address provided to applyBandwidthLimit');
+      return;
+    }
+
+    // Validate bandwidth limits are numeric and reasonable (max 10Gbps)
+    const dlLimit = parseInt(downloadLimit) || 1024;
+    const ulLimit = parseInt(uploadLimit) || 1024;
+
+    if (dlLimit <= 0 || dlLimit > 10000000 || ulLimit <= 0 || ulLimit > 10000000) {
+      console.error('Invalid bandwidth limits provided');
+      return;
+    }
+
     // Use tc (traffic control) to limit bandwidth
     // This is a simplified implementation
     await execAsync(`sudo tc qdisc add dev wlan0 root handle 1: htb default 30`);
-    await execAsync(`sudo tc class add dev wlan0 parent 1: classid 1:1 htb rate ${downloadLimit}kbit`);
+    await execAsync(`sudo tc class add dev wlan0 parent 1: classid 1:1 htb rate ${dlLimit}kbit`);
     await execAsync(`sudo tc filter add dev wlan0 protocol ip parent 1:0 prio 1 u32 match ip dst ${ipAddress}/32 flowid 1:1`);
   } catch (error) {
     console.error('Apply bandwidth limit error:', error);
@@ -484,13 +500,13 @@ async function getBandwidthMonitoring() {
   try {
     // Simplified: Return mock data to avoid database dependency
     const monitoring = [];
-    
+
     // Generate mock monitoring data for common IP range
     for (let i = 10; i < 15; i++) {
       monitoring.push({
         client_id: `client_${i}`,
         mac_address: `aa:bb:cc:dd:ee:${i.toString(16).padStart(2, '0')}`,
-        ip_address: `192.168.100.${i}`,
+        ip_address: `10.0.0.${i}`,
         upload_bytes: Math.floor(Math.random() * 1000000),
         download_bytes: Math.floor(Math.random() * 5000000),
         upload_rate: Math.floor(Math.random() * 100) + 'kbps',
@@ -498,12 +514,78 @@ async function getBandwidthMonitoring() {
         status: Math.random() > 0.3 ? 'CONNECTED' : 'IDLE'
       });
     }
-    
+
     return monitoring;
   } catch (error) {
     console.error('Bandwidth monitoring error:', error);
     return [];
   }
 }
+
+// Update universal bandwidth configuration
+router.put('/bandwidth-config', authenticateToken, async (req, res) => {
+  try {
+    const {
+      bandwidth_enabled,
+      bandwidth_download_limit,
+      bandwidth_upload_limit
+    } = req.body;
+
+    // Try to save to database
+    try {
+      // First check if table has bandwidth columns
+      const result = await db.query('SELECT * FROM network_config WHERE id = 1');
+      
+      if (result.rows.length > 0) {
+        // Update existing config with bandwidth settings
+        await db.query(
+          `UPDATE network_config SET 
+            bandwidth_enabled = ?,
+            bandwidth_download_limit = ?,
+            bandwidth_upload_limit = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = 1`,
+          [bandwidth_enabled ? 1 : 0, bandwidth_download_limit, bandwidth_upload_limit]
+        );
+      } else {
+        // Insert new config with bandwidth settings
+        await db.query(
+          `INSERT INTO network_config (id, bandwidth_enabled, bandwidth_download_limit, bandwidth_upload_limit, updated_at) 
+           VALUES (1, ?, ?, ?, CURRENT_TIMESTAMP)`,
+          [bandwidth_enabled ? 1 : 0, bandwidth_download_limit, bandwidth_upload_limit]
+        );
+      }
+      
+      console.log('Bandwidth config saved to database');
+    } catch (dbError) {
+      console.log('Database error saving bandwidth config:', dbError.message);
+      
+      // Fallback to file-based config
+      try {
+        let config = {};
+        try {
+          const configData = await fs.readFile('/tmp/network-config.json', 'utf8');
+          config = JSON.parse(configData);
+        } catch (readError) {
+          // File doesn't exist, start fresh
+        }
+        
+        config.bandwidth_enabled = bandwidth_enabled;
+        config.bandwidth_download_limit = bandwidth_download_limit;
+        config.bandwidth_upload_limit = bandwidth_upload_limit;
+        
+        await fs.writeFile('/tmp/network-config.json', JSON.stringify(config, null, 2));
+        console.log('Bandwidth config saved to file');
+      } catch (fileError) {
+        console.error('Failed to save bandwidth config to file:', fileError);
+      }
+    }
+
+    res.json({ success: true, message: 'Bandwidth configuration updated' });
+  } catch (error) {
+    console.error('Update bandwidth config error:', error);
+    res.status(500).json({ error: 'Failed to update bandwidth configuration' });
+  }
+});
 
 module.exports = router;

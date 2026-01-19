@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Information - PISOWifi Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Mobile responsive */
+        @media (max-width: 1023px) {
+            .p-6 {
+                padding: 1rem !important;
+            }
+        }
+        
+        /* Loading animation */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        /* Progress bar */
+        .progress-bar {
+            transition: width 0.5s ease-in-out;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-200 min-h-screen lg:flex">
+    <%- include('../partials/admin-sidebar', { currentPage: 'device' }) %>
+
+    <!-- Main Content -->
+    <div class="flex-1 overflow-y-auto pt-14 lg:pt-0 lg:ml-0">
+        <div class="p-6">
+            <div class="mb-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+                <div>
+                    <h1 class="text-xl font-bold text-black">Device Information</h1>
+                    <p class="text-sm text-gray-600 mt-1">System statistics and hardware information</p>
+                </div>
+                <button onclick="refreshDeviceInfo()"
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2">
+                    <svg id="refreshIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    Refresh
+                </button>
+            </div>
+
+            <!-- System Overview Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-blue-100 rounded-lg">
+                            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-xs text-gray-600">CPU Usage</p>
+                            <p id="cpuUsage" class="text-lg font-semibold text-black">--%</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-green-100 rounded-lg">
+                            <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-xs text-gray-600">Memory Usage</p>
+                            <p id="memoryUsage" class="text-lg font-semibold text-black">--%</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-yellow-100 rounded-lg">
+                            <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-xs text-gray-600">Disk Usage</p>
+                            <p id="diskUsage" class="text-lg font-semibold text-black">--%</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-purple-100 rounded-lg">
+                            <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-xs text-gray-600">Uptime</p>
+                            <p id="uptime" class="text-lg font-semibold text-black">--</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Device Details -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <!-- System Information -->
+                <div class="bg-gray-50 border border-gray-300 rounded-lg">
+                    <div class="px-4 py-3 border-b border-gray-300">
+                        <h2 class="text-sm font-semibold text-black">System Information</h2>
+                    </div>
+                    <div class="divide-y divide-gray-200">
+                        <div class="px-4 py-3 flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Device Name</span>
+                            <span id="deviceName" class="text-sm font-medium text-black">Loading...</span>
+                        </div>
+                        <div class="px-4 py-3 flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Platform</span>
+                            <span id="platform" class="text-sm font-medium text-black">Loading...</span>
+                        </div>
+                        <div class="px-4 py-3 flex justify-between items-center">
+                            <span class="text-sm text-gray-600">OS Version</span>
+                            <span id="osVersion" class="text-sm font-medium text-black">Loading...</span>
+                        </div>
+                        <div class="px-4 py-3 flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Architecture</span>
+                            <span id="architecture" class="text-sm font-medium text-black">Loading...</span>
+                        </div>
+                        <div class="px-4 py-3 flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Node.js Version</span>
+                            <span id="nodeVersion" class="text-sm font-medium text-black">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hardware Information -->
+                <div class="bg-gray-50 border border-gray-300 rounded-lg">
+                    <div class="px-4 py-3 border-b border-gray-300">
+                        <h2 class="text-sm font-semibold text-black">Hardware Information</h2>
+                    </div>
+                    <div class="divide-y divide-gray-200">
+                        <div class="px-4 py-3 flex justify-between items-center">
+                            <span class="text-sm text-gray-600">CPU Model</span>
+                            <span id="cpuModel" class="text-sm font-medium text-black text-right max-w-xs truncate">Loading...</span>
+                        </div>
+                        <div class="px-4 py-3 flex justify-between items-center">
+                            <span class="text-sm text-gray-600">CPU Cores</span>
+                            <span id="cpuCores" class="text-sm font-medium text-black">Loading...</span>
+                        </div>
+                        <div class="px-4 py-3 flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Total Memory</span>
+                            <span id="totalMemory" class="text-sm font-medium text-black">Loading...</span>
+                        </div>
+                        <div class="px-4 py-3 flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Free Memory</span>
+                            <span id="freeMemory" class="text-sm font-medium text-black">Loading...</span>
+                        </div>
+                        <div class="px-4 py-3 flex justify-between items-center">
+                            <span class="text-sm text-gray-600">Serial Number</span>
+                            <span id="serialNumber" class="text-sm font-medium text-black">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resource Usage -->
+                <div class="bg-gray-50 border border-gray-300 rounded-lg">
+                    <div class="px-4 py-3 border-b border-gray-300">
+                        <h2 class="text-sm font-semibold text-black">Resource Usage</h2>
+                    </div>
+                    <div class="p-4 space-y-4">
+                        <!-- CPU Progress -->
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="text-sm text-gray-600">CPU</span>
+                                <span id="cpuPercent" class="text-sm font-medium text-black">0%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                <div id="cpuBar" class="progress-bar bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Memory Progress -->
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="text-sm text-gray-600">Memory</span>
+                                <span id="memoryPercent" class="text-sm font-medium text-black">0%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                <div id="memoryBar" class="progress-bar bg-green-600 h-2.5 rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Disk Progress -->
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="text-sm text-gray-600">Disk</span>
+                                <span id="diskPercent" class="text-sm font-medium text-black">0%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                <div id="diskBar" class="progress-bar bg-yellow-600 h-2.5 rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Network Interfaces -->
+            <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
+                <div class="px-4 py-3 border-b border-gray-300">
+                    <h2 class="text-sm font-semibold text-black">Network Interfaces</h2>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Interface</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">IP Address</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">MAC Address</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Type</th>
+                            </tr>
+                        </thead>
+                        <tbody id="networkInterfaces" class="bg-white divide-y divide-gray-200">
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-gray-500">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Storage Information -->
+            <div class="bg-gray-50 border border-gray-300 rounded-lg">
+                <div class="px-4 py-3 border-b border-gray-300">
+                    <h2 class="text-sm font-semibold text-black">Storage Information</h2>
+                </div>
+                <div class="divide-y divide-gray-200">
+                    <div class="px-4 py-3 flex justify-between items-center">
+                        <span class="text-sm text-gray-600">Total Storage</span>
+                        <span id="totalStorage" class="text-sm font-medium text-black">Loading...</span>
+                    </div>
+                    <div class="px-4 py-3 flex justify-between items-center">
+                        <span class="text-sm text-gray-600">Used Storage</span>
+                        <span id="usedStorage" class="text-sm font-medium text-black">Loading...</span>
+                    </div>
+                    <div class="px-4 py-3 flex justify-between items-center">
+                        <span class="text-sm text-gray-600">Free Storage</span>
+                        <span id="freeStorage" class="text-sm font-medium text-black">Loading...</span>
+                    </div>
+                    <div class="px-4 py-3 flex justify-between items-center">
+                        <span class="text-sm text-gray-600">Database Size</span>
+                        <span id="dbSize" class="text-sm font-medium text-black">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Format bytes to human readable
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        // Format uptime
+        function formatUptime(seconds) {
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            
+            if (days > 0) return `${days}d ${hours}h ${minutes}m`;
+            if (hours > 0) return `${hours}h ${minutes}m`;
+            return `${minutes}m`;
+        }
+
+        // Update progress bar color based on usage
+        function getProgressColor(percent, type) {
+            if (percent >= 90) return 'bg-red-600';
+            if (percent >= 70) return 'bg-orange-500';
+            if (type === 'cpu') return 'bg-blue-600';
+            if (type === 'memory') return 'bg-green-600';
+            return 'bg-yellow-600';
+        }
+
+        // Load device information
+        async function loadDeviceInfo() {
+            try {
+                const response = await fetch('/api/device/info', {
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch device info');
+                }
+
+                const data = await response.json();
+                updateDeviceUI(data);
+            } catch (error) {
+                console.error('Error loading device info:', error);
+                showError();
+            }
+        }
+
+        function updateDeviceUI(data) {
+            // System info
+            document.getElementById('deviceName').textContent = data.hostname || 'Unknown';
+            document.getElementById('platform').textContent = data.platform || 'Unknown';
+            document.getElementById('osVersion').textContent = data.osRelease || 'Unknown';
+            document.getElementById('architecture').textContent = data.arch || 'Unknown';
+            document.getElementById('nodeVersion').textContent = data.nodeVersion || 'Unknown';
+
+            // Hardware info
+            document.getElementById('cpuModel').textContent = data.cpuModel || 'Unknown';
+            document.getElementById('cpuModel').title = data.cpuModel || '';
+            document.getElementById('cpuCores').textContent = data.cpuCores || 'Unknown';
+            document.getElementById('totalMemory').textContent = formatBytes(data.totalMemory || 0);
+            document.getElementById('freeMemory').textContent = formatBytes(data.freeMemory || 0);
+            document.getElementById('serialNumber').textContent = data.serialNumber || 'N/A';
+
+            // Usage stats
+            const cpuPercent = data.cpuUsage || 0;
+            const memoryPercent = data.memoryUsage || 0;
+            const diskPercent = data.diskUsage || 0;
+
+            document.getElementById('cpuUsage').textContent = cpuPercent.toFixed(1) + '%';
+            document.getElementById('memoryUsage').textContent = memoryPercent.toFixed(1) + '%';
+            document.getElementById('diskUsage').textContent = diskPercent.toFixed(1) + '%';
+            document.getElementById('uptime').textContent = formatUptime(data.uptime || 0);
+
+            // Progress bars
+            document.getElementById('cpuPercent').textContent = cpuPercent.toFixed(1) + '%';
+            document.getElementById('memoryPercent').textContent = memoryPercent.toFixed(1) + '%';
+            document.getElementById('diskPercent').textContent = diskPercent.toFixed(1) + '%';
+
+            const cpuBar = document.getElementById('cpuBar');
+            const memoryBar = document.getElementById('memoryBar');
+            const diskBar = document.getElementById('diskBar');
+
+            cpuBar.style.width = cpuPercent + '%';
+            cpuBar.className = `progress-bar ${getProgressColor(cpuPercent, 'cpu')} h-2.5 rounded-full`;
+
+            memoryBar.style.width = memoryPercent + '%';
+            memoryBar.className = `progress-bar ${getProgressColor(memoryPercent, 'memory')} h-2.5 rounded-full`;
+
+            diskBar.style.width = diskPercent + '%';
+            diskBar.className = `progress-bar ${getProgressColor(diskPercent, 'disk')} h-2.5 rounded-full`;
+
+            // Storage info
+            document.getElementById('totalStorage').textContent = formatBytes(data.totalDisk || 0);
+            document.getElementById('usedStorage').textContent = formatBytes(data.usedDisk || 0);
+            document.getElementById('freeStorage').textContent = formatBytes(data.freeDisk || 0);
+            document.getElementById('dbSize').textContent = formatBytes(data.dbSize || 0);
+
+            // Network interfaces
+            const networkBody = document.getElementById('networkInterfaces');
+            if (data.networkInterfaces && data.networkInterfaces.length > 0) {
+                networkBody.innerHTML = data.networkInterfaces.map(iface => `
+                    <tr>
+                        <td class="px-4 py-2 text-sm text-black font-medium">${iface.name}</td>
+                        <td class="px-4 py-2 text-sm text-gray-600">${iface.ip || 'N/A'}</td>
+                        <td class="px-4 py-2 text-sm text-gray-600 font-mono text-xs">${iface.mac || 'N/A'}</td>
+                        <td class="px-4 py-2">
+                            <span class="px-2 py-1 text-xs rounded-full ${iface.type === 'ethernet' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}">
+                                ${iface.type || 'Unknown'}
+                            </span>
+                        </td>
+                    </tr>
+                `).join('');
+            } else {
+                networkBody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-500">No network interfaces found</td></tr>';
+            }
+        }
+
+        function showError() {
+            document.getElementById('deviceName').textContent = 'Error loading';
+            document.getElementById('platform').textContent = 'Error';
+            document.getElementById('osVersion').textContent = 'Error';
+            document.getElementById('architecture').textContent = 'Error';
+            document.getElementById('nodeVersion').textContent = 'Error';
+        }
+
+        function refreshDeviceInfo() {
+            const icon = document.getElementById('refreshIcon');
+            icon.classList.add('animate-spin');
+            
+            loadDeviceInfo().finally(() => {
+                setTimeout(() => {
+                    icon.classList.remove('animate-spin');
+                }, 500);
+            });
+        }
+
+        // Load on page load
+        document.addEventListener('DOMContentLoaded', loadDeviceInfo);
+
+        // Auto-refresh every 30 seconds
+        setInterval(loadDeviceInfo, 30000);
+    </script>
+</body>
+
+</html>

@@ -4,9 +4,17 @@ const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
+// SECURITY: Require DATABASE_URL environment variable - no fallback credentials
+if (!process.env.DATABASE_URL) {
+  console.error('ERROR: DATABASE_URL environment variable is required but not set.');
+  console.error('Please set DATABASE_URL before running this script:');
+  console.error('  export DATABASE_URL="postgresql://user:password@host:port/dbname"');
+  process.exit(1);
+}
+
 // Database connection
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://pisowifi_user:admin123@localhost:5432/pisowifi'
+  connectionString: process.env.DATABASE_URL
 });
 
 async function runMigration() {

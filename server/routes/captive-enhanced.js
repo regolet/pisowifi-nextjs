@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db/sqlite-adapter');
+const { isValidIPv4 } = require('../utils/validators');
 
 // Enhanced captive portal detection endpoints with better device support
 // These URLs are requested by devices to detect internet connectivity
@@ -23,6 +24,12 @@ async function isClientAuthenticated(req) {
       clientIP = clientIP.split(':')[0];
     }
 
+    // SECURITY: Validate IP format before using in shell command
+    if (clientIP && !isValidIPv4(clientIP)) {
+      console.warn(`Invalid IP format detected in captive-enhanced: ${clientIP?.substring(0, 20)}`);
+      clientIP = null;
+    }
+
     // Try to get MAC address
     const { exec } = require('child_process');
     const { promisify } = require('util');
@@ -32,11 +39,14 @@ async function isClientAuthenticated(req) {
     
     try {
       // Try ARP table (Windows)
-      const { stdout: arpOutput } = await execAsync(`arp -a ${clientIP} 2>nul || echo ""`);
-      if (arpOutput) {
-        const arpMatch = arpOutput.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
-        if (arpMatch) {
-          detectedMac = arpMatch[0].replace(/-/g, ':').toUpperCase();
+      // SECURITY: Only run ARP if IP is valid
+      if (clientIP && isValidIPv4(clientIP)) {
+        const { stdout: arpOutput } = await execAsync(`arp -a ${clientIP} 2>nul || echo ""`);
+        if (arpOutput) {
+          const arpMatch = arpOutput.match(/([0-9a-fA-F]{2}[:-]){5}([0-9a-fA-F]{2})/);
+          if (arpMatch) {
+            detectedMac = arpMatch[0].replace(/-/g, ':').toUpperCase();
+          }
         }
       }
     } catch (error) {

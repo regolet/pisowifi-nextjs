@@ -36,8 +36,14 @@ async function initializeDatabase() {
       console.log('🐘 Initializing PostgreSQL adapter for production...');
       const { Pool } = require('pg');
       
+      // SECURITY: Require DATABASE_URL from environment, no hardcoded fallback
+      const databaseUrl = process.env.DATABASE_URL;
+      if (!databaseUrl) {
+        throw new Error('DATABASE_URL environment variable is required for PostgreSQL');
+      }
+      
       const pool = new Pool({
-        connectionString: process.env.DATABASE_URL || 'postgresql://pisowifi_user:admin123@localhost:5432/pisowifi'
+        connectionString: databaseUrl
       });
       
       // Test connection and run migrations
@@ -282,18 +288,32 @@ async function initializeSQLiteTables(db) {
     });
   }
 
-  // Insert default data
-  const defaults = [
-    `INSERT OR IGNORE INTO rates (name, price, duration, coins_required, is_active) VALUES
-     ('15 Minutes', 5.00, 900, 1, 1)`,
-    `INSERT OR IGNORE INTO rates (name, price, duration, coins_required, is_active) VALUES
-     ('30 Minutes', 10.00, 1800, 2, 1)`,
-    `INSERT OR IGNORE INTO rates (name, price, duration, coins_required, is_active) VALUES
-     ('1 Hour', 20.00, 3600, 4, 1)`,
-    `INSERT OR IGNORE INTO portal_settings (id, coin_timeout, portal_title, portal_subtitle) VALUES
-     (1, 300, 'PISOWifi Portal', 'Insert coins for internet access')`,
+  // Insert default data only if tables are empty
+  // Check if rates exist first
+  const rateCount = await new Promise((resolve, reject) => {
+    db.get('SELECT COUNT(*) as count FROM rates', (err, row) => {
+      if (err) reject(err);
+      else resolve(row?.count || 0);
+    });
+  });
+
+  const defaults = [];
+  
+  // Only add default rates if no rates exist
+  if (rateCount === 0) {
+    defaults.push(
+      `INSERT INTO rates (name, price, duration, coins_required, is_active) VALUES ('15 Minutes', 5.00, 900, 1, 1)`,
+      `INSERT INTO rates (name, price, duration, coins_required, is_active) VALUES ('30 Minutes', 10.00, 1800, 2, 1)`,
+      `INSERT INTO rates (name, price, duration, coins_required, is_active) VALUES ('1 Hour', 20.00, 3600, 4, 1)`
+    );
+    console.log('✅ Default rates will be created');
+  }
+  
+  // Always ensure portal settings and coin slots exist
+  defaults.push(
+    `INSERT OR IGNORE INTO portal_settings (id, coin_timeout, portal_title, portal_subtitle) VALUES (1, 300, 'PISOWifi Portal', 'Insert coins for internet access')`,
     `INSERT OR IGNORE INTO coin_slots (slot_number, status) VALUES (1, 'AVAILABLE')`
-  ];
+  );
 
   for (const defaultData of defaults) {
     await new Promise((resolve, reject) => {

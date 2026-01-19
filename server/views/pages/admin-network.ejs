@@ -1,275 +1,321 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Network Management - PISOWifi Admin</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="/socket.io/socket.io.js"></script>
+    <style>
+        /* Compact table styling */
+        table th,
+        table td {
+            padding: 0.5rem 1rem !important;
+        }
+        table tbody tr {
+            height: auto !important;
+        }
+        
+        /* Mobile responsive */
+        @media (max-width: 1023px) {
+            .p-6, .p-4 {
+                padding: 1rem !important;
+            }
+            .grid-cols-1.md\:grid-cols-2 {
+                grid-template-columns: 1fr !important;
+            }
+        }
+    </style>
 </head>
-<body class="bg-gray-200 flex h-screen">
+
+<body class="bg-gray-200 min-h-screen lg:flex">
     <%- include('../partials/admin-sidebar') %>
-    
-    <!-- Main Content -->
-    <div class="flex-1 overflow-y-auto">
-        <div class="p-6">
-            <div class="mb-6">
-                <h1 class="text-xl font-bold text-black">Network Management</h1>
-                <p class="text-sm text-gray-600 mt-1">Configure DHCP, DNS, and monitor network traffic</p>
-            </div>
 
-            <!-- Network Status Table -->
-            <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
-                <div class="px-4 py-3 border-b border-gray-300">
-                    <h2 class="text-sm font-semibold text-black">Network Statistics</h2>
+        <!-- Main Content -->
+        <div class="flex-1 overflow-y-auto pt-14 lg:pt-0 lg:ml-0">
+            <div class="p-6">
+                <div class="mb-6">
+                    <h1 class="text-xl font-bold text-black">Network Management</h1>
+                    <p class="text-sm text-gray-600 mt-1">Configure DHCP, DNS, and monitor network traffic</p>
                 </div>
-                <div class="divide-y divide-gray-300">
-                    <div class="px-4 py-3 flex justify-between items-center">
-                        <span class="text-sm text-black">DHCP Leases</span>
-                        <span class="text-sm font-semibold text-black" id="dhcp-leases">0</span>
-                    </div>
-                    <div class="px-4 py-3 flex justify-between items-center">
-                        <span class="text-sm text-black">Active Interfaces</span>
-                        <span class="text-sm font-semibold text-black" id="active-interfaces">0</span>
-                    </div>
-                    <div class="px-4 py-3 flex justify-between items-center">
-                        <span class="text-sm text-black">Total Traffic</span>
-                        <span class="text-sm font-semibold text-black" id="total-traffic">0 MB</span>
-                    </div>
-                    <div class="px-4 py-3 flex justify-between items-center">
-                        <span class="text-sm text-black">Limited Users</span>
-                        <span class="text-sm font-semibold text-black" id="bandwidth-users">0</span>
-                    </div>
-                </div>
-            </div>
 
-            <!-- DHCP Configuration -->
-            <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
-                <div class="px-4 py-3 border-b border-gray-300">
-                    <h2 class="text-sm font-semibold text-black">DHCP & DNS Configuration</h2>
-                </div>
-                <div class="p-4">
-            
-            <form id="network-config-form" class="space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- DHCP Settings -->
-                    <div class="space-y-4">
-                        <h4 class="text-md font-medium text-gray-800">DHCP Settings</h4>
-                        
-                        <div>
-                            <label class="flex items-center space-x-2">
-                                <input type="checkbox" id="dhcp_enabled" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-                                <span class="text-gray-700">Enable DHCP Server</span>
-                            </label>
-                        </div>
-                        
-                        <div>
-                            <label class="block text-gray-700 mb-2">DHCP Range Start</label>
-                            <input type="text" id="dhcp_range_start" 
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                                   placeholder="192.168.100.10">
-                        </div>
-                        
-                        <div>
-                            <label class="block text-gray-700 mb-2">DHCP Range End</label>
-                            <input type="text" id="dhcp_range_end" 
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                                   placeholder="192.168.100.200">
-                        </div>
+                <!-- DHCP Configuration -->
+                <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
+                    <div class="px-4 py-3 border-b border-gray-300">
+                        <h2 class="text-sm font-semibold text-black">DHCP & DNS Configuration</h2>
                     </div>
-                    
-                    <!-- Network Settings -->
-                    <div class="space-y-4">
-                        <h4 class="text-md font-medium text-gray-800">Network Settings</h4>
-                        
-                        <div>
-                            <label class="block text-gray-700 mb-2">Gateway</label>
-                            <input type="text" id="gateway" 
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                                   placeholder="192.168.100.1">
-                        </div>
-                        
-                        <div>
-                            <label class="block text-gray-700 mb-2">Primary DNS</label>
-                            <input type="text" id="dns_primary" 
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                                   placeholder="8.8.8.8">
-                        </div>
-                        
-                        <div>
-                            <label class="block text-gray-700 mb-2">Secondary DNS</label>
-                            <input type="text" id="dns_secondary" 
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                                   placeholder="8.8.4.4">
-                        </div>
+                    <div class="p-4">
+                        <form id="network-config-form" class="space-y-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <!-- DHCP Settings -->
+                                <div class="space-y-4">
+                                    <h4 class="text-md font-medium text-gray-800">DHCP Settings</h4>
+
+                                    <div>
+                                        <label class="flex items-center space-x-2">
+                                            <input type="checkbox" id="dhcp_enabled"
+                                                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                            <span class="text-gray-700">Enable DHCP Server</span>
+                                        </label>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-gray-700 mb-2">DHCP Range Start</label>
+                                        <input type="text" id="dhcp_range_start"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="192.168.100.10">
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-gray-700 mb-2">DHCP Range End</label>
+                                        <input type="text" id="dhcp_range_end"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="192.168.100.200">
+                                    </div>
+                                </div>
+
+                                <!-- Network Settings -->
+                                <div class="space-y-4">
+                                    <h4 class="text-md font-medium text-gray-800">Network Settings</h4>
+
+                                    <div>
+                                        <label class="block text-gray-700 mb-2">Gateway</label>
+                                        <input type="text" id="gateway"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="192.168.100.1">
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-gray-700 mb-2">Primary DNS</label>
+                                        <input type="text" id="dns_primary"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="8.8.8.8">
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-gray-700 mb-2">Secondary DNS</label>
+                                        <input type="text" id="dns_secondary"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="8.8.4.4">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-4">
+                                <button type="submit"
+                                    class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"></path></svg>
+                                    Save Configuration
+                                </button>
+                                <button type="button" onclick="restartServices()"
+                                    class="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                    Restart Services
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
-                
-                <div class="flex gap-4">
-                    <button type="submit" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-                        💾 Save Configuration
-                    </button>
-                    <button type="button" onclick="restartServices()" class="px-6 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors">
-                        🔄 Restart Services
-                    </button>
-                </div>
-            </form>
-            </div>
-            
-            <!-- Network Interfaces -->
-            <div class="bg-gray-50 border border-gray-300 rounded-lg p-6 mb-8">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-800">Network Interfaces</h3>
-                    <button onclick="refreshInterfaces()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-                        🔄 Refresh
-                    </button>
-                </div>
-            
-                <div id="interfaces-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="text-gray-500 text-center py-8">Loading interfaces...</div>
-                </div>
-            </div>
-            
-            <!-- Bandwidth Control -->
-            <div class="bg-gray-50 border border-gray-300 rounded-lg p-6">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">Bandwidth Control</h3>
-            
-                <div class="bg-gray-100 rounded-lg p-4 mb-4">
-                    <h4 class="text-md font-medium text-gray-800 mb-4">Apply Bandwidth Limit</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <input type="text" id="limit-client-mac" placeholder="MAC Address" 
-                               class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                        <input type="number" id="upload-limit" placeholder="Upload (kbps)" 
-                               class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                        <input type="number" id="download-limit" placeholder="Download (kbps)" 
-                               class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                        <button onclick="applyBandwidthLimit()" 
-                                class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors">
-                            Apply Limit
+
+                <!-- Network Interfaces -->
+                <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
+                    <div class="px-4 py-3 border-b border-gray-300 flex justify-between items-center">
+                        <h2 class="text-sm font-semibold text-black">Network Interfaces</h2>
+                        <button onclick="refreshInterfaces()"
+                            class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs transition-colors flex items-center gap-1">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                            Refresh
                         </button>
                     </div>
+                    <div class="p-4">
+                        <div id="interfaces-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="text-gray-500 text-center py-8">Loading interfaces...</div>
+                        </div>
+                    </div>
                 </div>
-            
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead>
-                            <tr class="border-b border-gray-300">
-                                <th class="text-left py-3 px-4 text-gray-700">Client MAC</th>
-                                <th class="text-left py-3 px-4 text-gray-700">IP Address</th>
-                                <th class="text-left py-3 px-4 text-gray-700">Upload Rate</th>
-                                <th class="text-left py-3 px-4 text-gray-700">Download Rate</th>
-                                <th class="text-left py-3 px-4 text-gray-700">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="bandwidth-tbody">
-                            <tr>
-                                <td colspan="5" class="text-center py-8 text-gray-500">Loading bandwidth data...</td>
-                            </tr>
-                        </tbody>
-                    </table>
+
+                <!-- Universal Bandwidth Control -->
+                <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
+                    <div class="px-4 py-3 border-b border-gray-300">
+                        <h2 class="text-sm font-semibold text-black">Universal Bandwidth Limit</h2>
+                    </div>
+                    <div class="p-4">
+                        <p class="text-sm text-gray-600 mb-4">Set a global bandwidth limit that applies to all connected clients.</p>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="flex items-center space-x-2 mb-4">
+                                        <input type="checkbox" id="bandwidth_enabled"
+                                            class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                        <span class="text-gray-700">Enable Bandwidth Limiting</span>
+                                    </label>
+                                </div>
+
+                                <div>
+                                    <label class="block text-gray-700 mb-2">Download Limit (Mbps)</label>
+                                    <input type="number" id="download-limit" min="1" max="1000" step="1"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                        placeholder="10">
+                                    <p class="text-xs text-gray-500 mt-1">Maximum download speed per client</p>
+                                </div>
+
+                                <div>
+                                    <label class="block text-gray-700 mb-2">Upload Limit (Mbps)</label>
+                                    <input type="number" id="upload-limit" min="1" max="1000" step="1"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                        placeholder="5">
+                                    <p class="text-xs text-gray-500 mt-1">Maximum upload speed per client</p>
+                                </div>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div class="bg-gray-100 rounded-lg p-4">
+                                    <h4 class="text-md font-medium text-gray-800 mb-3">Current Settings</h4>
+                                    <div class="space-y-2 text-sm">
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600">Status:</span>
+                                            <span id="bandwidth-status" class="font-medium text-gray-800">Disabled</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600">Download Limit:</span>
+                                            <span id="current-download" class="font-medium text-gray-800">--</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600">Upload Limit:</span>
+                                            <span id="current-upload" class="font-medium text-gray-800">--</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <div class="flex items-start gap-2">
+                                        <svg class="w-5 h-5 text-blue-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                                        </svg>
+                                        <div class="text-sm text-blue-800">
+                                            <p class="font-medium">Note</p>
+                                            <p>Bandwidth limits are applied to all clients equally. This helps ensure fair usage across all connected devices.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-4 mt-6">
+                            <button type="button" onclick="saveBandwidthSettings()"
+                                class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"></path></svg>
+                                Save Bandwidth Settings
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <script>
-        let networkConfig = {};
-        let interfaces = [];
-        let bandwidthData = [];
+            <script>
+                let networkConfig = {};
+                let interfaces = [];
+                let bandwidthSettings = {
+                    enabled: false,
+                    download_limit: 10,
+                    upload_limit: 5
+                };
 
-        // Load data on page load
-        loadNetworkConfig();
-        refreshInterfaces();
-        refreshBandwidthMonitoring();
+                // Load data on page load
+                loadNetworkConfig();
+                refreshInterfaces();
+                loadBandwidthSettings();
 
-        // Load network configuration
-        async function loadNetworkConfig() {
-            try {
-                const response = await fetch('/api/network/config', {
-                    credentials: 'include'
-                });
-                
-                if (response.ok) {
-                    networkConfig = await response.json();
-                    populateConfigForm();
+                // Load network configuration
+                async function loadNetworkConfig() {
+                    try {
+                        const response = await fetch('/api/network/config', {
+                            credentials: 'include'
+                        });
+
+                        if (response.ok) {
+                            networkConfig = await response.json();
+                            populateConfigForm();
+                        }
+                    } catch (error) {
+                        console.error('Failed to load network config:', error);
+                    }
                 }
-            } catch (error) {
-                console.error('Failed to load network config:', error);
-            }
-        }
 
-        function populateConfigForm() {
-            document.getElementById('dhcp_enabled').checked = networkConfig.dhcp_enabled;
-            document.getElementById('dhcp_range_start').value = networkConfig.dhcp_range_start || '';
-            document.getElementById('dhcp_range_end').value = networkConfig.dhcp_range_end || '';
-            document.getElementById('gateway').value = networkConfig.gateway || '';
-            document.getElementById('dns_primary').value = networkConfig.dns_primary || '';
-            document.getElementById('dns_secondary').value = networkConfig.dns_secondary || '';
-        }
-
-        // Save network configuration
-        document.getElementById('network-config-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const formData = {
-                dhcp_enabled: document.getElementById('dhcp_enabled').checked,
-                dhcp_range_start: document.getElementById('dhcp_range_start').value,
-                dhcp_range_end: document.getElementById('dhcp_range_end').value,
-                gateway: document.getElementById('gateway').value,
-                dns_primary: document.getElementById('dns_primary').value,
-                dns_secondary: document.getElementById('dns_secondary').value,
-                subnet_mask: '255.255.255.0',
-                lease_time: 3600,
-                wifi_interface: 'wlan0',
-                ethernet_interface: 'eth0'
-            };
-            
-            try {
-                const response = await fetch('/api/network/config', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify(formData)
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    alert('Network configuration saved successfully!');
-                } else {
-                    alert('Failed to save configuration');
+                function populateConfigForm() {
+                    document.getElementById('dhcp_enabled').checked = networkConfig.dhcp_enabled;
+                    document.getElementById('dhcp_range_start').value = networkConfig.dhcp_range_start || '';
+                    document.getElementById('dhcp_range_end').value = networkConfig.dhcp_range_end || '';
+                    document.getElementById('gateway').value = networkConfig.gateway || '';
+                    document.getElementById('dns_primary').value = networkConfig.dns_primary || '';
+                    document.getElementById('dns_secondary').value = networkConfig.dns_secondary || '';
                 }
-            } catch (error) {
-                console.error('Save config error:', error);
-                alert('Failed to save configuration');
-            }
-        });
 
-        // Refresh network interfaces
-        async function refreshInterfaces() {
-            try {
-                const response = await fetch('/api/network/interfaces', {
-                    credentials: 'include'
+                // Save network configuration
+                document.getElementById('network-config-form').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+
+                    const formData = {
+                        dhcp_enabled: document.getElementById('dhcp_enabled').checked,
+                        dhcp_range_start: document.getElementById('dhcp_range_start').value,
+                        dhcp_range_end: document.getElementById('dhcp_range_end').value,
+                        gateway: document.getElementById('gateway').value,
+                        dns_primary: document.getElementById('dns_primary').value,
+                        dns_secondary: document.getElementById('dns_secondary').value,
+                        subnet_mask: '255.255.255.0',
+                        lease_time: 3600,
+                        wifi_interface: 'wlan0',
+                        ethernet_interface: 'eth0'
+                    };
+
+                    try {
+                        const response = await fetch('/api/network/config', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify(formData)
+                        });
+
+                        const result = await response.json();
+                        if (result.success) {
+                            alert('Network configuration saved successfully!');
+                        } else {
+                            alert('Failed to save configuration');
+                        }
+                    } catch (error) {
+                        console.error('Save config error:', error);
+                        alert('Failed to save configuration');
+                    }
                 });
-                
-                if (response.ok) {
-                    interfaces = await response.json();
-                    updateInterfacesDisplay();
-                    updateStats();
-                }
-            } catch (error) {
-                console.error('Failed to load interfaces:', error);
-            }
-        }
 
-        function updateInterfacesDisplay() {
-            const container = document.getElementById('interfaces-container');
-            
-            if (interfaces.length === 0) {
-                container.innerHTML = '<div class="text-gray-600 text-center py-8">No interfaces found</div>';
-                return;
-            }
-            
-            container.innerHTML = interfaces.map(iface => `
+                // Refresh network interfaces
+                async function refreshInterfaces() {
+                    try {
+                        const response = await fetch('/api/network/interfaces', {
+                            credentials: 'include'
+                        });
+
+                        if (response.ok) {
+                            interfaces = await response.json();
+                            updateInterfacesDisplay();
+                            updateStats();
+                        }
+                    } catch (error) {
+                        console.error('Failed to load interfaces:', error);
+                    }
+                }
+
+                function updateInterfacesDisplay() {
+                    const container = document.getElementById('interfaces-container');
+
+                    if (interfaces.length === 0) {
+                        container.innerHTML = '<div class="text-gray-600 text-center py-8">No interfaces found</div>';
+                        return;
+                    }
+
+                    container.innerHTML = interfaces.map(iface => `
                 <div class="bg-gray-50 rounded-lg p-4">
                     <div class="flex justify-between items-center mb-2">
                         <h4 class="text-gray-800 font-medium">${iface.name}</h4>
@@ -282,130 +328,130 @@
                     </div>
                 </div>
             `).join('');
-        }
-
-        // Refresh bandwidth monitoring
-        async function refreshBandwidthMonitoring() {
-            try {
-                const response = await fetch('/api/network/bandwidth-monitor', {
-                    credentials: 'include'
-                });
-                
-                if (response.ok) {
-                    bandwidthData = await response.json();
-                    updateBandwidthDisplay();
-                    updateStats();
                 }
-            } catch (error) {
-                console.error('Failed to load bandwidth data:', error);
-            }
-        }
 
-        function updateBandwidthDisplay() {
-            const tbody = document.getElementById('bandwidth-tbody');
-            
-            if (bandwidthData.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-600">No bandwidth limits active</td></tr>';
-                return;
-            }
-            
-            tbody.innerHTML = bandwidthData.map(client => `
-                <tr class="border-b border-gray-200">
-                    <td class="py-3 px-4 font-mono text-sm text-gray-700">${client.mac_address}</td>
-                    <td class="py-3 px-4 text-gray-700">${client.ip_address}</td>
-                    <td class="py-3 px-4 text-gray-700">${client.upload_rate}</td>
-                    <td class="py-3 px-4 text-gray-700">${client.download_rate}</td>
-                    <td class="py-3 px-4">
-                        <button onclick="removeBandwidthLimit('${client.client_id}')" 
-                                class="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs transition-colors">
-                            Remove
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
-        }
+                // Load bandwidth settings
+                async function loadBandwidthSettings() {
+                    try {
+                        const response = await fetch('/api/network/config', {
+                            credentials: 'include'
+                        });
 
-        // Update stats
-        function updateStats() {
-            document.getElementById('active-interfaces').textContent = interfaces.filter(i => i.status === 'up').length;
-            document.getElementById('bandwidth-users').textContent = bandwidthData.length;
-        }
-
-        // Restart network services
-        async function restartServices() {
-            if (confirm('Restart network services? This may temporarily disrupt connectivity.')) {
-                try {
-                    const response = await fetch('/api/network/restart-services', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'include',
-                        body: JSON.stringify({ services: ['dnsmasq', 'hostapd'] })
-                    });
-                    
-                    const result = await response.json();
-                    if (result.success) {
-                        alert('Services restarted successfully!');
-                    } else {
-                        alert('Some services failed to restart');
+                        if (response.ok) {
+                            const config = await response.json();
+                            bandwidthSettings = {
+                                enabled: config.bandwidth_enabled || false,
+                                download_limit: config.bandwidth_download_limit || 10,
+                                upload_limit: config.bandwidth_upload_limit || 5
+                            };
+                            populateBandwidthForm();
+                        }
+                    } catch (error) {
+                        console.error('Failed to load bandwidth settings:', error);
                     }
-                } catch (error) {
-                    alert('Failed to restart services');
                 }
-            }
-        }
 
-        // Apply bandwidth limit
-        async function applyBandwidthLimit() {
-            const macAddress = document.getElementById('limit-client-mac').value;
-            const uploadLimit = document.getElementById('upload-limit').value;
-            const downloadLimit = document.getElementById('download-limit').value;
-            
-            if (!macAddress || !uploadLimit || !downloadLimit) {
-                alert('Please fill in all fields');
-                return;
-            }
-            
-            try {
-                const clientsResponse = await fetch('/api/clients', { credentials: 'include' });
-                const clients = await clientsResponse.json();
-                const client = clients.find(c => c.mac_address.toLowerCase() === macAddress.toLowerCase());
-                
-                if (!client) {
-                    alert('Client not found');
-                    return;
+                function populateBandwidthForm() {
+                    document.getElementById('bandwidth_enabled').checked = bandwidthSettings.enabled;
+                    document.getElementById('download-limit').value = bandwidthSettings.download_limit;
+                    document.getElementById('upload-limit').value = bandwidthSettings.upload_limit;
+                    updateBandwidthDisplay();
                 }
-                
-                const response = await fetch('/api/network/bandwidth-limit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'include',
-                    body: JSON.stringify({
-                        clientId: client.id,
-                        uploadLimit: parseInt(uploadLimit),
-                        downloadLimit: parseInt(downloadLimit)
-                    })
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    alert('Bandwidth limit applied!');
-                    document.getElementById('limit-client-mac').value = '';
-                    document.getElementById('upload-limit').value = '';
-                    document.getElementById('download-limit').value = '';
-                    refreshBandwidthMonitoring();
-                } else {
-                    alert('Failed to apply bandwidth limit');
-                }
-            } catch (error) {
-                alert('Failed to apply bandwidth limit');
-            }
-        }
 
-        // Auto-refresh every 30 seconds
-        setInterval(() => {
-            refreshInterfaces();
-            refreshBandwidthMonitoring();
-        }, 30000);
-    </script>
+                function updateBandwidthDisplay() {
+                    const statusEl = document.getElementById('bandwidth-status');
+                    const downloadEl = document.getElementById('current-download');
+                    const uploadEl = document.getElementById('current-upload');
+
+                    if (bandwidthSettings.enabled) {
+                        statusEl.textContent = 'Enabled';
+                        statusEl.className = 'font-medium text-green-600';
+                        downloadEl.textContent = bandwidthSettings.download_limit + ' Mbps';
+                        uploadEl.textContent = bandwidthSettings.upload_limit + ' Mbps';
+                    } else {
+                        statusEl.textContent = 'Disabled';
+                        statusEl.className = 'font-medium text-gray-500';
+                        downloadEl.textContent = '--';
+                        uploadEl.textContent = '--';
+                    }
+                }
+
+                async function saveBandwidthSettings() {
+                    const enabled = document.getElementById('bandwidth_enabled').checked;
+                    const downloadLimit = parseInt(document.getElementById('download-limit').value) || 10;
+                    const uploadLimit = parseInt(document.getElementById('upload-limit').value) || 5;
+
+                    try {
+                        const response = await fetch('/api/network/bandwidth-config', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({
+                                bandwidth_enabled: enabled,
+                                bandwidth_download_limit: downloadLimit,
+                                bandwidth_upload_limit: uploadLimit
+                            })
+                        });
+
+                        const result = await response.json();
+                        if (result.success) {
+                            bandwidthSettings = {
+                                enabled: enabled,
+                                download_limit: downloadLimit,
+                                upload_limit: uploadLimit
+                            };
+                            updateBandwidthDisplay();
+                            alert('Bandwidth settings saved successfully!');
+                        } else {
+                            alert('Failed to save bandwidth settings');
+                        }
+                    } catch (error) {
+                        console.error('Save bandwidth settings error:', error);
+                        alert('Failed to save bandwidth settings');
+                    }
+                }
+
+                // Update stats
+                function updateStats() {
+                    const activeInterfacesEl = document.getElementById('active-interfaces');
+                    if (activeInterfacesEl) {
+                        activeInterfacesEl.textContent = interfaces.filter(i => i.status === 'up').length;
+                    }
+                    
+                    const bandwidthUsersEl = document.getElementById('bandwidth-users');
+                    if (bandwidthUsersEl) {
+                        bandwidthUsersEl.textContent = bandwidthData.length;
+                    }
+                }
+
+                // Restart network services
+                async function restartServices() {
+                    if (confirm('Restart network services? This may temporarily disrupt connectivity.')) {
+                        try {
+                            const response = await fetch('/api/network/restart-services', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                credentials: 'include',
+                                body: JSON.stringify({ services: ['dnsmasq', 'hostapd'] })
+                            });
+
+                            const result = await response.json();
+                            if (result.success) {
+                                alert('Services restarted successfully!');
+                            } else {
+                                alert('Some services failed to restart');
+                            }
+                        } catch (error) {
+                            alert('Failed to restart services');
+                        }
+                    }
+                }
+
+                // Auto-refresh every 30 seconds
+                setInterval(() => {
+                    refreshInterfaces();
+                }, 30000);
+            </script>
 </body>
+
 </html>

@@ -1,9 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= title %></title>
+    <title>
+        <%= title %>
+    </title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
         * {
@@ -11,50 +14,51 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: white;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 20px;
         }
-        
+
         .portal-container {
             background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
             padding: 40px;
             text-align: center;
             max-width: 400px;
             width: 100%;
         }
-        
+
         .logo {
             font-size: 2.5rem;
             margin-bottom: 10px;
             color: #667eea;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
-        
+
         .portal-title {
             font-size: 1.5rem;
             font-weight: 600;
             color: #2d3748;
             margin-bottom: 8px;
         }
-        
+
         .portal-subtitle {
             color: #718096;
             font-size: 1rem;
             margin-bottom: 30px;
         }
-        
+
         .status-section {
             margin-bottom: 30px;
         }
-        
+
         .status-indicator {
             display: inline-flex;
             align-items: center;
@@ -64,19 +68,19 @@
             font-weight: 500;
             margin-bottom: 20px;
         }
-        
+
         .status-connected {
             background: #f0fff4;
             color: #38a169;
             border: 1px solid #9ae6b4;
         }
-        
+
         .status-disconnected {
             background: #fff5f5;
             color: #e53e3e;
             border: 1px solid #feb2b2;
         }
-        
+
         .device-info {
             background: #f7fafc;
             border-radius: 8px;
@@ -84,12 +88,17 @@
             margin: 20px 0;
             font-size: 0.9rem;
             color: #4a5568;
+            text-align: center;
         }
-        
+
         .device-info div {
             margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
         }
-        
+
         .time-remaining-display {
             background: linear-gradient(135deg, #48bb78, #38a169);
             color: white;
@@ -98,19 +107,19 @@
             margin: 20px 0;
             text-align: center;
         }
-        
+
         .time-label {
             font-size: 0.9rem;
             opacity: 0.9;
             margin-bottom: 8px;
         }
-        
+
         .time-value {
             font-size: 1.8rem;
             font-weight: 700;
             letter-spacing: 1px;
         }
-        
+
         .main-button {
             width: 100%;
             padding: 16px;
@@ -122,27 +131,27 @@
             transition: all 0.2s ease;
             margin-bottom: 12px;
         }
-        
+
         .btn-primary {
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
         }
-        
+
         .btn-primary:hover {
             transform: translateY(-2px);
             box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
         }
-        
+
         .btn-success {
             background: linear-gradient(135deg, #48bb78, #38a169);
             color: white;
         }
-        
+
         .btn-success:hover {
             transform: translateY(-2px);
             box-shadow: 0 8px 16px rgba(72, 187, 120, 0.3);
         }
-        
+
         .secondary-button {
             background: none;
             border: 1px solid #e2e8f0;
@@ -154,11 +163,11 @@
             margin: 8px;
             transition: all 0.2s ease;
         }
-        
+
         .secondary-button:hover {
             background: #f7fafc;
         }
-        
+
         .coin-modal {
             display: none;
             position: fixed;
@@ -169,7 +178,7 @@
             background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
         }
-        
+
         .modal-content {
             position: absolute;
             top: 50%;
@@ -182,25 +191,32 @@
             width: 90%;
             text-align: center;
         }
-        
+
         .coin-icon {
             font-size: 3rem;
             margin-bottom: 16px;
             animation: pulse 2s infinite;
         }
-        
+
         @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
         }
-        
+
         .countdown {
             font-size: 1.2rem;
             font-weight: 600;
             color: #e53e3e;
             margin: 16px 0;
         }
-        
+
         .coin-stats {
             background: #f7fafc;
             border-radius: 8px;
@@ -208,13 +224,13 @@
             margin: 16px 0;
             font-size: 0.9rem;
         }
-        
+
         .coin-stats div {
             display: flex;
             justify-content: space-between;
             margin-bottom: 8px;
         }
-        
+
         .close-btn {
             position: absolute;
             top: 10px;
@@ -225,77 +241,130 @@
             cursor: pointer;
             color: #718096;
         }
-        
+
         .footer-text {
             margin-top: 30px;
             font-size: 0.8rem;
             color: #a0aec0;
         }
-        
+
         @media (max-width: 480px) {
             .portal-container {
                 padding: 30px 20px;
             }
-            
+
             .time-value {
                 font-size: 1.5rem;
             }
         }
     </style>
 </head>
+
 <body>
-    <div class="portal-container">
+    <% if (portalSettings.banner_image_url) { %>
+        <div style="position: absolute; top: 0; left: 0; width: 100%; max-height: 200px; overflow: hidden; background: #0f172a;">
+            <img src="<%= portalSettings.banner_image_url %>" alt="Portal banner" style="width: 100%; object-fit: cover; opacity: 0.9;">
+        </div>
+    <% } %>
+
+    <audio id="coinInsertAudio" src="<%= portalSettings.coin_insert_audio_url || '' %>" preload="auto"></audio>
+    <audio id="coinSuccessAudio" src="<%= portalSettings.coin_success_audio_url || '' %>" preload="auto"></audio>
+    <audio id="coinBgAudio" src="<%= portalSettings.coin_background_audio_url || '' %>" preload="auto" loop></audio>
+
+    <div class="portal-container" style="margin-top: <%= portalSettings.banner_image_url ? '160px' : '0' %>;">
         <!-- Portal Header -->
-        <div class="logo">📶</div>
-        <h1 class="portal-title"><%= portalSettings.portal_title %></h1>
-        <p class="portal-subtitle"><%= portalSettings.portal_subtitle %></p>
-        
+        <div class="logo">
+            <svg style="width: 2.5rem; height: 2.5rem; color: #667eea;" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4l2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/>
+            </svg>
+        </div>
+        <h1 class="portal-title">
+            <%= portalSettings.portal_title %>
+        </h1>
+        <p class="portal-subtitle">
+            <%= portalSettings.portal_subtitle %>
+        </p>
+
         <!-- Connection Status -->
         <div class="status-section">
             <div class="status-indicator <%= isAuthenticated ? 'status-connected' : 'status-disconnected' %>">
-                <span><%= isAuthenticated ? '✅' : '❌' %></span>
-                <span><%= isAuthenticated ? 'Connected' : 'Disconnected' %></span>
+                <span>
+                    <% if (isAuthenticated) { %>
+                        <svg style="width: 1rem; height: 1rem;" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+                    <% } else { %>
+                        <svg style="width: 1rem; height: 1rem;" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+                    <% } %>
+                </span>
+                <span>
+                    <%= isAuthenticated ? 'Connected' : 'Disconnected' %>
+                </span>
             </div>
-            
+
             <!-- Time Remaining Display (if authenticated) -->
             <% if (isAuthenticated && clientInfo) { %>
-            <div class="time-remaining-display">
-                <div class="time-label">Time Remaining</div>
-                <div class="time-value" id="timeRemaining"><%= clientInfo.time_remaining || 0 %></div>
-            </div>
-            <% } %>
-            
-            <!-- Device Info -->
-            <div class="device-info">
-                <div><strong>MAC:</strong> <%= clientMAC %></div>
-                <div><strong>IP:</strong> <%= clientIP %></div>
-                <div><strong>Internet:</strong> <%= wanStatus === 'connected' ? '✅ Online' : '❌ Offline' %></div>
-            </div>
+                <div class="time-remaining-display">
+                    <div class="time-label">Time Remaining</div>
+                    <div class="time-value" id="timeRemaining">
+                        <%= clientInfo.time_remaining || 0 %>
+                    </div>
+                </div>
+                <% } %>
+
+                    <!-- Device Info -->
+                    <div class="device-info">
+                        <div><strong>MAC:</strong>
+                            <%= clientMAC %>
+                        </div>
+                        <div><strong>IP:</strong>
+                            <%= clientIP %>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 4px;"><strong>Internet:</strong>
+                            <% if (wanStatus === 'connected') { %>
+                                <svg style="width: 0.9rem; height: 0.9rem; color: #38a169;" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg> Online
+                            <% } else { %>
+                                <svg style="width: 0.9rem; height: 0.9rem; color: #e53e3e;" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg> Offline
+                            <% } %>
+                        </div>
+                    </div>
         </div>
-        
+
         <!-- Main Action Buttons -->
         <div class="action-section">
             <% if (isAuthenticated && clientInfo) { %>
                 <!-- Connected State -->
-                <button class="main-button btn-success" onclick="window.open('http://www.google.com', '_blank')">
-                    🌐 Access Internet
+                <button class="main-button btn-success" onclick="window.open('http://www.google.com', '_blank')" style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <svg style="width: 1.2rem; height: 1.2rem;" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                    Access Internet
                 </button>
-                <button class="secondary-button" onclick="showCoinModal()">
-                    ⏱️ Add More Time
+                
+                <!-- Pause/Resume Button -->
+                <button id="pauseResumeBtn" class="secondary-button" onclick="togglePauseResume()" style="display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                    <svg id="pauseResumeIcon" style="width: 1rem; height: 1rem;" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                    </svg>
+                    <span id="pauseResumeText">Pause Session</span>
                 </button>
-            <% } else { %>
-                <!-- Disconnected State -->
-                <button class="main-button btn-primary" onclick="showCoinModal()">
-                    🪙 Insert Coin
+                
+                <button class="secondary-button" onclick="showCoinModal()" style="display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                    <svg style="width: 1rem; height: 1rem;" fill="currentColor" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                    Add More Time
                 </button>
-                <button class="secondary-button" onclick="showRates()">
-                    💰 View Rates
-                </button>
-            <% } %>
+                <% } else { %>
+                    <!-- Disconnected State -->
+                    <button class="main-button btn-primary" onclick="showCoinModal()" style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <svg style="width: 1.2rem; height: 1.2rem;" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/></svg>
+                        Insert Coin
+                    </button>
+                    <button class="secondary-button" onclick="showRates()" style="display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                        <svg style="width: 1rem; height: 1rem;" fill="currentColor" viewBox="0 0 24 24"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>
+                        View Rates
+                    </button>
+                    <% } %>
         </div>
-        
-        <div class="footer-text">
-            🛡️ Secure WiFi Connection
+
+        <div class="footer-text" style="display: flex; align-items: center; justify-content: center; gap: 6px;">
+            <svg style="width: 0.9rem; height: 0.9rem;" fill="currentColor" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+            Secure WiFi Connection
         </div>
     </div>
 
@@ -303,15 +372,21 @@
     <div class="coin-modal" id="coinModal">
         <div class="modal-content">
             <button class="close-btn" onclick="closeCoinModal()">&times;</button>
-            
-            <div class="coin-icon">🪙</div>
+
+            <div class="coin-icon">
+                <svg style="width: 3rem; height: 3rem; color: #f59e0b;" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/>
+                </svg>
+            </div>
             <h3>Insert Coins</h3>
             <p>Insert coins to get internet access</p>
-            
+
             <div class="countdown">
-                Time left: <span id="timeLeft"><%= portalSettings.coin_timeout %></span>
+                Time left: <span id="timeLeft">
+                    <%= portalSettings.coin_timeout || 60 %>
+                </span>
             </div>
-            
+
             <div class="coin-stats">
                 <div>
                     <span>Coins:</span>
@@ -322,26 +397,31 @@
                     <span id="timeCount">0 min</span>
                 </div>
             </div>
-            
+
             <!-- Coin Denomination Buttons -->
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 16px 0;">
-                <button onclick="addCoinToQueue(1, 1)" class="secondary-button" style="background: #f0f9ff; border-color: #0ea5e9; color: #0ea5e9;">
+                <button onclick="addCoinToQueue(1, 1)" class="secondary-button"
+                    style="background: #f0f9ff; border-color: #0ea5e9; color: #0ea5e9;">
                     +₱1
                 </button>
-                <button onclick="addCoinToQueue(5, 1)" class="secondary-button" style="background: #fef3c7; border-color: #f59e0b; color: #f59e0b;">
+                <button onclick="addCoinToQueue(5, 1)" class="secondary-button"
+                    style="background: #fef3c7; border-color: #f59e0b; color: #f59e0b;">
                     +₱5
                 </button>
-                <button onclick="addCoinToQueue(10, 1)" class="secondary-button" style="background: #f0fdf4; border-color: #22c55e; color: #22c55e;">
+                <button onclick="addCoinToQueue(10, 1)" class="secondary-button"
+                    style="background: #f0fdf4; border-color: #22c55e; color: #22c55e;">
                     +₱10
                 </button>
             </div>
-            
-            <button class="main-button btn-success" onclick="connectNow()" id="connectBtn" disabled>
-                ▶️ Connect Now
+
+            <button class="main-button btn-success" onclick="connectNow()" id="connectBtn" disabled style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                <svg style="width: 1rem; height: 1rem;" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                Connect Now
             </button>
-            
-            <button class="secondary-button" onclick="testCoin()">
-                🧪 Test Coin
+
+            <button class="secondary-button" onclick="testCoin()" style="display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                <svg style="width: 1rem; height: 1rem;" fill="currentColor" viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+                Test Coin
             </button>
         </div>
     </div>
@@ -350,12 +430,13 @@
     <div class="coin-modal" id="ratesModal">
         <div class="modal-content">
             <button class="close-btn" onclick="closeRatesModal()">&times;</button>
-            
+
             <h3>WiFi Rates</h3>
+            <script src="https://cdn.tailwindcss.com"></script>
             <div id="ratesList" style="margin: 20px 0; text-align: left;">
                 Loading rates...
             </div>
-            
+
             <button class="secondary-button" onclick="closeRatesModal()">
                 Close
             </button>
@@ -363,8 +444,9 @@
     </div>
 
     <script>
+        const portalTimeout = Number(<%= portalSettings.coin_timeout || 60 %>);
         let countdown;
-        let timeLeft = <%= portalSettings.coin_timeout %>;
+        let timeLeft = portalTimeout;
         let coinsInserted = 0;
         let totalTime = 0;
         let totalValue = 0;
@@ -372,28 +454,37 @@
         let claimedSlot = null;
         let clientIP = '<%= clientIP %>';
         let clientMAC = '<%= clientMAC %>';
-        
+        let sessionToken = '<%= sessionToken %>';
+        const coinInsertAudio = document.getElementById('coinInsertAudio');
+        const coinSuccessAudio = document.getElementById('coinSuccessAudio');
+        const coinBgAudio = document.getElementById('coinBgAudio');
+
         // Default rate (will be updated when rates load)
         let coinValue = 5.00;
         let timePerCoin = 30; // minutes
-        
+
         // Initialize Socket.IO for real-time coin detection
         try {
             socket = io();
-            
-            socket.on('connect', function() {
+
+            socket.on('connect', function () {
                 console.log('Connected to server for coin detection');
             });
-            
-            socket.on('coin-detected', function(data) {
+
+            socket.on('coin-detected', function (data) {
                 console.log('Coin detected via socket:', data);
                 if (document.getElementById('coinModal').style.display === 'block' && claimedSlot) {
                     // Add coin to queue via API
                     addCoinToQueue(data.value || coinValue, 1);
                 }
+                // Play coin insert sound if configured
+                if (coinInsertAudio && coinInsertAudio.src) {
+                    coinInsertAudio.currentTime = 0;
+                    coinInsertAudio.play().catch(() => {});
+                }
             });
-            
-            socket.on('coin-slot-claimed', function(data) {
+
+            socket.on('coin-slot-claimed', function (data) {
                 console.log('Coin slot claimed:', data);
                 if (data.clientIp === clientIP) {
                     claimedSlot = data.slot;
@@ -404,8 +495,8 @@
                     }
                 }
             });
-            
-            socket.on('coin-slot-released', function(data) {
+
+            socket.on('coin-slot-released', function (data) {
                 console.log('Coin slot released:', data);
                 if (data.clientIp === clientIP || (claimedSlot && data.slot && data.slot.slot_number === claimedSlot.slot_number)) {
                     claimedSlot = null;
@@ -414,108 +505,108 @@
                     }
                 }
             });
-            
-            socket.on('coin-added', function(data) {
+
+            socket.on('coin-added', function (data) {
                 console.log('Coin added to queue:', data);
                 if (data.clientIp === clientIP) {
                     updateCoinDisplayFromQueue(data.total);
                 }
             });
-            
-            socket.on('disconnect', function() {
+
+            socket.on('disconnect', function () {
                 console.log('Disconnected from server');
             });
         } catch (error) {
             console.warn('Socket.IO not available:', error);
         }
-        
+
         // Format time remaining function
         function formatTime(totalSeconds) {
             if (totalSeconds <= 0) return '0secs';
-            
+
             const days = Math.floor(totalSeconds / 86400);
             const hours = Math.floor((totalSeconds % 86400) / 3600);
             const minutes = Math.floor((totalSeconds % 3600) / 60);
             const seconds = totalSeconds % 60;
-            
+
             const parts = [];
             if (days > 0) parts.push(`${days}day${days > 1 ? 's' : ''}`);
             if (hours > 0) parts.push(`${hours}hr${hours > 1 ? 's' : ''}`);
             if (minutes > 0) parts.push(`${minutes}min${minutes > 1 ? 's' : ''}`);
             if (seconds > 0) parts.push(`${seconds}sec${seconds > 1 ? 's' : ''}`);
-            
+
             return parts.join(', ');
         }
-        
+
         // Initialize time display if authenticated
         <% if (isAuthenticated && clientInfo) { %>
-        document.addEventListener('DOMContentLoaded', function() {
-            const timeRemainingElement = document.getElementById('timeRemaining');
-            if (timeRemainingElement) {
-                // Initialize with server value
-                let currentTime = parseInt('<%= clientInfo.time_remaining || 0 %>');
-                timeRemainingElement.textContent = formatTime(currentTime);
-                
-                // Update from server every 5 seconds instead of local countdown
-                const updateFromServer = () => {
-                    fetch('/portal/session-status')
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.authenticated) {
-                                currentTime = data.time_remaining;
-                                timeRemainingElement.textContent = formatTime(currentTime);
-                                
-                                if (currentTime <= 0) {
-                                    setTimeout(() => window.location.reload(), 1000);
+            document.addEventListener('DOMContentLoaded', function () {
+                const timeRemainingElement = document.getElementById('timeRemaining');
+                if (timeRemainingElement) {
+                    // Initialize with server value
+                    let currentTime = parseInt('<%= clientInfo.time_remaining || 0 %>');
+                    timeRemainingElement.textContent = formatTime(currentTime);
+
+                    // Update from server every 5 seconds instead of local countdown
+                    const updateFromServer = () => {
+                        fetch('/portal/session-status')
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.authenticated) {
+                                    currentTime = data.time_remaining;
+                                    timeRemainingElement.textContent = formatTime(currentTime);
+
+                                    if (currentTime <= 0) {
+                                        setTimeout(() => window.location.reload(), 1000);
+                                    }
+                                } else {
+                                    // Client is no longer authenticated
+                                    window.location.reload();
                                 }
-                            } else {
-                                // Client is no longer authenticated
-                                window.location.reload();
+                            })
+                            .catch(error => {
+                                console.warn('Failed to update time from server:', error);
+                                // Fallback to local countdown for this interval
+                                if (currentTime > 0) {
+                                    currentTime = Math.max(0, currentTime - 5); // Subtract 5 seconds
+                                    timeRemainingElement.textContent = formatTime(currentTime);
+                                }
+                            });
+                    };
+
+                    // Update from server every 5 seconds
+                    setInterval(updateFromServer, 5000);
+
+                    // Also do local countdown every second for smooth display
+                    setInterval(() => {
+                        if (currentTime > 0) {
+                            currentTime--;
+                            timeRemainingElement.textContent = formatTime(currentTime);
+
+                            if (currentTime <= 0) {
+                                timeRemainingElement.textContent = 'Expired';
+                                setTimeout(() => window.location.reload(), 1000);
                             }
-                        })
-                        .catch(error => {
-                            console.warn('Failed to update time from server:', error);
-                            // Fallback to local countdown for this interval
-                            if (currentTime > 0) {
-                                currentTime = Math.max(0, currentTime - 5); // Subtract 5 seconds
-                                timeRemainingElement.textContent = formatTime(currentTime);
-                            }
-                        });
-                };
-                
-                // Update from server every 5 seconds
-                setInterval(updateFromServer, 5000);
-                
-                // Also do local countdown every second for smooth display
-                setInterval(() => {
-                    if (currentTime > 0) {
-                        currentTime--;
-                        timeRemainingElement.textContent = formatTime(currentTime);
-                        
-                        if (currentTime <= 0) {
-                            timeRemainingElement.textContent = 'Expired';
-                            setTimeout(() => window.location.reload(), 1000);
                         }
-                    }
-                }, 1000);
-            }
-        });
+                    }, 1000);
+                }
+            });
         <% } %>
-        
-        // Load rates on page start
-        loadRates();
-        
+
+            // Load rates on page start
+            loadRates();
+
         async function loadRates() {
             try {
                 const response = await fetch('/api/rates');
                 const rates = await response.json();
-                
+
                 if (rates.length > 0) {
                     const defaultRate = rates[0];
                     coinValue = defaultRate.price / defaultRate.coins_required;
                     timePerCoin = Math.floor(defaultRate.duration / 60 / defaultRate.coins_required);
                 }
-                
+
                 // Update rates modal
                 const ratesList = document.getElementById('ratesList');
                 if (rates.length === 0) {
@@ -538,7 +629,7 @@
                 console.error('Failed to load rates:', error);
             }
         }
-        
+
         async function showCoinModal() {
             // Try to claim coin slot 1 (Orange Pi standalone has only one physical coin slot)
             try {
@@ -548,19 +639,27 @@
                     body: JSON.stringify({
                         clientIp: clientIP,
                         clientMac: clientMAC,
-                        timeoutMinutes: Math.max(<%= portalSettings.coin_timeout %> / 60, 5) // Use portal timeout or minimum 5 minutes
+                        sessionToken: sessionToken,
+                        timeoutMinutes: Math.max(portalTimeout / 60, 5) // Use portal timeout or minimum 5 minutes
                     })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     claimedSlot = data.slot;
                     console.log('Claimed coin slot 1:', claimedSlot.slot_number);
-                    
+
                     document.getElementById('coinModal').style.display = 'block';
                     startCountdown();
                     await loadExistingQueue();
+
+                        // Start background audio if configured
+                        if (coinBgAudio && coinBgAudio.src) {
+                            coinBgAudio.currentTime = 0;
+                            coinBgAudio.volume = 0.5;
+                            coinBgAudio.play().catch(() => {});
+                        }
                 } else {
                     // Orange Pi has only one coin slot, so show appropriate message
                     console.warn('Coin slot 1 is busy:', data.error);
@@ -572,11 +671,11 @@
                 alert('Unable to access coin slot system. The hardware may be busy or unavailable.');
             }
         }
-        
+
         async function closeCoinModal() {
             document.getElementById('coinModal').style.display = 'none';
             if (countdown) clearInterval(countdown);
-            
+
             // Release the claimed slot but preserve queued coins
             if (claimedSlot) {
                 try {
@@ -595,39 +694,46 @@
                 }
                 claimedSlot = null;
             }
-            
+
+                // Stop background audio when closing
+                if (coinBgAudio) {
+                    coinBgAudio.pause();
+                }
+
             // Show a message if there are queued coins
             if (totalValue > 0) {
                 console.log(`You have ₱${totalValue.toFixed(2)} in queued coins that will be saved for your next visit`);
             }
         }
-        
+
         function showRates() {
             document.getElementById('ratesModal').style.display = 'block';
         }
-        
+
         function closeRatesModal() {
             document.getElementById('ratesModal').style.display = 'none';
         }
-        
+
         function startCountdown() {
             // Use the actual slot expiration time from the server
             if (claimedSlot && claimedSlot.expires_at) {
                 const expiresAt = new Date(claimedSlot.expires_at);
                 updateCountdownDisplay(expiresAt);
-                
+
                 countdown = setInterval(() => {
                     updateCountdownDisplay(expiresAt);
                 }, 1000);
             } else {
                 // Fallback to portal settings timeout
-                timeLeft = <%= portalSettings.coin_timeout %>;
+                timeLeft = portalTimeout;
+                    timeLeft = portalTimeout;
+                    timeLeft = portalTimeout;
                 document.getElementById('timeLeft').textContent = timeLeft;
-                
+
                 countdown = setInterval(() => {
                     timeLeft--;
                     document.getElementById('timeLeft').textContent = timeLeft;
-                    
+
                     if (timeLeft <= 0) {
                         clearInterval(countdown);
                         closeCoinModal();
@@ -635,19 +741,19 @@
                 }, 1000);
             }
         }
-        
+
         function updateCountdownDisplay(expiresAt) {
             const now = new Date();
             const remainingMs = expiresAt - now;
-            
+
             if (remainingMs > 0) {
                 const minutes = Math.floor(remainingMs / 60000);
                 const seconds = Math.floor((remainingMs % 60000) / 1000);
                 const timeLeftSeconds = Math.floor(remainingMs / 1000);
-                
+
                 // Update display with MM:SS format
                 document.getElementById('timeLeft').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-                
+
                 // Update global timeLeft for compatibility
                 timeLeft = timeLeftSeconds;
             } else {
@@ -656,19 +762,20 @@
                 closeCoinModal();
             }
         }
-        
+
         async function loadExistingQueue() {
             try {
                 // Load any existing queues for this client (including preserved ones)
-                const response = await fetch(`/api/coin-slots/queues/client?clientIp=${encodeURIComponent(clientIP)}&clientMac=${encodeURIComponent(clientMAC)}&includePreserved=true`);
+                // Uses session token for random MAC address support
+                const response = await fetch(`/api/coin-slots/queues/client?clientIp=${encodeURIComponent(clientIP)}&clientMac=${encodeURIComponent(clientMAC)}&sessionToken=${encodeURIComponent(sessionToken)}&includePreserved=true`);
                 const data = await response.json();
-                
+
                 if (data.success && data.total) {
                     updateCoinDisplayFromQueue(data.total);
-                    
+
                     // Show message if coins were restored from previous session
                     if (data.total.total_coins > 0 && data.preserved) {
-                        const welcomeMsg = `💰 Welcome back! You have ₱${data.total.total_value} in saved coins from your previous visit.`;
+                        const welcomeMsg = `Welcome back! You have ₱${data.total.total_value} in saved coins from your previous visit.`;
                         setTimeout(() => {
                             const coinStats = document.querySelector('.coin-stats');
                             if (coinStats) {
@@ -676,7 +783,7 @@
                                 welcomeDiv.className = 'bg-green-50 border border-green-200 rounded p-2 mt-2 text-sm text-green-700';
                                 welcomeDiv.textContent = welcomeMsg;
                                 coinStats.parentNode.insertBefore(welcomeDiv, coinStats.nextSibling);
-                                
+
                                 // Remove message after 5 seconds
                                 setTimeout(() => {
                                     if (welcomeDiv.parentNode) {
@@ -694,30 +801,30 @@
                 resetCoins();
             }
         }
-        
+
         function resetCoins() {
             coinsInserted = 0;
             totalTime = 0;
             totalValue = 0;
             updateCoinDisplay();
         }
-        
+
         async function testCoin() {
             if (!claimedSlot) {
                 alert('No coin slot claimed. Please try again.');
                 return;
             }
-            
+
             // Add test coin to queue
             await addCoinToQueue(coinValue, 1);
         }
-        
+
         async function addCoinToQueue(value, count = 1) {
             if (!claimedSlot) {
                 console.warn('No slot claimed, cannot add coin');
                 return;
             }
-            
+
             try {
                 const response = await fetch(`/api/coin-slots/slots/${claimedSlot.slot_number}/add-coin`, {
                     method: 'POST',
@@ -725,15 +832,16 @@
                     body: JSON.stringify({
                         clientIp: clientIP,
                         clientMac: clientMAC,
+                        sessionToken: sessionToken,
                         coinValue: value,
                         coinCount: count
                     })
                 });
-                
+
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('HTTP Error:', response.status, response.statusText, errorText);
-                    
+
                     // Handle 403 Forbidden (slot not claimed) by attempting to reclaim
                     if (response.status === 403) {
                         console.log('Slot not claimed, attempting to reclaim...');
@@ -744,10 +852,11 @@
                                 body: JSON.stringify({
                                     clientIp: clientIP,
                                     clientMac: clientMAC,
-                                    timeoutMinutes: Math.max(<%= portalSettings.coin_timeout %> / 60, 5)
+                                    sessionToken: sessionToken,
+                                    timeoutMinutes: Math.max(portalTimeout / 60, 5)
                                 })
                             });
-                            
+
                             const reclaimData = await reclaimResponse.json();
                             if (reclaimData.success) {
                                 claimedSlot = reclaimData.slot;
@@ -764,11 +873,11 @@
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                 }
-                
+
                 const data = await response.json();
                 if (data.success) {
                     updateCoinDisplayFromQueue(data.total);
-                    
+
                     // Visual feedback
                     const coinIcon = document.querySelector('.coin-icon');
                     if (coinIcon) {
@@ -777,7 +886,7 @@
                             coinIcon.style.animation = 'pulse 2s infinite';
                         }, 600);
                     }
-                    
+
                     console.log('Coin added successfully:', data.message);
                 } else {
                     console.error('Failed to add coin to queue:', data.error);
@@ -788,11 +897,11 @@
                 alert('Error adding coin: ' + error.message);
             }
         }
-        
+
         function updateCoinDisplayFromQueue(queueTotal) {
             coinsInserted = queueTotal.total_coins || 0;
             totalValue = parseFloat(queueTotal.total_value) || 0;
-            
+
             // Calculate time based on loaded rates or fallback
             if (totalValue > 0 && coinValue > 0) {
                 totalTime = Math.floor((totalValue / coinValue) * timePerCoin);
@@ -800,9 +909,9 @@
                 // Fallback calculation: assume 5 pesos = 30 minutes
                 totalTime = Math.floor((totalValue / 5) * 30);
             }
-            
+
             updateCoinDisplay();
-            
+
             // Enable connect button if coins added
             const connectBtn = document.getElementById('connectBtn');
             if (coinsInserted > 0) {
@@ -810,22 +919,22 @@
                 connectBtn.style.opacity = '1';
             }
         }
-        
+
         function updateCoinDisplay() {
             document.getElementById('coinCount').textContent = '₱' + totalValue.toFixed(2);
             document.getElementById('timeCount').textContent = totalTime + ' min';
         }
-        
+
         async function connectNow() {
             if (coinsInserted === 0 || totalValue === 0) {
                 alert('Please insert coins first');
                 return;
             }
-            
+
             const connectBtn = document.getElementById('connectBtn');
             connectBtn.textContent = '⏳ Redeeming coins...';
             connectBtn.disabled = true;
-            
+
             try {
                 // First, redeem all queued coins
                 const redeemResponse = await fetch('/api/coin-slots/queues/redeem', {
@@ -833,38 +942,40 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         clientIp: clientIP,
-                        clientMac: clientMAC
+                        clientMac: clientMAC,
+                        sessionToken: sessionToken
                     })
                 });
-                
+
                 if (!redeemResponse.ok) {
                     const errorText = await redeemResponse.text();
                     console.error('Redeem error:', redeemResponse.status, errorText);
                     throw new Error(`Failed to redeem coins: HTTP ${redeemResponse.status}`);
                 }
-                
+
                 const redeemData = await redeemResponse.json();
                 if (!redeemData.success) {
                     throw new Error('Failed to redeem coins: ' + redeemData.error);
                 }
-                
+
                 console.log('Coins redeemed successfully:', redeemData);
-                
+
                 connectBtn.textContent = '⏳ Connecting...';
-                
+
                 console.log('Connecting with redeemed coins:', {
                     coinsInserted: redeemData.totalCoins,
                     totalValue: redeemData.totalValue,
                     duration: totalTime * 60,
                     macAddress: 'auto-detect'
                 });
-                
+
                 const response = await fetch('/portal/connect', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         coinsInserted: redeemData.totalCoins,
                         duration: totalTime * 60, // Convert to seconds
+                        sessionToken: sessionToken,
                         macAddress: clientMAC || 'auto-detect',
                         deviceInfo: {
                             userAgent: navigator.userAgent,
@@ -876,19 +987,25 @@
                         }
                     })
                 });
-                
+
                 console.log('Connect response status:', response.status);
-                
+
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
-                
+
                 const data = await response.json();
                 console.log('Connect response data:', data);
-                
+
                 if (data.success) {
-                    connectBtn.textContent = '✅ Connected!';
-                    
+                    connectBtn.innerHTML = '<svg style="width: 1rem; height: 1rem; margin-right: 6px;" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg> Connected!';
+
+                    // Play success sound
+                    if (coinSuccessAudio && coinSuccessAudio.src) {
+                        coinSuccessAudio.currentTime = 0;
+                        coinSuccessAudio.play().catch(() => {});
+                    }
+
                     // Release the slot since we're done
                     if (claimedSlot) {
                         await fetch(`/api/coin-slots/slots/${claimedSlot.slot_number}/release`, {
@@ -896,16 +1013,17 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 clientIp: clientIP,
-                                clientMac: clientMAC
+                                clientMac: clientMAC,
+                                sessionToken: sessionToken
                             })
                         });
                         claimedSlot = null;
                     }
-                    
+
                     // Show success message with connection details
                     const successMessage = `
                         <div class="bg-green-50 border border-green-200 rounded p-4 mb-4">
-                            <h4 class="text-green-800 font-semibold">✅ Internet Access Granted!</h4>
+                            <h4 class="text-green-800 font-semibold">Internet Access Granted!</h4>
                             <p class="text-green-700 text-sm mt-2">
                                 • Duration: ${Math.floor(data.duration / 60)} minutes<br>
                                 • Amount Paid: ₱${data.amount_paid.toFixed(2)}<br>
@@ -913,38 +1031,38 @@
                             </p>
                         </div>
                     `;
-                    
+
                     // Insert success message before coin modal content
                     const modalContent = document.querySelector('.modal-content');
                     modalContent.insertAdjacentHTML('afterbegin', successMessage);
-                    
+
                     setTimeout(() => {
                         closeCoinModal();
                         // Redirect to show authorized state
                         window.location.reload();
                     }, 3000);
                 } else {
-                    connectBtn.textContent = '❌ Failed: ' + (data.error || 'Unknown error');
+                    connectBtn.innerHTML = '<svg style="width: 1rem; height: 1rem; margin-right: 6px;" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg> Failed: ' + (data.error || 'Unknown error');
                     setTimeout(() => {
-                        connectBtn.textContent = '▶️ Connect Now';
+                        connectBtn.innerHTML = '<svg style="width: 1rem; height: 1rem; margin-right: 6px;" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Connect Now';
                         connectBtn.disabled = false;
                     }, 3000);
                 }
             } catch (error) {
                 console.error('Connection error:', error);
-                connectBtn.textContent = '❌ Error: ' + error.message;
+                connectBtn.innerHTML = '<svg style="width: 1rem; height: 1rem; margin-right: 6px;" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg> Error: ' + error.message;
                 setTimeout(() => {
-                    connectBtn.textContent = '▶️ Connect Now';
+                    connectBtn.innerHTML = '<svg style="width: 1rem; height: 1rem; margin-right: 6px;" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Connect Now';
                     connectBtn.disabled = false;
                 }, 3000);
             }
         }
-        
+
         // Close modals when clicking outside
-        window.onclick = function(event) {
+        window.onclick = function (event) {
             const coinModal = document.getElementById('coinModal');
             const ratesModal = document.getElementById('ratesModal');
-            
+
             if (event.target === coinModal) {
                 closeCoinModal();
             }
@@ -952,20 +1070,73 @@
                 closeRatesModal();
             }
         }
-        
-        // Auto-refresh for authenticated users
-        <% if (isAuthenticated && clientInfo) { %>
-        setInterval(() => {
-            fetch('/portal/session-status')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.time_remaining <= 0) {
-                        window.location.reload();
+
+        // Pause/Resume session toggle
+        let isPaused = false;
+        async function togglePauseResume() {
+            const btn = document.getElementById('pauseResumeBtn');
+            const icon = document.getElementById('pauseResumeIcon');
+            const text = document.getElementById('pauseResumeText');
+            
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/portal/pause-resume', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sessionToken: sessionToken,
+                        mac_address: clientMAC
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    isPaused = data.status === 'PAUSED';
+                    
+                    if (isPaused) {
+                        // Update to "Resume" state
+                        icon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+                        text.textContent = 'Resume Session';
+                        btn.style.background = '#f0fdf4';
+                        btn.style.borderColor = '#22c55e';
+                        btn.style.color = '#22c55e';
+                    } else {
+                        // Update to "Pause" state
+                        icon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+                        text.textContent = 'Pause Session';
+                        btn.style.background = '';
+                        btn.style.borderColor = '';
+                        btn.style.color = '';
                     }
-                })
-                .catch(error => console.warn('Failed to check session status'));
-        }, 60000); // Check every minute
+                    
+                    console.log(data.message);
+                } else {
+                    alert('Failed to ' + (isPaused ? 'resume' : 'pause') + ' session');
+                }
+            } catch (error) {
+                console.error('Pause/Resume error:', error);
+                alert('Failed to toggle session state');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+            // Auto-refresh for authenticated users
+            <% if (isAuthenticated && clientInfo) { %>
+                setInterval(() => {
+                    fetch('/portal/session-status')
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.time_remaining <= 0) {
+                                window.location.reload();
+                            }
+                        })
+                        .catch(error => console.warn('Failed to check session status'));
+                }, 60000); // Check every minute
         <% } %>
     </script>
 </body>
+
 </html>

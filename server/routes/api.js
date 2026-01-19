@@ -6,11 +6,14 @@ router.use('/clients', require('./api/clients'));
 router.use('/settings', require('./api/settings'));
 router.use('/network', require('./api/network'));
 router.use('/coin-slots', require('./api/coin-slots'));
+router.use('/transactions', require('./api/transactions'));
+router.use('/device', require('./api/device'));
 
 // Keep existing general API routes
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const db = require('../db/sqlite-adapter');
+const { isValidMacAddress, sanitizeMacAddress } = require('../utils/validators');
 
 const execAsync = promisify(exec);
 
@@ -21,6 +24,11 @@ router.post('/clients/authenticate', async (req, res) => {
 
     if (!macAddress) {
       return res.status(400).json({ error: 'MAC address is required' });
+    }
+
+    // SECURITY: Validate MAC address format to prevent command injection
+    if (!isValidMacAddress(macAddress)) {
+      return res.status(400).json({ error: 'Invalid MAC address format' });
     }
 
     // Find or create client
@@ -52,17 +60,19 @@ router.post('/clients/authenticate', async (req, res) => {
 
     // Allow client through iptables
     try {
-      await execAsync(`pisowifi-allow-client ${macAddress}`);
-      
+      // SECURITY: MAC address already validated, sanitize again before shell execution
+      const safeMac = sanitizeMacAddress(macAddress);
+      await execAsync(`pisowifi-allow-client ${safeMac}`);
+
       // Log successful authentication
       await db.query(
         'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
         ['INFO', `Client authenticated: ${macAddress}`, 'network', JSON.stringify({ ipAddress, sessionId: session.id })]
       );
-      
+
     } catch (iptablesError) {
       console.error('Failed to configure iptables:', iptablesError);
-      
+
       await db.query(
         'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
         ['ERROR', `Failed to authenticate client in iptables: ${macAddress}`, 'network', JSON.stringify({ error: iptablesError.message })]
@@ -82,7 +92,7 @@ router.post('/clients/authenticate', async (req, res) => {
 
   } catch (error) {
     console.error('Client authentication error:', error);
-    
+
     await db.query(
       'INSERT INTO system_logs (level, message, category) VALUES ($1, $2, $3)',
       ['ERROR', `Client authentication failed: ${error.message}`, 'network']
@@ -101,12 +111,19 @@ router.post('/clients/disconnect', async (req, res) => {
       return res.status(400).json({ error: 'MAC address is required' });
     }
 
+    // SECURITY: Validate MAC address format to prevent command injection
+    if (!isValidMacAddress(macAddress)) {
+      return res.status(400).json({ error: 'Invalid MAC address format' });
+    }
+
     // Update client status
     await db.query('UPDATE clients SET status = $1 WHERE mac_address = $2', ['DISCONNECTED', macAddress]);
 
     // Block client in iptables
     try {
-      await execAsync(`pisowifi-block-client ${macAddress}`);
+      // SECURITY: MAC address already validated, sanitize again before shell execution
+      const safeMac = sanitizeMacAddress(macAddress);
+      await execAsync(`pisowifi-block-client ${safeMac}`);
     } catch (iptablesError) {
       console.error('Failed to block client:', iptablesError);
     }

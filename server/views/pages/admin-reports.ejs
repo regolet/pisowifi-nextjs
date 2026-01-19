@@ -1,316 +1,377 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales Reports - PISOWifi Admin</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        /* Compact table styling */
+        table th,
+        table td {
+            padding: 0.5rem 1rem !important;
+        }
+        table tbody tr {
+            height: auto !important;
+        }
+
         /* Export button animation */
         .export-btn {
             transition: all 0.3s ease;
         }
+
         .export-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }
-        
+
         /* Chart container styling */
         .chart-container {
             position: relative;
             height: 300px;
             width: 100%;
         }
-        
+
         /* Loading spinner animation */
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
+
         .animate-spin {
             animation: spin 1s linear infinite;
         }
-        
+
         /* Highlight animation for updated stats */
         @keyframes highlight {
-            0% { background-color: #fef3c7; }
-            100% { background-color: transparent; }
+            0% {
+                background-color: #fef3c7;
+            }
+
+            100% {
+                background-color: transparent;
+            }
         }
+
         .highlight {
             animation: highlight 1s ease-in-out;
         }
     </style>
 </head>
-<body class="bg-gray-200 flex h-screen">
-    <%- include('../partials/admin-sidebar', { currentPage: 'reports' }) %>
-    
-    <!-- Main Content -->
-    <div class="flex-1 overflow-y-auto">
-        <div class="p-6">
-            <div class="mb-6">
-                <h1 class="text-xl font-bold text-black">Sales Reports</h1>
-                <p class="text-sm text-gray-600 mt-1">Revenue tracking and financial analytics</p>
-            </div>
 
-            <!-- Date Range Selector -->
-            <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
-                <div class="px-4 py-3 border-b border-gray-300">
-                    <h2 class="text-sm font-semibold text-black">Report Settings</h2>
+<body class="bg-gray-200 min-h-screen lg:flex">
+    <%- include('../partials/admin-sidebar', { currentPage: 'reports' }) %>
+
+        <!-- Main Content -->
+        <div class="flex-1 overflow-y-auto pt-14 lg:pt-0 lg:ml-0">
+            <div class="p-6">
+                <div class="mb-6">
+                    <h1 class="text-xl font-bold text-black">Sales Reports</h1>
+                    <p class="text-sm text-gray-600 mt-1">Revenue tracking and financial analytics</p>
                 </div>
-                <div class="p-4">
-                    <form id="report-form" class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div>
-                            <label class="block text-black text-sm font-medium mb-2">Start Date</label>
-                            <input type="date" id="start_date" name="start_date" 
-                                   class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black"
-                                   value="">
-                        </div>
-                        <div>
-                            <label class="block text-black text-sm font-medium mb-2">End Date</label>
-                            <input type="date" id="end_date" name="end_date" 
-                                   class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black"
-                                   value="">
-                        </div>
-                        <div>
-                            <label class="block text-black text-sm font-medium mb-2">Report Type</label>
-                            <select id="report_type" name="report_type" 
+
+                <!-- Date Range Selector -->
+                <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
+                    <div class="px-4 py-3 border-b border-gray-300">
+                        <h2 class="text-sm font-semibold text-black">Report Settings</h2>
+                    </div>
+                    <div class="p-4">
+                        <form id="report-form" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div>
+                                <label class="block text-black text-sm font-medium mb-2">Start Date</label>
+                                <input type="date" id="start_date" name="start_date"
+                                    class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black"
+                                    value="">
+                            </div>
+                            <div>
+                                <label class="block text-black text-sm font-medium mb-2">End Date</label>
+                                <input type="date" id="end_date" name="end_date"
+                                    class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black"
+                                    value="">
+                            </div>
+                            <div>
+                                <label class="block text-black text-sm font-medium mb-2">Report Type</label>
+                                <select id="report_type" name="report_type"
                                     class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-lg text-black">
-                                <option value="daily">Daily Summary</option>
-                                <option value="weekly">Weekly Summary</option>
-                                <option value="monthly">Monthly Summary</option>
+                                    <option value="daily">Daily Summary</option>
+                                    <option value="weekly">Weekly Summary</option>
+                                    <option value="monthly">Monthly Summary</option>
+                                </select>
+                            </div>
+                            <div class="flex items-end">
+                                <button type="submit"
+                                    class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+                                    Generate Report
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Summary Statistics -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <div class="p-2 bg-green-100 rounded-lg">
+                                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1">
+                                    </path>
+                                </svg>
+                            </div>
+                            <div class="ml-4">
+                                <p class="text-sm text-gray-600">Total Revenue</p>
+                                <p class="text-xl font-semibold text-black" id="total-revenue">₱0.00</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <div class="p-2 bg-blue-100 rounded-lg">
+                                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z">
+                                    </path>
+                                </svg>
+                            </div>
+                            <div class="ml-4">
+                                <p class="text-sm text-gray-600">Total Sessions</p>
+                                <p class="text-xl font-semibold text-black" id="total-sessions">0</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <div class="p-2 bg-yellow-100 rounded-lg">
+                                <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7">
+                                    </path>
+                                </svg>
+                            </div>
+                            <div class="ml-4">
+                                <p class="text-sm text-gray-600">Avg. Session Value</p>
+                                <p class="text-xl font-semibold text-black" id="avg-session-value">₱0.00</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <div class="p-2 bg-purple-100 rounded-lg">
+                                <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                                </svg>
+                            </div>
+                            <div class="ml-4">
+                                <p class="text-sm text-gray-600">Daily Average</p>
+                                <p class="text-xl font-semibold text-black" id="daily-average">₱0.00</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <!-- Revenue Trend Chart -->
+                    <div class="bg-gray-50 border border-gray-300 rounded-lg">
+                        <div class="px-4 py-3 border-b border-gray-300 flex justify-between items-center">
+                            <h3 class="text-sm font-semibold text-black">Revenue Trend</h3>
+                            <select id="chart-period"
+                                class="text-xs px-2 py-1 bg-gray-100 border border-gray-300 rounded">
+                                <option value="7">Last 7 Days</option>
+                                <option value="30">Last 30 Days</option>
+                                <option value="90">Last 90 Days</option>
                             </select>
                         </div>
-                        <div class="flex items-end">
-                            <button type="submit" 
-                                    class="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
-                                Generate Report
+                        <div class="p-4">
+                            <div class="chart-container">
+                                <canvas id="revenueChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hourly Distribution Chart -->
+                    <div class="bg-gray-50 border border-gray-300 rounded-lg">
+                        <div class="px-4 py-3 border-b border-gray-300">
+                            <h3 class="text-sm font-semibold text-black">Peak Hours Analysis</h3>
+                        </div>
+                        <div class="p-4">
+                            <div class="chart-container">
+                                <canvas id="hourlyChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Report Table -->
+                <div class="bg-white shadow-sm rounded-lg overflow-hidden">
+                    <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                        <h2 class="text-lg font-semibold text-gray-900">Detailed Report</h2>
+                        <div class="flex space-x-2">
+                            <button onclick="exportReport('csv')"
+                                class="export-btn px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium transition-colors">
+                                <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                                    </path>
+                                </svg>
+                                Export CSV
+                            </button>
+                            <button onclick="exportReport('pdf')"
+                                class="export-btn px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium transition-colors">
+                                <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z">
+                                    </path>
+                                </svg>
+                                Export PDF
+                            </button>
+                            <button onclick="refreshReport()"
+                                class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors">
+                                <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                                    </path>
+                                </svg>
+                                Refresh
                             </button>
                         </div>
-                    </form>
-                </div>
-            </div>
+                    </div>
 
-            <!-- Summary Statistics -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
-                    <div class="flex items-center">
-                        <div class="p-2 bg-green-100 rounded-lg">
-                            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
-                            </svg>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm text-gray-600">Total Revenue</p>
-                            <p class="text-xl font-semibold text-black" id="total-revenue">₱0.00</p>
-                        </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Date</th>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Sessions</th>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Total Revenue</th>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Avg. per Session</th>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Coins Used</th>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="report-table-body" class="bg-white divide-y divide-gray-200">
+                                <tr>
+                                    <td colspan="6" class="px-6 py-12 text-center text-sm text-gray-500">
+                                        <div class="inline-flex items-center">
+                                            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-400" fill="none"
+                                                viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                                    stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor"
+                                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                                                </path>
+                                            </svg>
+                                            Loading report data...
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
-                <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
-                    <div class="flex items-center">
-                        <div class="p-2 bg-blue-100 rounded-lg">
-                            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                            </svg>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm text-gray-600">Total Sessions</p>
-                            <p class="text-xl font-semibold text-black" id="total-sessions">0</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
-                    <div class="flex items-center">
-                        <div class="p-2 bg-yellow-100 rounded-lg">
-                            <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path>
-                            </svg>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm text-gray-600">Avg. Session Value</p>
-                            <p class="text-xl font-semibold text-black" id="avg-session-value">₱0.00</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
-                    <div class="flex items-center">
-                        <div class="p-2 bg-purple-100 rounded-lg">
-                            <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-                            </svg>
-                        </div>
-                        <div class="ml-4">
-                            <p class="text-sm text-gray-600">Daily Average</p>
-                            <p class="text-xl font-semibold text-black" id="daily-average">₱0.00</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Charts Section -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <!-- Revenue Trend Chart -->
-                <div class="bg-gray-50 border border-gray-300 rounded-lg">
+                <!-- Activity Log -->
+                <div class="bg-gray-50 border border-gray-300 rounded-lg mt-6">
                     <div class="px-4 py-3 border-b border-gray-300 flex justify-between items-center">
-                        <h3 class="text-sm font-semibold text-black">Revenue Trend</h3>
-                        <select id="chart-period" class="text-xs px-2 py-1 bg-gray-100 border border-gray-300 rounded">
-                            <option value="7">Last 7 Days</option>
-                            <option value="30">Last 30 Days</option>
-                            <option value="90">Last 90 Days</option>
-                        </select>
-                    </div>
-                    <div class="p-4">
-                        <div class="chart-container">
-                            <canvas id="revenueChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Hourly Distribution Chart -->
-                <div class="bg-gray-50 border border-gray-300 rounded-lg">
-                    <div class="px-4 py-3 border-b border-gray-300">
-                        <h3 class="text-sm font-semibold text-black">Peak Hours Analysis</h3>
-                    </div>
-                    <div class="p-4">
-                        <div class="chart-container">
-                            <canvas id="hourlyChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Detailed Report Table -->
-            <div class="bg-white shadow-sm rounded-lg overflow-hidden">
-                <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                    <h2 class="text-lg font-semibold text-gray-900">Detailed Report</h2>
-                    <div class="flex space-x-2">
-                        <button onclick="exportReport('csv')" class="export-btn px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium transition-colors">
-                            <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                            </svg>
-                            Export CSV
-                        </button>
-                        <button onclick="exportReport('pdf')" class="export-btn px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium transition-colors">
-                            <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-                            </svg>
-                            Export PDF
-                        </button>
-                        <button onclick="refreshReport()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors">
-                            <svg class="w-4 h-4 inline-block mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                            </svg>
-                            Refresh
+                        <h2 class="text-sm font-semibold text-black">Report Activity Log</h2>
+                        <button onclick="clearReportLog()"
+                            class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-xs">
+                            Clear Log
                         </button>
                     </div>
-                </div>
-                
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sessions</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Revenue</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg. per Session</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Peak Hour</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="report-table-body" class="bg-white divide-y divide-gray-200">
-                            <tr>
-                                <td colspan="6" class="px-6 py-12 text-center text-sm text-gray-500">
-                                    <div class="inline-flex items-center">
-                                        <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24">
-                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        Loading report data...
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Activity Log -->
-            <div class="bg-gray-50 border border-gray-300 rounded-lg mt-6">
-                <div class="px-4 py-3 border-b border-gray-300 flex justify-between items-center">
-                    <h2 class="text-sm font-semibold text-black">Report Activity Log</h2>
-                    <button onclick="clearReportLog()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded text-xs">
-                        Clear Log
-                    </button>
-                </div>
-                <div id="report-activity-log" class="p-4 bg-gray-100 h-32 overflow-y-auto">
-                    <div class="text-gray-600 text-sm">Report activity logs will appear here...</div>
+                    <div id="report-activity-log" class="p-4 bg-gray-100 h-32 overflow-y-auto">
+                        <div class="text-gray-600 text-sm">Report activity logs will appear here...</div>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <script>
-        let currentReportData = [];
-        let revenueChart = null;
-        let hourlyChart = null;
+        <script>
+            let currentReportData = [];
+            let currentSummary = {};
+            let revenueChart = null;
+            let hourlyChart = null;
 
-        // Set default dates (last 30 days)
-        const today = new Date();
-        const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
-        
-        document.getElementById('start_date').value = thirtyDaysAgo.toISOString().split('T')[0];
-        document.getElementById('end_date').value = today.toISOString().split('T')[0];
+            // Set default dates (last 30 days)
+            const today = new Date();
+            const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
 
-        // Load initial report
-        loadReportData();
-        initializeCharts();
+            document.getElementById('start_date').value = thirtyDaysAgo.toISOString().split('T')[0];
+            document.getElementById('end_date').value = today.toISOString().split('T')[0];
 
-        async function loadReportData() {
-            try {
-                addReportLog('Loading report data...', 'info');
-                
-                // Mock data for now - replace with actual API call
-                currentReportData = generateMockReportData();
-                
-                renderReportTable();
-                updateSummaryStats();
-                updateCharts();
-                
-                addReportLog('Report data loaded successfully', 'success');
-            } catch (error) {
-                addReportLog('Failed to load report data: ' + error.message, 'error');
+            // Load initial report
+            loadReportData();
+            initializeCharts();
+
+            async function loadReportData() {
+                try {
+                    addReportLog('Loading report data...', 'info');
+
+                    const startDate = document.getElementById('start_date').value;
+                    const endDate = document.getElementById('end_date').value;
+
+                    const params = new URLSearchParams();
+                    if (startDate) params.append('startDate', startDate);
+                    if (endDate) params.append('endDate', endDate);
+
+                    const response = await fetch(`/api/transactions/daily-report?${params}`, {
+                        credentials: 'include'
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        currentReportData = result.data || [];
+                        currentSummary = result.summary || {};
+                        
+                        renderReportTable();
+                        updateSummaryStats();
+                        updateCharts();
+                        
+                        addReportLog(`Report data loaded: ${currentReportData.length} days`, 'success');
+                    } else {
+                        throw new Error('Failed to load report data');
+                    }
+                } catch (error) {
+                    addReportLog('Failed to load report data: ' + error.message, 'error');
+                    currentReportData = [];
+                    currentSummary = {};
+                    renderReportTable();
+                    updateSummaryStats();
+                }
             }
-        }
 
-        function generateMockReportData() {
-            const data = [];
-            const startDate = new Date(document.getElementById('start_date').value);
-            const endDate = new Date(document.getElementById('end_date').value);
-            
-            for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-                const sessions = Math.floor(Math.random() * 50) + 10;
-                const revenue = sessions * (Math.random() * 15 + 5); // Random revenue per session
-                
-                data.push({
-                    date: new Date(d).toISOString().split('T')[0],
-                    sessions: sessions,
-                    revenue: revenue,
-                    avgPerSession: revenue / sessions,
-                    peakHour: Math.floor(Math.random() * 12) + 10 + ':00', // Random peak hour 10-22
-                    status: Math.random() > 0.1 ? 'Normal' : 'High Traffic'
-                });
-            }
-            
-            return data;
-        }
+            function renderReportTable() {
+                const tbody = document.getElementById('report-table-body');
 
-        function renderReportTable() {
-            const tbody = document.getElementById('report-table-body');
-            
-            if (currentReportData.length === 0) {
-                tbody.innerHTML = `
+                if (currentReportData.length === 0) {
+                    tbody.innerHTML = `
                     <tr>
                         <td colspan="6" class="px-6 py-12 text-center">
                             <div class="text-gray-500">
@@ -325,10 +386,10 @@
                         </td>
                     </tr>
                 `;
-                return;
-            }
-            
-            tbody.innerHTML = currentReportData.map(row => `
+                    return;
+                }
+
+                tbody.innerHTML = currentReportData.map(row => `
                 <tr class="hover:bg-gray-50 transition-colors">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         ${new Date(row.date).toLocaleDateString()}
@@ -337,211 +398,213 @@
                         ${row.sessions}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
-                        ₱${row.revenue.toFixed(2)}
+                        ₱${(row.revenue || 0).toFixed(2)}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ₱${row.avgPerSession.toFixed(2)}
+                        ₱${(row.avgPerSession || 0).toFixed(2)}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${row.peakHour}
+                        ${row.coins || 0} coins
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${row.status === 'Normal' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
-                            ${row.status}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${row.sessions > 20 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}">
+                            ${row.sessions > 20 ? 'High Traffic' : 'Normal'}
                         </span>
                     </td>
                 </tr>
             `).join('');
-        }
+            }
 
-        function updateSummaryStats() {
-            const totalRevenue = currentReportData.reduce((sum, row) => sum + row.revenue, 0);
-            const totalSessions = currentReportData.reduce((sum, row) => sum + row.sessions, 0);
-            const avgSessionValue = totalSessions > 0 ? totalRevenue / totalSessions : 0;
-            const dailyAverage = currentReportData.length > 0 ? totalRevenue / currentReportData.length : 0;
+            function updateSummaryStats() {
+                // Use summary from API if available, otherwise calculate from data
+                const totalRevenue = currentSummary.totalRevenue || currentReportData.reduce((sum, row) => sum + (row.revenue || 0), 0);
+                const totalSessions = currentSummary.totalSessions || currentReportData.reduce((sum, row) => sum + (row.sessions || 0), 0);
+                const avgSessionValue = currentSummary.avgSessionValue || (totalSessions > 0 ? totalRevenue / totalSessions : 0);
+                const dailyAverage = currentSummary.dailyAverage || (currentReportData.length > 0 ? totalRevenue / currentReportData.length : 0);
 
-            // Update with highlight animation
-            updateStatWithHighlight('total-revenue', `₱${totalRevenue.toFixed(2)}`);
-            updateStatWithHighlight('total-sessions', totalSessions.toString());
-            updateStatWithHighlight('avg-session-value', `₱${avgSessionValue.toFixed(2)}`);
-            updateStatWithHighlight('daily-average', `₱${dailyAverage.toFixed(2)}`);
-        }
+                // Update with highlight animation
+                updateStatWithHighlight('total-revenue', `₱${totalRevenue.toFixed(2)}`);
+                updateStatWithHighlight('total-sessions', totalSessions.toString());
+                updateStatWithHighlight('avg-session-value', `₱${avgSessionValue.toFixed(2)}`);
+                updateStatWithHighlight('daily-average', `₱${dailyAverage.toFixed(2)}`);
+            }
 
-        function updateStatWithHighlight(elementId, value) {
-            const element = document.getElementById(elementId);
-            element.textContent = value;
-            element.classList.add('highlight');
-            setTimeout(() => element.classList.remove('highlight'), 1000);
-        }
+            function updateStatWithHighlight(elementId, value) {
+                const element = document.getElementById(elementId);
+                element.textContent = value;
+                element.classList.add('highlight');
+                setTimeout(() => element.classList.remove('highlight'), 1000);
+            }
 
-        function initializeCharts() {
-            // Revenue Trend Chart
-            const revenueCtx = document.getElementById('revenueChart').getContext('2d');
-            revenueChart = new Chart(revenueCtx, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'Daily Revenue',
-                        data: [],
-                        borderColor: 'rgb(59, 130, 246)',
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                        borderWidth: 2,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                callback: function(value) {
-                                    return '₱' + value;
+            function initializeCharts() {
+                // Revenue Trend Chart
+                const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+                revenueChart = new Chart(revenueCtx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Daily Revenue',
+                            data: [],
+                            borderColor: 'rgb(59, 130, 246)',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderWidth: 2,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function (value) {
+                                        return '₱' + value;
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            });
+                });
 
-            // Hourly Distribution Chart
-            const hourlyCtx = document.getElementById('hourlyChart').getContext('2d');
-            hourlyChart = new Chart(hourlyCtx, {
-                type: 'bar',
-                data: {
-                    labels: ['8AM', '10AM', '12PM', '2PM', '4PM', '6PM', '8PM', '10PM'],
-                    datasets: [{
-                        label: 'Sessions by Hour',
-                        data: [],
-                        backgroundColor: 'rgba(34, 197, 94, 0.8)',
-                        borderColor: 'rgb(34, 197, 94)',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true
+                // Hourly Distribution Chart
+                const hourlyCtx = document.getElementById('hourlyChart').getContext('2d');
+                hourlyChart = new Chart(hourlyCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['8AM', '10AM', '12PM', '2PM', '4PM', '6PM', '8PM', '10PM'],
+                        datasets: [{
+                            label: 'Sessions by Hour',
+                            data: [],
+                            backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                            borderColor: 'rgb(34, 197, 94)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
                         }
                     }
+                });
+            }
+
+            function updateCharts() {
+                // Update revenue chart
+                if (revenueChart) {
+                    const labels = currentReportData.map(row => new Date(row.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+                    const data = currentReportData.map(row => row.revenue);
+
+                    revenueChart.data.labels = labels;
+                    revenueChart.data.datasets[0].data = data;
+                    revenueChart.update();
                 }
+
+                // Update hourly chart with mock data
+                if (hourlyChart) {
+                    const hourlyData = [12, 25, 35, 42, 38, 45, 52, 35]; // Mock hourly distribution
+                    hourlyChart.data.datasets[0].data = hourlyData;
+                    hourlyChart.update();
+                }
+            }
+
+            // Form submission handler
+            document.getElementById('report-form').addEventListener('submit', function (e) {
+                e.preventDefault();
+                loadReportData();
+                addReportLog('Report regenerated with new parameters', 'info');
             });
-        }
 
-        function updateCharts() {
-            // Update revenue chart
-            if (revenueChart) {
-                const labels = currentReportData.map(row => new Date(row.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
-                const data = currentReportData.map(row => row.revenue);
-                
-                revenueChart.data.labels = labels;
-                revenueChart.data.datasets[0].data = data;
-                revenueChart.update();
+            // Chart period change handler
+            document.getElementById('chart-period').addEventListener('change', function () {
+                addReportLog(`Chart period changed to ${this.options[this.selectedIndex].text}`, 'info');
+                updateCharts();
+            });
+
+            function exportReport(format) {
+                addReportLog(`Exporting report as ${format.toUpperCase()}...`, 'info');
+
+                // Simulate export process
+                setTimeout(() => {
+                    addReportLog(`Report exported as ${format.toUpperCase()} successfully`, 'success');
+
+                    // In real implementation, this would trigger actual file download
+                    const filename = `sales-report-${new Date().toISOString().split('T')[0]}.${format}`;
+                    console.log(`Would download file: ${filename}`);
+
+                    // Create download link (mock)
+                    if (format === 'csv') {
+                        const csvContent = generateCSV();
+                        downloadFile(csvContent, filename, 'text/csv');
+                    } else if (format === 'pdf') {
+                        addReportLog('PDF export would require server-side processing', 'info');
+                    }
+                }, 1000);
             }
 
-            // Update hourly chart with mock data
-            if (hourlyChart) {
-                const hourlyData = [12, 25, 35, 42, 38, 45, 52, 35]; // Mock hourly distribution
-                hourlyChart.data.datasets[0].data = hourlyData;
-                hourlyChart.update();
+            function generateCSV() {
+                const headers = ['Date', 'Sessions', 'Revenue', 'Avg Per Session', 'Coins Used', 'Status'];
+                const rows = currentReportData.map(row => [
+                    row.date,
+                    row.sessions,
+                    (row.revenue || 0).toFixed(2),
+                    (row.avgPerSession || 0).toFixed(2),
+                    row.coins || 0,
+                    row.sessions > 20 ? 'High Traffic' : 'Normal'
+                ]);
+
+                return [headers, ...rows].map(row => row.join(',')).join('\n');
             }
-        }
 
-        // Form submission handler
-        document.getElementById('report-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            loadReportData();
-            addReportLog('Report regenerated with new parameters', 'info');
-        });
+            function downloadFile(content, filename, contentType) {
+                const blob = new Blob([content], { type: contentType });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            }
 
-        // Chart period change handler
-        document.getElementById('chart-period').addEventListener('change', function() {
-            addReportLog(`Chart period changed to ${this.options[this.selectedIndex].text}`, 'info');
-            updateCharts();
-        });
+            function refreshReport() {
+                addReportLog('Refreshing report data...', 'info');
+                loadReportData();
+            }
 
-        function exportReport(format) {
-            addReportLog(`Exporting report as ${format.toUpperCase()}...`, 'info');
-            
-            // Simulate export process
-            setTimeout(() => {
-                addReportLog(`Report exported as ${format.toUpperCase()} successfully`, 'success');
-                
-                // In real implementation, this would trigger actual file download
-                const filename = `sales-report-${new Date().toISOString().split('T')[0]}.${format}`;
-                console.log(`Would download file: ${filename}`);
-                
-                // Create download link (mock)
-                if (format === 'csv') {
-                    const csvContent = generateCSV();
-                    downloadFile(csvContent, filename, 'text/csv');
-                } else if (format === 'pdf') {
-                    addReportLog('PDF export would require server-side processing', 'info');
-                }
-            }, 1000);
-        }
+            function addReportLog(message, type) {
+                const logsDiv = document.getElementById('report-activity-log');
+                const timestamp = new Date().toLocaleTimeString();
+                const color = {
+                    'info': 'text-blue-600',
+                    'success': 'text-green-600',
+                    'error': 'text-red-600',
+                    'warning': 'text-yellow-600'
+                }[type] || 'text-gray-700';
 
-        function generateCSV() {
-            const headers = ['Date', 'Sessions', 'Revenue', 'Avg Per Session', 'Peak Hour', 'Status'];
-            const rows = currentReportData.map(row => [
-                row.date,
-                row.sessions,
-                row.revenue.toFixed(2),
-                row.avgPerSession.toFixed(2),
-                row.peakHour,
-                row.status
-            ]);
-            
-            return [headers, ...rows].map(row => row.join(',')).join('\n');
-        }
+                const logEntry = document.createElement('div');
+                logEntry.className = `${color} text-sm mb-1`;
+                logEntry.innerHTML = `[${timestamp}] ${message}`;
 
-        function downloadFile(content, filename, contentType) {
-            const blob = new Blob([content], { type: contentType });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-        }
+                logsDiv.appendChild(logEntry);
+                logsDiv.scrollTop = logsDiv.scrollHeight;
+            }
 
-        function refreshReport() {
-            addReportLog('Refreshing report data...', 'info');
-            loadReportData();
-        }
+            function clearReportLog() {
+                document.getElementById('report-activity-log').innerHTML = '';
+                addReportLog('Report activity log cleared', 'info');
+            }
 
-        function addReportLog(message, type) {
-            const logsDiv = document.getElementById('report-activity-log');
-            const timestamp = new Date().toLocaleTimeString();
-            const color = {
-                'info': 'text-blue-600',
-                'success': 'text-green-600',
-                'error': 'text-red-600',
-                'warning': 'text-yellow-600'
-            }[type] || 'text-gray-700';
-            
-            const logEntry = document.createElement('div');
-            logEntry.className = `${color} text-sm mb-1`;
-            logEntry.innerHTML = `[${timestamp}] ${message}`;
-            
-            logsDiv.appendChild(logEntry);
-            logsDiv.scrollTop = logsDiv.scrollHeight;
-        }
-
-        function clearReportLog() {
-            document.getElementById('report-activity-log').innerHTML = '';
-            addReportLog('Report activity log cleared', 'info');
-        }
-
-        // Initialize page
-        addReportLog('Sales reports page loaded', 'info');
-        addReportLog('Default date range: Last 30 days', 'info');
-    </script>
+            // Initialize page
+            addReportLog('Sales reports page loaded', 'info');
+            addReportLog('Default date range: Last 30 days', 'info');
+        </script>
 </body>
+
 </html>

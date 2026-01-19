@@ -7,10 +7,24 @@ DURATION=${2:-3600}  # Default 1 hour
 INTERFACE="enx00e04c68276e"  # Ethernet interface for clients
 WAN_INTERFACE="eth0"  # WAN interface (adjust as needed)
 
-if [ -z "$MAC_ADDRESS" ]; then
+# SECURITY: Validate MAC address format to prevent command injection
+if ! [[ $MAC_ADDRESS =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]] && \
+   ! [[ $MAC_ADDRESS =~ ^([0-9A-Fa-f]{2}-){5}[0-9A-Fa-f]{2}$ ]]; then
+    echo "[ERROR] Invalid MAC address format: $MAC_ADDRESS"
     echo "Usage: $0 <MAC_ADDRESS> [duration_seconds]"
+    echo "MAC address must be in format: XX:XX:XX:XX:XX:XX or XX-XX-XX-XX-XX-XX"
     exit 1
 fi
+
+# SECURITY: Validate duration is a positive integer
+if ! [[ $DURATION =~ ^[0-9]+$ ]] || [ "$DURATION" -lt 1 ] || [ "$DURATION" -gt 86400 ]; then
+    echo "[ERROR] Invalid duration: $DURATION"
+    echo "Duration must be a positive integer between 1 and 86400 seconds"
+    exit 1
+fi
+
+# Normalize MAC address to uppercase with colons
+MAC_ADDRESS=$(echo "$MAC_ADDRESS" | tr '[:lower:]' '[:upper:]' | tr '-' ':')
 
 echo "[INFO] Allowing internet access for client $MAC_ADDRESS on interface $INTERFACE"
 

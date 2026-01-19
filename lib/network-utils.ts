@@ -10,12 +10,29 @@ export interface ClientInfo {
 }
 
 /**
+ * Validate IPv4 address format to prevent command injection
+ */
+function isValidIPv4(ip: string): boolean {
+  if (!ip || typeof ip !== 'string') return false
+  const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/
+  return ipv4Regex.test(ip.trim())
+}
+
+/**
  * Get client MAC address from IP address using ARP table
  */
 export async function getClientMacFromIP(ipAddress: string): Promise<string | null> {
   try {
+    // SECURITY: Validate IP address to prevent command injection
+    if (!isValidIPv4(ipAddress)) {
+      console.error('Invalid IP address format:', ipAddress?.substring(0, 20))
+      return null
+    }
+    
+    const sanitizedIP = ipAddress.trim()
+    
     // Try to get MAC from ARP table
-    const { stdout } = await execAsync(`arp -n ${ipAddress}`)
+    const { stdout } = await execAsync(`arp -n ${sanitizedIP}`)
     const arpMatch = stdout.match(/([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}/)
     
     if (arpMatch) {
@@ -23,9 +40,9 @@ export async function getClientMacFromIP(ipAddress: string): Promise<string | nu
     }
 
     // If ARP fails, try ping then check again
-    await execAsync(`ping -c 1 ${ipAddress}`).catch(() => {})
+    await execAsync(`ping -c 1 ${sanitizedIP}`).catch(() => {})
     
-    const { stdout: stdout2 } = await execAsync(`arp -n ${ipAddress}`)
+    const { stdout: stdout2 } = await execAsync(`arp -n ${sanitizedIP}`)
     const arpMatch2 = stdout2.match(/([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}/)
     
     if (arpMatch2) {

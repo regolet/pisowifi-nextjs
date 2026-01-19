@@ -1,10 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= title %></title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <title>
+        <%= title %>
+    </title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .glass {
             background: rgba(255, 255, 255, 0.1);
@@ -13,6 +16,7 @@
         }
     </style>
 </head>
+
 <body class="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900">
     <div class="container mx-auto px-4 py-16">
         <div class="text-center">
@@ -20,11 +24,13 @@
             <div class="glass rounded-full w-32 h-32 mx-auto mb-8 flex items-center justify-center">
                 <div class="text-6xl">📶</div>
             </div>
-            
+
             <!-- Title -->
             <h1 class="text-5xl font-bold text-white mb-4">PISOWifi System</h1>
-            <p class="text-xl text-white/80 mb-12"><%= message %></p>
-            
+            <p class="text-xl text-white/80 mb-12">
+                <%= message %>
+            </p>
+
             <!-- Navigation Cards -->
             <div class="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
                 <a href="/portal" class="glass rounded-2xl p-8 hover:bg-white/20 transition-all duration-300 group">
@@ -32,14 +38,14 @@
                     <h2 class="text-2xl font-semibold text-white mb-2">Internet Portal</h2>
                     <p class="text-white/70">Purchase internet access with coins</p>
                 </a>
-                
+
                 <a href="/admin" class="glass rounded-2xl p-8 hover:bg-white/20 transition-all duration-300 group">
                     <div class="text-4xl mb-4 group-hover:scale-110 transition-transform duration-300">⚙️</div>
                     <h2 class="text-2xl font-semibold text-white mb-2">Admin Panel</h2>
                     <p class="text-white/70">Manage system and monitor usage</p>
                 </a>
             </div>
-            
+
             <!-- System Status -->
             <div class="glass rounded-2xl p-6 max-w-2xl mx-auto">
                 <h3 class="text-lg font-semibold text-white mb-4">System Status</h3>
@@ -64,10 +70,11 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Footer -->
     <footer class="absolute bottom-0 w-full p-4 text-center">
         <p class="text-white/50">© 2024 PISOWifi System - Coin Operated Internet Access</p>
     </footer>
 </body>
+
 </html>

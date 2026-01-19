@@ -1,71 +1,178 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= title %></title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <title>
+        <%= title %>
+    </title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        .stat-card {
-            border: 1px solid #e5e7eb;
-            background: white;
+        /* Chart container styling */
+        .chart-container {
+            position: relative;
+            height: 200px;
+            width: 100%;
         }
-        .stat-card:hover {
-            border-color: #d1d5db;
+        
+        /* Activity item animations */
+        .activity-item {
+            transition: all 0.3s ease;
+        }
+        
+        .activity-item.new {
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Mobile responsive */
+        @media (max-width: 1023px) {
+            .p-6 {
+                padding: 1rem !important;
+            }
         }
     </style>
 </head>
-<body class="bg-gray-200 flex h-screen">
+
+<body class="bg-gray-200 min-h-screen lg:flex">
     <%- include('../partials/admin-sidebar') %>
-    
-    <!-- Main Content -->
-    <div class="flex-1 overflow-y-auto">
-        <div class="p-6">
-            <!-- Header -->
-            <div class="mb-6">
-                <h1 class="text-xl font-bold text-black">Dashboard</h1>
-                <p class="text-sm text-gray-600 mt-1">System overview and statistics</p>
-            </div>
 
-            <!-- Stats Table -->
-            <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
-                <div class="px-4 py-3 border-b border-gray-300">
-                    <h2 class="text-sm font-semibold text-black">System Statistics</h2>
+        <!-- Main Content -->
+        <div class="flex-1 overflow-y-auto pt-14 lg:pt-0 lg:ml-0">
+            <div class="p-6">
+                <!-- Header -->
+                <div class="mb-6">
+                    <h1 class="text-xl font-bold text-black">Dashboard</h1>
+                    <p class="text-sm text-gray-600 mt-1">System overview and statistics</p>
                 </div>
-                <div class="divide-y divide-gray-300">
-                    <div class="px-4 py-3 flex justify-between items-center">
-                        <span class="text-sm text-black">Total Clients</span>
-                        <span class="text-sm font-semibold text-black"><%= stats.totalClients %></span>
-                    </div>
-                    <div class="px-4 py-3 flex justify-between items-center">
-                        <span class="text-sm text-black">Active Sessions</span>
-                        <span class="text-sm font-semibold text-black"><%= stats.activeSessions %></span>
-                    </div>
-                    <div class="px-4 py-3 flex justify-between items-center">
-                        <span class="text-sm text-black">Today's Revenue</span>
-                        <span class="text-sm font-semibold text-black">₱<%= stats.todayRevenue %></span>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Quick Actions -->
-            <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
-                <div class="px-4 py-3 border-b border-gray-300">
-                    <h2 class="text-sm font-semibold text-black">Quick Actions</h2>
-                </div>
-                <div class="p-4 space-y-2">
-                    <a href="/admin/clients" class="block px-3 py-2 text-sm text-black hover:bg-gray-100 rounded border border-gray-300">View Client Management</a>
-                    <a href="/admin/rates" class="block px-3 py-2 text-sm text-black hover:bg-gray-100 rounded border border-gray-300">Configure Coin Rates</a>
-                    <a href="/admin/network" class="block px-3 py-2 text-sm text-black hover:bg-gray-100 rounded border border-gray-300">Network Settings</a>
-                    <a href="/admin/gpio" class="block px-3 py-2 text-sm text-black hover:bg-gray-100 rounded border border-gray-300">GPIO Configuration</a>
-                </div>
-            </div>
+                <!-- Stats Cards -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <div class="p-2 bg-blue-100 rounded-lg">
+                                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-xs text-gray-600">Total Clients</p>
+                                <p id="stat-total-clients" class="text-lg font-semibold text-black"><%= stats.totalClients %></p>
+                            </div>
+                        </div>
+                    </div>
 
-            <!-- System Status -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <div class="p-2 bg-green-100 rounded-lg">
+                                <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z"></path>
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-xs text-gray-600">Active Sessions</p>
+                                <p id="stat-active-sessions" class="text-lg font-semibold text-green-600"><%= stats.activeSessions %></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <div class="p-2 bg-yellow-100 rounded-lg">
+                                <svg class="w-5 h-5 text-yellow-600" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"></path>
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-xs text-gray-600">Today's Revenue</p>
+                                <p id="stat-today-revenue" class="text-lg font-semibold text-yellow-600">₱<%= stats.todayRevenue %></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <div class="p-2 bg-purple-100 rounded-lg">
+                                <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-xs text-gray-600">Today's Coins</p>
+                                <p id="stat-today-coins" class="text-lg font-semibold text-purple-600">0</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <!-- Revenue Chart -->
+                    <div class="bg-gray-50 border border-gray-300 rounded-lg">
+                        <div class="px-4 py-3 border-b border-gray-300">
+                            <h2 class="text-sm font-semibold text-black">Revenue (Last 7 Days)</h2>
+                        </div>
+                        <div class="p-4">
+                            <div class="chart-container">
+                                <canvas id="revenueChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Activity Chart -->
+                    <div class="bg-gray-50 border border-gray-300 rounded-lg">
+                        <div class="px-4 py-3 border-b border-gray-300">
+                            <h2 class="text-sm font-semibold text-black">Sessions (Last 7 Days)</h2>
+                        </div>
+                        <div class="p-4">
+                            <div class="chart-container">
+                                <canvas id="sessionsChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity Log -->
+                    <div class="bg-gray-50 border border-gray-300 rounded-lg">
+                        <div class="px-4 py-3 border-b border-gray-300 flex justify-between items-center">
+                            <h2 class="text-sm font-semibold text-black">Recent Activity</h2>
+                            <button onclick="clearActivityLog()" class="text-xs text-gray-500 hover:text-gray-700">Clear</button>
+                        </div>
+                        <div class="p-4">
+                            <div id="live-activity" class="space-y-2 max-h-64 overflow-y-auto">
+                                <div class="activity-item flex items-start gap-3 p-2 bg-gray-100 rounded border">
+                                    <div class="p-1 bg-blue-100 rounded">
+                                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-xs font-medium text-black">System Initialized</p>
+                                        <p class="text-xs text-gray-500">Dashboard ready</p>
+                                    </div>
+                                    <span class="text-xs text-gray-400 whitespace-nowrap">Just now</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+
                 <!-- System Services -->
-                <div class="bg-gray-50 border border-gray-300 rounded-lg">
+                <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
                     <div class="px-4 py-3 border-b border-gray-300 flex justify-between items-center">
                         <h3 class="text-sm font-semibold text-black">System Services</h3>
                         <button onclick="refreshServiceStatus()" class="text-xs text-blue-600 hover:text-blue-700">
@@ -82,275 +189,451 @@
                         </div>
                         <div class="px-4 py-3 flex justify-between items-center">
                             <span class="text-sm text-black">
-                                <span id="dnsmasq-indicator" class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
+                                <span id="dnsmasq-indicator"
+                                    class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
                                 DHCP & DNS (dnsmasq)
                             </span>
                             <div class="flex items-center space-x-2">
-                                <span id="dnsmasq-status" class="text-xs text-gray-600 font-medium">Checking...</span>
-                                <button id="dnsmasq-restart" onclick="restartService('dnsmasq')" class="text-xs text-blue-600 hover:text-blue-700 px-2 py-1 border border-blue-300 rounded" style="display:none;">Restart</button>
+                                <span id="dnsmasq-status"
+                                    class="text-xs text-gray-600 font-medium">Checking...</span>
+                                <button id="dnsmasq-restart" onclick="restartService('dnsmasq')"
+                                    class="text-xs text-blue-600 hover:text-blue-700 px-2 py-1 border border-blue-300 rounded"
+                                    style="display:none;">Restart</button>
                             </div>
                         </div>
                         <div class="px-4 py-3 flex justify-between items-center">
                             <span class="text-sm text-black">
-                                <span id="hostapd-indicator" class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
+                                <span id="hostapd-indicator"
+                                    class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
                                 Access Point (hostapd)
                             </span>
                             <div class="flex items-center space-x-2">
-                                <span id="hostapd-status" class="text-xs text-gray-600 font-medium">WiFi not available</span>
+                                <span id="hostapd-status" class="text-xs text-gray-600 font-medium">WiFi not
+                                    available</span>
                                 <span class="text-xs text-gray-500">N/A</span>
                             </div>
                         </div>
                         <div class="px-4 py-3 flex justify-between items-center">
                             <span class="text-sm text-black">
-                                <span id="iptables-indicator" class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
+                                <span id="iptables-indicator"
+                                    class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
                                 Firewall (iptables)
                             </span>
                             <div class="flex items-center space-x-2">
-                                <span id="iptables-status" class="text-xs text-gray-600 font-medium">Checking...</span>
-                                <button id="iptables-restart" onclick="restartService('iptables')" class="text-xs text-blue-600 hover:text-blue-700 px-2 py-1 border border-blue-300 rounded" style="display:none;">Restart</button>
+                                <span id="iptables-status"
+                                    class="text-xs text-gray-600 font-medium">Checking...</span>
+                                <button id="iptables-restart" onclick="restartService('iptables')"
+                                    class="text-xs text-blue-600 hover:text-blue-700 px-2 py-1 border border-blue-300 rounded"
+                                    style="display:none;">Restart</button>
                             </div>
                         </div>
                         <div class="px-4 py-3 flex justify-between items-center">
                             <span class="text-sm text-black">
-                                <span id="captive-indicator" class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
+                                <span id="captive-indicator"
+                                    class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
                                 Captive Portal
                             </span>
                             <div class="flex items-center space-x-2">
-                                <span id="captive-status" class="text-xs text-gray-600 font-medium">Checking...</span>
-                                <button id="all-restart" onclick="restartAllServices()" class="text-xs text-green-600 hover:text-green-700 px-2 py-1 border border-green-300 rounded">Restart All</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Live Activity -->
-                <div class="bg-gray-50 border border-gray-300 rounded-lg">
-                    <div class="px-4 py-3 border-b border-gray-300">
-                        <h3 class="text-sm font-semibold text-black">Recent Activity</h3>
-                    </div>
-                    <div class="p-4">
-                        <div id="live-activity" class="space-y-2 max-h-40 overflow-y-auto">
-                            <div class="text-xs text-gray-600 py-1 px-2 bg-gray-100 rounded border">
-                                System initialized and ready
+                                <span id="captive-status"
+                                    class="text-xs text-gray-600 font-medium">Checking...</span>
+                                <button id="all-restart" onclick="restartAllServices()"
+                                    class="text-xs text-green-600 hover:text-green-700 px-2 py-1 border border-green-300 rounded">Restart
+                                    All</button>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <script>
-        const socket = io();
-        
-        // Real-time activity updates
-        socket.on('coin-detected', function(data) {
-            addActivity('Coin detected - Payment in progress');
-        });
-        
-        socket.on('client-connected', function(data) {
-            addActivity('New client connected: ' + (data.macAddress || 'Unknown'));
-        });
-        
-        socket.on('client-disconnected', function(data) {
-            addActivity('Client disconnected: ' + (data.macAddress || 'Unknown'));
-        });
-        
-        function addActivity(message) {
-            const container = document.getElementById('live-activity');
-            const div = document.createElement('div');
-            div.className = 'text-xs text-gray-600 py-1 px-2 bg-gray-100 rounded border';
-            div.innerHTML = `
-                <div class="flex justify-between items-center">
-                    <span>${message}</span>
-                    <span class="text-gray-400">${new Date().toLocaleTimeString()}</span>
-                </div>
-            `;
-            
-            container.insertBefore(div, container.firstChild);
-            
-            // Keep only last 6 activities
-            while (container.children.length > 6) {
-                container.removeChild(container.lastChild);
-            }
-        }
-        
-        // Add initial activity
-        setTimeout(() => {
-            addActivity('Dashboard loaded successfully');
-            refreshServiceStatus();
-        }, 1000);
-        
-        // Function to refresh service status
-        async function refreshServiceStatus() {
-            try {
-                const response = await fetch('/api/network/service-status', {
-                    headers: {
-                        'Authorization': 'Bearer ' + getCookie('auth-token')
+        <script>
+            const socket = io();
+            let revenueChart = null;
+            let sessionsChart = null;
+
+            // Activity type configurations
+            const activityTypes = {
+                'coin': { icon: 'coin', bg: 'bg-yellow-100', color: 'text-yellow-600' },
+                'connect': { icon: 'connect', bg: 'bg-green-100', color: 'text-green-600' },
+                'disconnect': { icon: 'disconnect', bg: 'bg-red-100', color: 'text-red-600' },
+                'session': { icon: 'session', bg: 'bg-blue-100', color: 'text-blue-600' },
+                'info': { icon: 'info', bg: 'bg-blue-100', color: 'text-blue-600' },
+                'warning': { icon: 'warning', bg: 'bg-orange-100', color: 'text-orange-600' },
+                'success': { icon: 'success', bg: 'bg-green-100', color: 'text-green-600' }
+            };
+
+            const activityIcons = {
+                'coin': '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/>',
+                'connect': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z"/>',
+                'disconnect': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414"/>',
+                'session': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+                'info': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+                'warning': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>',
+                'success': '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>'
+            };
+
+            // Initialize charts
+            async function initCharts() {
+                try {
+                    const response = await fetch('/api/transactions/daily-report?days=7', {
+                        credentials: 'include'
+                    });
+                    
+                    let chartData = { data: [], summary: {} };
+                    if (response.ok) {
+                        chartData = await response.json();
                     }
-                });
-                
-                if (response.ok) {
-                    const status = await response.json();
-                    updateServiceStatus(status);
-                } else {
-                    // Use default status if API fails
+
+                    const labels = [];
+                    const revenueData = [];
+                    const sessionsData = [];
+
+                    // Generate last 7 days
+                    for (let i = 6; i >= 0; i--) {
+                        const date = new Date();
+                        date.setDate(date.getDate() - i);
+                        const dateStr = date.toISOString().split('T')[0];
+                        const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+                        labels.push(dayName);
+
+                        const dayData = chartData.data?.find(d => d.date === dateStr);
+                        revenueData.push(dayData ? dayData.revenue : 0);
+                        sessionsData.push(dayData ? dayData.sessions : 0);
+                    }
+
+                    // Update today's coins stat
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const todayData = chartData.data?.find(d => d.date === todayStr);
+                    if (todayData) {
+                        document.getElementById('stat-today-coins').textContent = todayData.coins || 0;
+                    }
+
+                    // Revenue Chart
+                    const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+                    revenueChart = new Chart(revenueCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Revenue (₱)',
+                                data: revenueData,
+                                backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                                borderColor: 'rgba(34, 197, 94, 1)',
+                                borderWidth: 1,
+                                borderRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: value => '₱' + value
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // Sessions Chart
+                    const sessionsCtx = document.getElementById('sessionsChart').getContext('2d');
+                    sessionsChart = new Chart(sessionsCtx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Sessions',
+                                data: sessionsData,
+                                backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                                borderColor: 'rgba(59, 130, 246, 1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.3,
+                                pointBackgroundColor: 'rgba(59, 130, 246, 1)',
+                                pointRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        stepSize: 1
+                                    }
+                                }
+                            }
+                        }
+                    });
+                } catch (error) {
+                    console.error('Failed to load chart data:', error);
+                }
+            }
+
+            // Real-time activity updates
+            socket.on('coin-detected', function (data) {
+                addActivity('coin', 'Coin Inserted', `₱${data.amount || 1} - Payment received`, data.macAddress);
+                updateTodayStats();
+            });
+
+            socket.on('client-connected', function (data) {
+                addActivity('connect', 'Client Connected', data.macAddress || 'Unknown device');
+                updateTodayStats();
+            });
+
+            socket.on('client-disconnected', function (data) {
+                addActivity('disconnect', 'Client Disconnected', data.macAddress || 'Unknown device');
+                updateTodayStats();
+            });
+
+            socket.on('session-started', function (data) {
+                addActivity('session', 'Session Started', `${data.duration || 0} minutes for ${data.macAddress || 'Unknown'}`);
+            });
+
+            socket.on('session-expired', function (data) {
+                addActivity('warning', 'Session Expired', data.macAddress || 'Unknown device');
+            });
+
+            function addActivity(type, title, description, extra = '') {
+                const container = document.getElementById('live-activity');
+                const config = activityTypes[type] || activityTypes.info;
+                const icon = activityIcons[config.icon] || activityIcons.info;
+                const isFilled = type === 'coin';
+
+                const div = document.createElement('div');
+                div.className = 'activity-item new flex items-start gap-3 p-2 bg-gray-100 rounded border';
+                div.innerHTML = `
+                    <div class="p-1 ${config.bg} rounded">
+                        <svg class="w-4 h-4 ${config.color}" ${isFilled ? 'fill="currentColor"' : 'fill="none" stroke="currentColor"'} viewBox="0 0 24 24">
+                            ${icon}
+                        </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-medium text-black">${title}</p>
+                        <p class="text-xs text-gray-500 truncate">${description}</p>
+                    </div>
+                    <span class="text-xs text-gray-400 whitespace-nowrap">${new Date().toLocaleTimeString()}</span>
+                `;
+
+                container.insertBefore(div, container.firstChild);
+
+                // Remove 'new' class after animation
+                setTimeout(() => div.classList.remove('new'), 300);
+
+                // Keep only last 10 activities
+                while (container.children.length > 10) {
+                    container.removeChild(container.lastChild);
+                }
+            }
+
+            function clearActivityLog() {
+                const container = document.getElementById('live-activity');
+                container.innerHTML = '';
+                addActivity('info', 'Activity Log Cleared', 'All previous entries removed');
+            }
+
+            async function updateTodayStats() {
+                try {
+                    const response = await fetch('/api/transactions/stats', {
+                        credentials: 'include'
+                    });
+                    if (response.ok) {
+                        const stats = await response.json();
+                        document.getElementById('stat-today-revenue').textContent = '₱' + (stats.todaySales || 0).toFixed(2);
+                        document.getElementById('stat-today-coins').textContent = stats.todayCoins || 0;
+                    }
+                } catch (error) {
+                    console.error('Failed to update stats:', error);
+                }
+            }
+
+            // Add initial activity
+            setTimeout(() => {
+                addActivity('success', 'Dashboard Ready', 'All systems operational');
+                refreshServiceStatus();
+                initCharts();
+            }, 500);
+
+            // Function to refresh service status
+            async function refreshServiceStatus() {
+                try {
+                    const response = await fetch('/api/network/service-status', {
+                        headers: {
+                            'Authorization': 'Bearer ' + getCookie('auth-token')
+                        }
+                    });
+
+                    if (response.ok) {
+                        const status = await response.json();
+                        updateServiceStatus(status);
+                    } else {
+                        // Use default status if API fails
+                        updateServiceStatus({
+                            dnsmasq: { active: true, status: 'active', info: 'DHCP & DNS Server' },
+                            hostapd: { active: true, status: 'active', info: 'Access Point Service' },
+                            iptables: { active: true, status: 'active', info: 'Firewall Rules' }
+                        });
+                    }
+                } catch (error) {
+                    console.error('Failed to fetch service status:', error);
+                    // Show default status on error
                     updateServiceStatus({
-                        dnsmasq: { active: true, status: 'active', info: 'DHCP & DNS Server' },
-                        hostapd: { active: true, status: 'active', info: 'Access Point Service' },
-                        iptables: { active: true, status: 'active', info: 'Firewall Rules' }
+                        dnsmasq: { active: false, status: 'unknown', info: 'Status unavailable' },
+                        hostapd: { active: false, status: 'unknown', info: 'Status unavailable' },
+                        iptables: { active: false, status: 'unknown', info: 'Status unavailable' }
                     });
                 }
-            } catch (error) {
-                console.error('Failed to fetch service status:', error);
-                // Show default status on error
-                updateServiceStatus({
-                    dnsmasq: { active: false, status: 'unknown', info: 'Status unavailable' },
-                    hostapd: { active: false, status: 'unknown', info: 'Status unavailable' },
-                    iptables: { active: false, status: 'unknown', info: 'Status unavailable' }
+            }
+
+            function updateServiceStatus(status) {
+                // Update dnsmasq
+                updateServiceIndicator('dnsmasq', status.dnsmasq);
+
+                // Update hostapd - handle WiFi not available
+                if (status.hostapd) {
+                    const hostIndicator = document.getElementById('hostapd-indicator');
+                    const hostStatus = document.getElementById('hostapd-status');
+                    if (hostIndicator && hostStatus) {
+                        if (status.hostapd.info && status.hostapd.info.includes('not available')) {
+                            hostIndicator.className = 'inline-block w-2 h-2 rounded-full bg-gray-400 mr-2';
+                            hostStatus.className = 'text-xs text-gray-500 font-medium';
+                            hostStatus.textContent = 'WiFi not available';
+                        } else {
+                            updateServiceIndicator('hostapd', status.hostapd);
+                        }
+                    }
+                }
+
+                // Update iptables
+                updateServiceIndicator('iptables', status.iptables);
+
+                // Update captive portal (based on iptables and pisowifi service)
+                const captiveActive = (status.iptables?.active || false) && (status.pisowifi?.active || false);
+                updateServiceIndicator('captive', {
+                    active: captiveActive,
+                    status: captiveActive ? 'active' : 'inactive',
+                    info: captiveActive ? 'Ethernet captive portal active' : 'Not configured'
                 });
             }
-        }
-        
-        function updateServiceStatus(status) {
-            // Update dnsmasq
-            updateServiceIndicator('dnsmasq', status.dnsmasq);
-            
-            // Update hostapd - handle WiFi not available
-            if (status.hostapd) {
-                const hostIndicator = document.getElementById('hostapd-indicator');
-                const hostStatus = document.getElementById('hostapd-status');
-                if (hostIndicator && hostStatus) {
-                    if (status.hostapd.info && status.hostapd.info.includes('not available')) {
-                        hostIndicator.className = 'inline-block w-2 h-2 rounded-full bg-gray-400 mr-2';
-                        hostStatus.className = 'text-xs text-gray-500 font-medium';
-                        hostStatus.textContent = 'WiFi not available';
+
+            function updateServiceIndicator(service, statusInfo) {
+                const indicator = document.getElementById(`${service}-indicator`);
+                const statusText = document.getElementById(`${service}-status`);
+                const restartBtn = document.getElementById(`${service}-restart`);
+
+                if (indicator && statusText) {
+                    if (statusInfo.active) {
+                        indicator.className = 'inline-block w-2 h-2 rounded-full bg-green-500 mr-2';
+                        statusText.className = 'text-xs text-green-600 font-medium';
+                        statusText.textContent = 'Active';
+                        if (restartBtn) restartBtn.style.display = 'none';
+                    } else if (statusInfo.status === 'unknown') {
+                        indicator.className = 'inline-block w-2 h-2 rounded-full bg-yellow-500 mr-2';
+                        statusText.className = 'text-xs text-yellow-600 font-medium';
+                        statusText.textContent = 'Unknown';
+                        if (restartBtn) restartBtn.style.display = 'inline-block';
                     } else {
-                        updateServiceIndicator('hostapd', status.hostapd);
+                        indicator.className = 'inline-block w-2 h-2 rounded-full bg-red-500 mr-2';
+                        statusText.className = 'text-xs text-red-600 font-medium';
+                        statusText.textContent = 'Inactive';
+                        if (restartBtn) restartBtn.style.display = 'inline-block';
                     }
                 }
             }
-            
-            // Update iptables
-            updateServiceIndicator('iptables', status.iptables);
-            
-            // Update captive portal (based on iptables and pisowifi service)
-            const captiveActive = (status.iptables?.active || false) && (status.pisowifi?.active || false);
-            updateServiceIndicator('captive', {
-                active: captiveActive,
-                status: captiveActive ? 'active' : 'inactive',
-                info: captiveActive ? 'Ethernet captive portal active' : 'Not configured'
-            });
-        }
-        
-        function updateServiceIndicator(service, statusInfo) {
-            const indicator = document.getElementById(`${service}-indicator`);
-            const statusText = document.getElementById(`${service}-status`);
-            const restartBtn = document.getElementById(`${service}-restart`);
-            
-            if (indicator && statusText) {
-                if (statusInfo.active) {
-                    indicator.className = 'inline-block w-2 h-2 rounded-full bg-green-500 mr-2';
-                    statusText.className = 'text-xs text-green-600 font-medium';
-                    statusText.textContent = 'Active';
-                    if (restartBtn) restartBtn.style.display = 'none';
-                } else if (statusInfo.status === 'unknown') {
-                    indicator.className = 'inline-block w-2 h-2 rounded-full bg-yellow-500 mr-2';
-                    statusText.className = 'text-xs text-yellow-600 font-medium';
-                    statusText.textContent = 'Unknown';
-                    if (restartBtn) restartBtn.style.display = 'inline-block';
-                } else {
-                    indicator.className = 'inline-block w-2 h-2 rounded-full bg-red-500 mr-2';
-                    statusText.className = 'text-xs text-red-600 font-medium';
-                    statusText.textContent = 'Inactive';
-                    if (restartBtn) restartBtn.style.display = 'inline-block';
+
+            async function restartService(serviceName) {
+                const button = document.getElementById(`${serviceName}-restart`);
+                const originalText = button.textContent;
+
+                button.textContent = 'Restarting...';
+                button.disabled = true;
+
+                try {
+                    const response = await fetch('/api/network/restart-services', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + getCookie('auth-token')
+                        },
+                        body: JSON.stringify({ services: [serviceName] })
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        addActivity(`Restarted ${serviceName} service`);
+
+                        // Refresh status after restart
+                        setTimeout(() => {
+                            refreshServiceStatus();
+                        }, 2000);
+                    } else {
+                        addActivity(`Failed to restart ${serviceName} service`);
+                    }
+                } catch (error) {
+                    console.error('Failed to restart service:', error);
+                    addActivity(`Error restarting ${serviceName}: ${error.message}`);
+                } finally {
+                    button.textContent = originalText;
+                    button.disabled = false;
                 }
             }
-        }
-        
-        async function restartService(serviceName) {
-            const button = document.getElementById(`${serviceName}-restart`);
-            const originalText = button.textContent;
-            
-            button.textContent = 'Restarting...';
-            button.disabled = true;
-            
-            try {
-                const response = await fetch('/api/network/restart-services', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + getCookie('auth-token')
-                    },
-                    body: JSON.stringify({ services: [serviceName] })
-                });
-                
-                if (response.ok) {
-                    const result = await response.json();
-                    addActivity(`Restarted ${serviceName} service`);
-                    
-                    // Refresh status after restart
-                    setTimeout(() => {
-                        refreshServiceStatus();
-                    }, 2000);
-                } else {
-                    addActivity(`Failed to restart ${serviceName} service`);
+
+            async function restartAllServices() {
+                const button = document.getElementById('all-restart');
+                const originalText = button.textContent;
+
+                button.textContent = 'Restarting...';
+                button.disabled = true;
+
+                try {
+                    const response = await fetch('/api/network/restart-services', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + getCookie('auth-token')
+                        },
+                        body: JSON.stringify({ services: ['dnsmasq', 'hostapd', 'pisowifi-captive'] })
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        addActivity('Restarted all network services');
+
+                        // Refresh status after restart
+                        setTimeout(() => {
+                            refreshServiceStatus();
+                        }, 3000);
+                    } else {
+                        addActivity('Failed to restart network services');
+                    }
+                } catch (error) {
+                    console.error('Failed to restart services:', error);
+                    addActivity(`Error restarting services: ${error.message}`);
+                } finally {
+                    button.textContent = originalText;
+                    button.disabled = false;
                 }
-            } catch (error) {
-                console.error('Failed to restart service:', error);
-                addActivity(`Error restarting ${serviceName}: ${error.message}`);
-            } finally {
-                button.textContent = originalText;
-                button.disabled = false;
             }
-        }
-        
-        async function restartAllServices() {
-            const button = document.getElementById('all-restart');
-            const originalText = button.textContent;
-            
-            button.textContent = 'Restarting...';
-            button.disabled = true;
-            
-            try {
-                const response = await fetch('/api/network/restart-services', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + getCookie('auth-token')
-                    },
-                    body: JSON.stringify({ services: ['dnsmasq', 'hostapd', 'pisowifi-captive'] })
-                });
-                
-                if (response.ok) {
-                    const result = await response.json();
-                    addActivity('Restarted all network services');
-                    
-                    // Refresh status after restart
-                    setTimeout(() => {
-                        refreshServiceStatus();
-                    }, 3000);
-                } else {
-                    addActivity('Failed to restart network services');
-                }
-            } catch (error) {
-                console.error('Failed to restart services:', error);
-                addActivity(`Error restarting services: ${error.message}`);
-            } finally {
-                button.textContent = originalText;
-                button.disabled = false;
+
+            function getCookie(name) {
+                const value = `; ${document.cookie}`;
+                const parts = value.split(`; ${name}=`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return '';
             }
-        }
-        
-        function getCookie(name) {
-            const value = `; ${document.cookie}`;
-            const parts = value.split(`; ${name}=`);
-            if (parts.length === 2) return parts.pop().split(';').shift();
-            return '';
-        }
-        
-        // Refresh service status every 30 seconds
-        setInterval(refreshServiceStatus, 30000);
-    </script>
+
+            // Refresh service status every 30 seconds
+            setInterval(refreshServiceStatus, 30000);
+        </script>
 </body>
+
 </html>

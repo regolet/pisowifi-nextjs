@@ -11,11 +11,19 @@ let isInitialized = false;
 async function initializeDatabase() {
   if (isInitialized) return;
   
+  // SECURITY: Require DATABASE_URL environment variable - no fallback credentials
+  if (!process.env.DATABASE_URL) {
+    console.error('❌ ERROR: DATABASE_URL environment variable is required but not set.');
+    console.error('Please set DATABASE_URL before starting the server:');
+    console.error('  export DATABASE_URL="postgresql://user:password@host:port/dbname"');
+    throw new Error('DATABASE_URL is required in production');
+  }
+  
   console.log('🐘 Connecting to PostgreSQL database...');
   
   try {
     pool = new Pool({
-      connectionString: process.env.DATABASE_URL || 'postgresql://pisowifi_user:admin123@localhost:5432/pisowifi'
+      connectionString: process.env.DATABASE_URL
     });
     
     // Test connection
@@ -158,13 +166,19 @@ async function ensureBasicTables() {
     }
   }
 
-  // Insert default data
+  // Insert default data only if tables are empty
   try {
-    await pool.query(`
-      INSERT INTO rates (name, price, duration, coins_required, is_active) 
-      VALUES ('15 Minutes', 5.00, 900, 1, true)
-      ON CONFLICT DO NOTHING
-    `);
+    // Only insert default rate if no rates exist
+    const rateResult = await pool.query('SELECT COUNT(*) as count FROM rates');
+    const rateCount = parseInt(rateResult.rows[0]?.count || 0);
+    
+    if (rateCount === 0) {
+      await pool.query(`
+        INSERT INTO rates (name, price, duration, coins_required, is_active) 
+        VALUES ('15 Minutes', 5.00, 900, 1, true)
+      `);
+      console.log('✅ Default rate created');
+    }
     
     await pool.query(`
       INSERT INTO portal_settings (id, coin_timeout, portal_title, portal_subtitle) 

@@ -2,10 +2,11 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs').promises;
 const path = require('path');
-const jwt = require('jsonwebtoken');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const db = require('../../db/sqlite-adapter');
+const { authenticateAPI, apiLimiter } = require('../../middleware/security');
+const { isValidIPv4, isValidInterfaceName } = require('../../utils/validators');
 
 const execAsync = promisify(exec);
 
@@ -14,22 +15,8 @@ const NETWORK_CONFIG_PATH = '/etc/dnsmasq.d/pisowifi.conf';
 const NGINX_CONFIG_PATH = '/etc/nginx/sites-available/portal';
 const SETTINGS_FILE = path.join(process.cwd(), 'config', 'settings.json');
 
-// Auth middleware
-const authenticateToken = (req, res, next) => {
-  const token = req.cookies['auth-token'] || req.headers['authorization']?.split(' ')[1];
-  
-  if (!token) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  
-  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid token' });
-    }
-    req.user = user;
-    next();
-  });
-};
+// Use centralized auth middleware
+const authenticateToken = authenticateAPI;
 
 // Get all settings
 router.get('/', authenticateToken, async (req, res) => {
@@ -37,17 +24,17 @@ router.get('/', authenticateToken, async (req, res) => {
     // Get all settings from database
     const [networkResult, portalResult, gpioResult, systemResult, ratesResult] = await Promise.all([
       db.query('SELECT * FROM network_settings WHERE id = 1'),
-      db.query('SELECT * FROM portal_settings WHERE id = 1'), 
+      db.query('SELECT * FROM portal_settings WHERE id = 1'),
       db.query('SELECT * FROM gpio_settings WHERE id = 1'),
       db.query('SELECT * FROM system_settings WHERE id = 1'),
       db.query('SELECT * FROM rates ORDER BY duration')
     ]);
-    
+
     const settings = {
       network: networkResult.rows[0] || {
-        gateway_ip: '192.168.100.1',
-        dhcp_start: '192.168.100.10',
-        dhcp_end: '192.168.100.100',
+        gateway_ip: '10.0.0.1',
+        dhcp_start: '10.0.0.10',
+        dhcp_end: '10.0.0.100',
         lease_time: '12h',
         interface: 'enx00e04c68276e',
         dns_server: '8.8.8.8'
@@ -77,7 +64,7 @@ router.get('/', authenticateToken, async (req, res) => {
       },
       rates: ratesResult.rows
     };
-    
+
     res.json(settings);
   } catch (error) {
     console.error('Get settings error:', error);
@@ -88,11 +75,25 @@ router.get('/', authenticateToken, async (req, res) => {
 // Update network settings
 router.put('/network', authenticateToken, async (req, res) => {
   try {
-    const { gateway_ip, dhcp_start, dhcp_end, lease_time, interface } = req.body;
-    
+    const { gateway_ip, dhcp_start, dhcp_end, lease_time, interface: iface } = req.body;
+
+    // SECURITY: Validate all inputs before using in config
+    if (!isValidIPv4(gateway_ip)) {
+      return res.status(400).json({ error: 'Invalid gateway IP address' });
+    }
+    if (!isValidIPv4(dhcp_start)) {
+      return res.status(400).json({ error: 'Invalid DHCP start IP address' });
+    }
+    if (!isValidIPv4(dhcp_end)) {
+      return res.status(400).json({ error: 'Invalid DHCP end IP address' });
+    }
+    if (!isValidInterfaceName(iface)) {
+      return res.status(400).json({ error: 'Invalid network interface name' });
+    }
+
     // Update dnsmasq configuration
     const dnsmasqConfig = `
-interface=${interface}
+interface=${iface}
 dhcp-range=${dhcp_start},${dhcp_end},${lease_time}
 dhcp-option=3,${gateway_ip}
 dhcp-option=6,${gateway_ip}
@@ -103,11 +104,11 @@ no-resolv
 log-queries
 log-dhcp
 `;
-    
+
     // Write config (requires sudo)
     await fs.writeFile('/tmp/pisowifi.conf', dnsmasqConfig);
     await execAsync('sudo cp /tmp/pisowifi.conf /etc/dnsmasq.d/pisowifi.conf');
-    
+
     // Update nginx redirect
     const nginxConfig = `
 server {
@@ -127,26 +128,26 @@ server {
     }
 }
 `;
-    
+
     await fs.writeFile('/tmp/nginx-portal', nginxConfig);
     await execAsync('sudo cp /tmp/nginx-portal /etc/nginx/sites-available/portal');
-    
+
     // Restart services
     await execAsync('sudo systemctl restart dnsmasq');
     await execAsync('sudo systemctl restart nginx');
-    
+
     // Save settings to database
     await db.query(`
       INSERT OR REPLACE INTO network_settings (id, gateway_ip, dhcp_start, dhcp_end, lease_time, interface, dns_server, updated_at) 
       VALUES (1, $1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
     `, [gateway_ip, dhcp_start, dhcp_end, lease_time, interface, req.body.dns_server || '8.8.8.8']);
-    
+
     // Log action
     await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
       ['INFO', 'Network settings updated', 'admin', JSON.stringify({ admin: req.user.username, settings: req.body })]
     );
-    
+
     res.json({ success: true, message: 'Network settings updated' });
   } catch (error) {
     console.error('Update network settings error:', error);
@@ -158,19 +159,19 @@ server {
 router.put('/portal', authenticateToken, async (req, res) => {
   try {
     const { portal_title, portal_subtitle, coin_timeout } = req.body;
-    
+
     // Save portal settings to database (reuse existing portal_settings table)
     await db.query(`
       INSERT OR REPLACE INTO portal_settings (id, portal_title, portal_subtitle, coin_timeout, updated_at) 
       VALUES (1, $1, $2, $3, CURRENT_TIMESTAMP)
     `, [portal_title || 'PISOWifi Portal', portal_subtitle || 'Insert coins for internet access', coin_timeout || 300]);
-    
+
     // Log action
     await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
       ['INFO', 'Portal settings updated', 'admin', JSON.stringify({ admin: req.user.username })]
     );
-    
+
     res.json({ success: true, message: 'Portal settings updated' });
   } catch (error) {
     console.error('Update portal settings error:', error);
@@ -182,27 +183,27 @@ router.put('/portal', authenticateToken, async (req, res) => {
 router.put('/gpio', authenticateToken, async (req, res) => {
   try {
     const { coin_pin, coin_pin_mode, led_pin, led_pin_mode, debounce_time, pulse_width, coin_value, pulses_per_coin, pulse_duration } = req.body;
-    
+
     // Save GPIO settings to database
     await db.query(`
       INSERT OR REPLACE INTO gpio_settings 
       (id, coin_pin, coin_pin_mode, led_pin, led_pin_mode, debounce_time, pulse_width, coin_value, pulses_per_coin, pulse_duration, updated_at) 
       VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
     `, [coin_pin, coin_pin_mode || 'BCM', led_pin, led_pin_mode || 'BCM', debounce_time, pulse_width, coin_value, pulses_per_coin, pulse_duration]);
-    
+
     // Restart GPIO service with new settings
     try {
       await execAsync('pm2 restart pisowifi-gpio');
     } catch (err) {
       console.error('Failed to restart GPIO service:', err);
     }
-    
+
     // Log action
     await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
       ['INFO', 'GPIO settings updated', 'admin', JSON.stringify({ admin: req.user.username, settings: req.body })]
     );
-    
+
     res.json({ success: true, message: 'GPIO settings updated' });
   } catch (error) {
     console.error('Update GPIO settings error:', error);
@@ -213,31 +214,43 @@ router.put('/gpio', authenticateToken, async (req, res) => {
 // Update rates
 router.put('/rates', authenticateToken, async (req, res) => {
   try {
-    const { rates, coinSettings } = req.body;
-    
+    const { rates } = req.body;
+
+    if (!rates || !Array.isArray(rates)) {
+      return res.status(400).json({ error: 'Invalid rates data' });
+    }
+
     // Clear existing rates if we're doing a full replacement
-    await db.query('DELETE FROM rates WHERE 1=1');
-    
+    await db.query('DELETE FROM rates');
+
     // Insert all rates
     for (const rate of rates) {
-      await db.query(
-        'INSERT INTO rates (name, duration, coins_required, price, is_active) VALUES ($1, $2, $3, $4, $5)',
-        [rate.name, rate.duration, rate.coins_required, rate.price, rate.is_active]
-      );
+      try {
+        await db.query(
+          'INSERT INTO rates (name, duration, coins_required, price, is_active) VALUES (?, ?, ?, ?, ?)',
+          [rate.name, rate.duration, rate.coins_required, parseFloat(rate.price), rate.is_active ? 1 : 0]
+        );
+      } catch (rateError) {
+        console.error('Error inserting rate:', rate, rateError);
+        throw new Error(`Failed to insert rate '${rate.name}': ${rateError.message}`);
+      }
     }
-    
-    // Coin settings are now handled in GPIO settings
-    
+
     // Log action
-    await db.query(
-      'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
-      ['INFO', 'Rate packages updated', 'admin', JSON.stringify({ admin: req.user.username, rateCount: rates.length })]
-    );
-    
+    try {
+      await db.query(
+        'INSERT INTO system_logs (level, message, category, metadata) VALUES (?, ?, ?, ?)',
+        ['INFO', 'Rate packages updated', 'admin', JSON.stringify({ admin: req.user.username, rateCount: rates.length })]
+      );
+    } catch (logError) {
+      console.error('Warning: Could not log rate update:', logError);
+      // Continue anyway
+    }
+
     res.json({ success: true, message: 'Rates updated' });
   } catch (error) {
     console.error('Update rates error:', error);
-    res.status(500).json({ error: 'Failed to update rates' });
+    res.status(500).json({ error: error.message || 'Failed to update rates' });
   }
 });
 
@@ -245,20 +258,20 @@ router.put('/rates', authenticateToken, async (req, res) => {
 router.put('/system', authenticateToken, async (req, res) => {
   try {
     const { auto_restart, restart_time, max_clients, session_timeout, log_level } = req.body;
-    
+
     // Save system settings to database
     await db.query(`
       INSERT OR REPLACE INTO system_settings 
       (id, auto_restart, restart_time, max_clients, session_timeout, log_level, updated_at) 
       VALUES (1, $1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
     `, [auto_restart ? 1 : 0, restart_time || '03:00', max_clients || 100, session_timeout || 7200, log_level || 'info']);
-    
+
     // Log action
     await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
       ['INFO', 'System settings updated', 'admin', JSON.stringify({ admin: req.user.username, settings: req.body })]
     );
-    
+
     res.json({ success: true, message: 'System settings updated' });
   } catch (error) {
     console.error('Update system settings error:', error);
@@ -273,9 +286,9 @@ router.post('/gpio/test-coin', authenticateToken, async (req, res) => {
     const response = await fetch('http://localhost:3001/test-coin', {
       method: 'POST'
     });
-    
+
     const result = await response.json();
-    
+
     res.json({ success: true, message: 'Test coin triggered', result });
   } catch (error) {
     console.error('Test coin error:', error);

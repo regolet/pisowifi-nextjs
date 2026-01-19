@@ -13,13 +13,43 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 PROJECT_DIR="/root/pisowifi-nextjs"
-LAN_INTERFACE="enx00e04c68276e"
-PORTAL_IP="192.168.100.1"
-PORTAL_PORT="3000"
+PORTAL_IP="10.0.0.1"
+PORTAL_PORT="80"
+
+# Auto-detect LAN interface
+# Priority: USB Ethernet (enx*) > Secondary Ethernet (eth1/end1) > First non-loopback
+detect_lan_interface() {
+    # Look for USB Ethernet adapter (usually starts with "enx" or "usb")
+    local usb_iface=$(ip link show | grep -oE 'enx[a-f0-9]+|usb[0-9]+' | head -1)
+    if [ -n "$usb_iface" ]; then
+        echo "$usb_iface"
+        return
+    fi
+    
+    # Look for secondary ethernet (eth1, end1)
+    for iface in eth1 end1 enp0s1; do
+        if ip link show "$iface" &>/dev/null; then
+            echo "$iface"
+            return
+        fi
+    done
+    
+    # Fallback: find first non-loopback, non-wireless interface
+    local iface=$(ip link show | grep -E '^[0-9]+:' | grep -v 'lo:' | grep -v 'wlan' | grep -v 'wl' | head -1 | cut -d: -f2 | tr -d ' ')
+    if [ -n "$iface" ]; then
+        echo "$iface"
+        return
+    fi
+    
+    # Ultimate fallback
+    echo "eth0"
+}
+
+LAN_INTERFACE=$(detect_lan_interface)
 
 echo "Configuration:"
 echo "  Project Directory: $PROJECT_DIR"
-echo "  LAN Interface: $LAN_INTERFACE"
+echo "  LAN Interface: $LAN_INTERFACE (auto-detected)"
 echo "  Portal IP: $PORTAL_IP"
 echo "  Portal Port: $PORTAL_PORT"
 echo ""
@@ -143,15 +173,45 @@ cat > $PROJECT_DIR/scripts/setup-network-on-boot.sh << 'EOF'
 # PISOWifi Network Setup on Boot
 # Sets up interface, iptables, and dnsmasq config
 
-LAN_INTERFACE="enx00e04c68276e"
-PORTAL_IP="192.168.100.1"
-PORTAL_PORT="3000"
+PORTAL_IP="10.0.0.1"
+PORTAL_PORT="80"
+
+# Auto-detect LAN interface
+detect_lan_interface() {
+    # Look for USB Ethernet adapter (usually starts with "enx" or "usb")
+    local usb_iface=$(ip link show | grep -oE 'enx[a-f0-9]+|usb[0-9]+' | head -1)
+    if [ -n "$usb_iface" ]; then
+        echo "$usb_iface"
+        return
+    fi
+    
+    # Look for secondary ethernet (eth1, end1)
+    for iface in eth1 end1 enp0s1; do
+        if ip link show "$iface" &>/dev/null; then
+            echo "$iface"
+            return
+        fi
+    done
+    
+    # Fallback: find first non-loopback, non-wireless, non-primary interface
+    local iface=$(ip link show | grep -E '^[0-9]+:' | grep -v 'lo:' | grep -v 'wlan' | grep -v 'wl' | grep -v 'end0:' | grep -v 'eth0:' | head -1 | cut -d: -f2 | tr -d ' ')
+    if [ -n "$iface" ]; then
+        echo "$iface"
+        return
+    fi
+    
+    # Ultimate fallback
+    echo "eth0"
+}
+
+LAN_INTERFACE=$(detect_lan_interface)
 
 echo "PISOWifi Network Setup on Boot"
 echo "=============================="
+echo "Auto-detected LAN Interface: $LAN_INTERFACE"
 
-# Wait for interface to be available
-echo "Waiting for interface $LAN_INTERFACE..."
+# Wait for interface to be available (if not already up)
+echo "Checking interface $LAN_INTERFACE..."
 for i in {1..30}; do
     if ip link show $LAN_INTERFACE &>/dev/null; then
         echo "✓ Interface $LAN_INTERFACE found"
@@ -205,7 +265,7 @@ interface=$LAN_INTERFACE
 bind-interfaces
 except-interface=lo
 except-interface=end0
-dhcp-range=192.168.100.10,192.168.100.50,255.255.255.0,2h
+dhcp-range=10.0.0.10,10.0.0.50,255.255.255.0,2h
 dhcp-option=3,$PORTAL_IP
 dhcp-option=6,$PORTAL_IP
 dhcp-authoritative
@@ -230,7 +290,7 @@ DNSEOF
 
 echo "✓ Network setup completed"
 echo "Interface: $LAN_INTERFACE ($PORTAL_IP)"
-echo "DHCP Range: 192.168.100.10-50"
+echo "DHCP Range: 10.0.0.10-50"
 echo "Portal Port: $PORTAL_PORT"
 EOF
 

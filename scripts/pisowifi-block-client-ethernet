@@ -6,10 +6,20 @@ MAC_ADDRESS=$1
 REASON=${2:-"manual_disconnect"}
 INTERFACE="enx00e04c68276e"  # Ethernet interface for clients
 
-if [ -z "$MAC_ADDRESS" ]; then
+# SECURITY: Validate MAC address format to prevent command injection
+if ! [[ $MAC_ADDRESS =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]] && \
+   ! [[ $MAC_ADDRESS =~ ^([0-9A-Fa-f]{2}-){5}[0-9A-Fa-f]{2}$ ]]; then
+    echo "[ERROR] Invalid MAC address format: $MAC_ADDRESS"
     echo "Usage: $0 <MAC_ADDRESS> [reason]"
+    echo "MAC address must be in format: XX:XX:XX:XX:XX:XX or XX-XX-XX-XX-XX-XX"
     exit 1
 fi
+
+# SECURITY: Sanitize reason - only allow alphanumeric and underscores
+REASON=$(echo "$REASON" | tr -cd '[:alnum:]_-' | head -c 50)
+
+# Normalize MAC address to uppercase with colons
+MAC_ADDRESS=$(echo "$MAC_ADDRESS" | tr '[:lower:]' '[:upper:]' | tr '-' ':')
 
 echo "[INFO] Blocking internet access for client $MAC_ADDRESS on interface $INTERFACE"
 

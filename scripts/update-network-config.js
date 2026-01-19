@@ -7,11 +7,20 @@ const { Pool } = require('pg');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const fs = require('fs').promises;
+const { isValidInterfaceName, isValidIPv4 } = require('../lib/network-utils');
 
 const execAsync = promisify(exec);
 
+// SECURITY: Require DATABASE_URL environment variable - no fallback credentials
+if (!process.env.DATABASE_URL) {
+  console.error('ERROR: DATABASE_URL environment variable is required but not set.');
+  console.error('Please set DATABASE_URL before running this script:');
+  console.error('  export DATABASE_URL="postgresql://user:password@host:port/dbname"');
+  process.exit(1);
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://pisowifi_user:admin123@localhost:5432/pisowifi'
+  connectionString: process.env.DATABASE_URL
 });
 
 async function updateNetworkConfiguration() {
@@ -46,6 +55,14 @@ async function updateNetworkConfiguration() {
     console.log(`  Interface: ${config.wifi_interface} (will be mapped to available Ethernet)`);
     console.log('');
 
+    // SECURITY: Validate configuration values
+    if (!isValidIPv4(config.gateway)) {
+      throw new Error('Invalid gateway IP address in configuration');
+    }
+    if (!isValidIPv4(config.dns_primary) || !isValidIPv4(config.dns_secondary)) {
+      throw new Error('Invalid DNS IP addresses in configuration');
+    }
+
     // Detect available network interfaces
     const { stdout: interfaceList } = await execAsync('ip link show | grep -E "^[0-9]:" | awk -F\': \' \'{print $2}\'');
     const interfaces = interfaceList.trim().split('\n').filter(iface => 
@@ -62,6 +79,11 @@ async function updateNetworkConfiguration() {
       } else if (iface.startsWith('end') || iface.startsWith('eth')) {
         wanInterface = iface;
       }
+    }
+
+    // SECURITY: Validate interface names before using in shell commands
+    if (!isValidInterfaceName(clientInterface) || !isValidInterfaceName(wanInterface)) {
+      throw new Error('Invalid network interface names detected');
     }
 
     console.log(`Detected interfaces: Client=${clientInterface}, WAN=${wanInterface}`);

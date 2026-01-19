@@ -3,32 +3,19 @@ const router = express.Router();
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const UAParser = require('ua-parser-js');
-const jwt = require('jsonwebtoken');
 const NetworkManager = require('../../services/network-manager');
 const db = require('../../db/sqlite-adapter');
+const { authenticateAPI, apiLimiter } = require('../../middleware/security');
+const { isValidMacAddress, sanitizeMacAddress, isValidInteger, validateClientData } = require('../../utils/validators');
 
 const execAsync = promisify(exec);
 const networkManager = new NetworkManager();
 
-// Auth middleware
-const authenticateToken = (req, res, next) => {
-  const token = req.cookies['auth-token'] || req.headers['authorization']?.split(' ')[1];
-  
-  if (!token) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  
-  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid token' });
-    }
-    req.user = user;
-    next();
-  });
-};
+// Use centralized auth middleware
+const authenticateToken = authenticateAPI;
 
-// Get all clients with sessions and real-time data (temporarily unprotected for testing)
-router.get('/', async (req, res) => {
+// Get all clients with sessions and real-time data - NOW PROTECTED
+router.get('/', authenticateToken, async (req, res) => {
   try {
     // Get clients from database
     const dbClients = await db.query(
@@ -42,19 +29,19 @@ router.get('/', async (req, res) => {
       LEFT JOIN sessions s ON c.id = s.client_id AND s.status = 'ACTIVE'
       ORDER BY c.last_seen DESC`
     );
-    
+
     console.log(`[DEBUG] Found ${dbClients.rows.length} clients in database`);
     dbClients.rows.forEach(client => {
       console.log(`[DEBUG] Client: MAC=${client.mac_address}, Status=${client.status}, TimeRemaining=${client.time_remaining}, SessionStatus=${client.session_status}`);
     });
-    
+
     // Get real-time connected clients from network
     const connectedClients = await networkManager.getConnectedClients();
-    
+
     // Merge database clients with real-time network data
     const mergedClients = dbClients.rows.map(client => {
       const networkClient = connectedClients.find(nc => nc.mac_address === client.mac_address);
-      
+
       const merged = {
         ...client,
         // Update online status based on network data
@@ -65,15 +52,15 @@ router.get('/', async (req, res) => {
         // Keep original session status
         session_status: client.session_status
       };
-      
+
       // Additional debug logging for authenticated clients
       if (client.status === 'CONNECTED' && client.time_remaining > 0) {
         console.log(`[DEBUG] AUTHENTICATED Client found: MAC=${client.mac_address}, Status=${client.status}, TimeRemaining=${client.time_remaining}, Online=${!!networkClient}, SessionStatus=${client.session_status}`);
       }
-      
+
       return merged;
     });
-    
+
     // Add any network clients not in database as unauthenticated
     connectedClients.forEach(networkClient => {
       const existsInDb = mergedClients.find(mc => mc.mac_address === networkClient.mac_address);
@@ -94,7 +81,7 @@ router.get('/', async (req, res) => {
         });
       }
     });
-    
+
     res.json(mergedClients);
   } catch (error) {
     console.error('Get clients error:', error);
@@ -103,7 +90,7 @@ router.get('/', async (req, res) => {
       {
         id: 1,
         mac_address: 'AA:BB:CC:DD:EE:01',
-        ip_address: '192.168.100.10',
+        ip_address: '10.0.0.10',
         device_name: 'iPhone 13',
         device_type: 'mobile',
         os: 'iOS 16.2',
@@ -123,10 +110,10 @@ router.get('/unauthenticated', authenticateToken, async (req, res) => {
   try {
     // Get all connected clients from network
     const connectedClients = await networkManager.getConnectedClients();
-    
+
     // Filter for unauthenticated clients only
     const unauthenticatedClients = [];
-    
+
     for (const networkClient of connectedClients) {
       try {
         // Check if client is authenticated in database
@@ -134,7 +121,7 @@ router.get('/unauthenticated', authenticateToken, async (req, res) => {
           'SELECT * FROM clients WHERE mac_address = $1 AND status = $2 AND time_remaining > 0',
           [networkClient.mac_address.toUpperCase(), 'CONNECTED']
         );
-        
+
         // If not authenticated or not in database, add to unauthenticated list
         if (dbResult.rows.length === 0) {
           unauthenticatedClients.push({
@@ -162,7 +149,7 @@ router.get('/unauthenticated', authenticateToken, async (req, res) => {
         });
       }
     }
-    
+
     console.log(`Found ${unauthenticatedClients.length} unauthenticated clients`);
     res.json(unauthenticatedClients);
   } catch (error) {
@@ -177,10 +164,10 @@ router.get('/connected', authenticateToken, async (req, res) => {
   try {
     // Get real-time connected clients from NetworkManager
     const connectedClients = await networkManager.getConnectedClients();
-    
+
     // Enrich with database information
     const enrichedClients = [];
-    
+
     for (const networkClient of connectedClients) {
       try {
         // Look up client in database
@@ -188,9 +175,9 @@ router.get('/connected', authenticateToken, async (req, res) => {
           'SELECT * FROM clients WHERE mac_address = $1',
           [networkClient.mac_address.toUpperCase()]
         );
-        
+
         const dbClient = dbResult.rows[0];
-        
+
         enrichedClients.push({
           ...networkClient,
           in_database: !!dbClient,
@@ -218,7 +205,7 @@ router.get('/connected', authenticateToken, async (req, res) => {
         });
       }
     }
-    
+
     console.log(`Found ${enrichedClients.length} connected clients`);
     res.json(enrichedClients);
   } catch (error) {
@@ -227,7 +214,7 @@ router.get('/connected', authenticateToken, async (req, res) => {
     try {
       const { stdout: arpOutput } = await execAsync('ip neighbor show | grep -E "192\\.168\\.(1|100)\\.[0-9]+"');
       const arpLines = arpOutput.split('\n').filter(line => line.trim());
-      
+
       const fallbackClients = arpLines.map(line => {
         const parts = line.split(' ');
         return {
@@ -240,7 +227,7 @@ router.get('/connected', authenticateToken, async (req, res) => {
           device_name: 'Unknown Device'
         };
       });
-      
+
       res.json(fallbackClients);
     } catch (fallbackError) {
       res.status(500).json({ error: 'Failed to get connected clients' });
@@ -253,24 +240,24 @@ router.post('/:id/authenticate', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { duration } = req.body;
-    
+
     // Get client from database
     const clientResult = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
     if (clientResult.rows.length === 0) {
       return res.status(404).json({ error: 'Client not found' });
     }
-    
+
     const client = clientResult.rows[0];
     const authDuration = duration || 3600; // Default 1 hour
-    
+
     console.log(`Authenticating client ${client.mac_address} for ${authDuration} seconds`);
-    
+
     // Update client status in database
     await db.query(
       'UPDATE clients SET status = $1, time_remaining = $2, last_seen = CURRENT_TIMESTAMP WHERE id = $3',
       ['CONNECTED', authDuration, id]
     );
-    
+
     // Create new session
     const sessionResult = await db.query(
       `INSERT INTO sessions (client_id, mac_address, ip_address, duration, status, started_at)
@@ -278,14 +265,20 @@ router.post('/:id/authenticate', authenticateToken, async (req, res) => {
        RETURNING id`,
       [id, client.mac_address, client.ip_address, authDuration]
     );
-    
+
     // Authenticate client using NetworkManager
     const authResult = await networkManager.authenticateClient(client.mac_address, client.ip_address, authDuration);
-    
+
     if (authResult.success) {
       // Also run the allow script
       try {
-        await execAsync(`sudo ${__dirname}/../../../scripts/pisowifi-allow-client ${client.mac_address}`);
+        // SECURITY: Validate MAC address before shell execution
+        if (isValidMacAddress(client.mac_address)) {
+          const safeMac = sanitizeMacAddress(client.mac_address);
+          await execAsync(`sudo ${__dirname}/../../../scripts/pisowifi-allow-client ${safeMac}`);
+        } else {
+          console.warn('Invalid MAC address format, skipping allow script');
+        }
       } catch (scriptError) {
         console.warn('Allow script failed:', scriptError.message);
       }
@@ -295,16 +288,16 @@ router.post('/:id/authenticate', authenticateToken, async (req, res) => {
       await db.query('UPDATE sessions SET status = $1 WHERE id = $2', ['FAILED', sessionResult.rows[0].id]);
       throw new Error(authResult.error);
     }
-    
+
     // Log the action
     await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
       ['INFO', `Client manually authenticated: ${client.mac_address}`, 'admin',
-       JSON.stringify({ admin: req.user?.username, duration: authDuration, client_id: id })]
+        JSON.stringify({ admin: req.user?.username, duration: authDuration, client_id: id })]
     );
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: 'Client authenticated successfully',
       session_id: sessionResult.rows[0].id,
       expires_at: new Date(Date.now() + authDuration * 1000)
@@ -319,47 +312,53 @@ router.post('/:id/authenticate', authenticateToken, async (req, res) => {
 router.post('/:id/disconnect', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Get client from database
     const clientResult = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
     if (clientResult.rows.length === 0) {
       return res.status(404).json({ error: 'Client not found' });
     }
-    
+
     const client = clientResult.rows[0];
     console.log(`Disconnecting client ${client.mac_address}`);
-    
+
     // Update client status
     await db.query(
       'UPDATE clients SET status = $1, time_remaining = 0 WHERE id = $2',
       ['DISCONNECTED', id]
     );
-    
+
     // End active sessions
     await db.query(
       'UPDATE sessions SET status = $1, ended_at = CURRENT_TIMESTAMP WHERE client_id = $2 AND status = $3',
       ['ENDED', id, 'ACTIVE']
     );
-    
+
     // Deauthenticate client using NetworkManager
     const deauthResult = await networkManager.deauthenticateClient(client.mac_address);
-    
+
     if (deauthResult.success) {
       // Also run the block script
       try {
-        await execAsync(`sudo ${__dirname}/../../../scripts/pisowifi-block-client ${client.mac_address}`);
+        // SECURITY: Validate MAC address before shell execution
+        if (isValidMacAddress(client.mac_address)) {
+          const safeMac = sanitizeMacAddress(client.mac_address);
+          await execAsync(`sudo ${__dirname}/../../../scripts/pisowifi-block-client ${safeMac}`);
+        } else {
+          console.warn('Invalid MAC address format, skipping block script');
+        }
       } catch (scriptError) {
         console.warn('Block script failed:', scriptError.message);
       }
     }
-    
+
     // Log the action
     await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
       ['INFO', `Client manually disconnected: ${client.mac_address}`, 'admin',
-       JSON.stringify({ admin: req.user?.username, client_id: id })]
+        JSON.stringify({ admin: req.user?.username, client_id: id })]
     );
-    
+
     res.json({ success: true, message: 'Client disconnected successfully' });
   } catch (error) {
     console.error('Disconnect client error:', error);
@@ -371,27 +370,39 @@ router.post('/:id/disconnect', authenticateToken, async (req, res) => {
 router.post('/:id/pause', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const clientResult = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
     if (clientResult.rows.length === 0) {
       return res.status(404).json({ error: 'Client not found' });
     }
-    
+
     const client = clientResult.rows[0];
     const newStatus = client.status === 'PAUSED' ? 'CONNECTED' : 'PAUSED';
-    
+
     // Update status
     await db.query('UPDATE clients SET status = $1 WHERE id = $2', [newStatus, id]);
-    
+
     // Apply or remove iptables rule
     if (newStatus === 'PAUSED') {
       await networkManager.deauthenticateClient(client.mac_address);
-      await execAsync(`sudo ${__dirname}/../../../scripts/pisowifi-block-client ${client.mac_address}`);
+      // SECURITY: Validate MAC address before shell execution
+      if (isValidMacAddress(client.mac_address)) {
+        const safeMac = sanitizeMacAddress(client.mac_address);
+        await execAsync(`sudo ${__dirname}/../../../scripts/pisowifi-block-client ${safeMac}`);
+      } else {
+        console.warn('Invalid MAC address format, skipping block script');
+      }
     } else {
       await networkManager.authenticateClient(client.mac_address, client.ip_address, client.time_remaining);
-      await execAsync(`sudo ${__dirname}/../../../scripts/pisowifi-allow-client ${client.mac_address}`);
+      // SECURITY: Validate MAC address before shell execution
+      if (isValidMacAddress(client.mac_address)) {
+        const safeMac = sanitizeMacAddress(client.mac_address);
+        await execAsync(`sudo ${__dirname}/../../../scripts/pisowifi-allow-client ${safeMac}`);
+      } else {
+        console.warn('Invalid MAC address format, skipping allow script');
+      }
     }
-    
+
     res.json({ success: true, status: newStatus });
   } catch (error) {
     console.error('Pause client error:', error);
@@ -403,7 +414,7 @@ router.post('/:id/pause', authenticateToken, async (req, res) => {
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Get client first
     const clientResult = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
     if (clientResult.rows.length > 0) {
@@ -416,12 +427,12 @@ router.delete('/:id', authenticateToken, async (req, res) => {
         console.error('iptables error:', err);
       }
     }
-    
+
     // Delete client and related records
     await db.query('DELETE FROM sessions WHERE client_id = $1', [id]);
     await db.query('DELETE FROM transactions WHERE client_id = $1', [id]);
     await db.query('DELETE FROM clients WHERE id = $1', [id]);
-    
+
     res.json({ success: true, message: 'Client deleted' });
   } catch (error) {
     console.error('Delete client error:', error);
@@ -433,14 +444,14 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 router.post('/device-info', async (req, res) => {
   try {
     const { userAgent, macAddress } = req.body;
-    
+
     if (!userAgent || !macAddress) {
       return res.status(400).json({ error: 'User agent and MAC address required' });
     }
-    
+
     const parser = new UAParser(userAgent);
     const result = parser.getResult();
-    
+
     // Update client in database if exists
     try {
       await db.query(
@@ -460,7 +471,7 @@ router.post('/device-info', async (req, res) => {
     } catch (dbError) {
       console.warn('Failed to update device info in database:', dbError.message);
     }
-    
+
     res.json({
       success: true,
       deviceInfo: {
@@ -480,7 +491,7 @@ router.post('/device-info', async (req, res) => {
 router.get('/:id/history', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const result = await db.query(
       `SELECT 
         s.id,
@@ -498,7 +509,7 @@ router.get('/:id/history', authenticateToken, async (req, res) => {
       LIMIT 50`,
       [id]
     );
-    
+
     res.json(result.rows);
   } catch (error) {
     console.error('Get client history error:', error);
@@ -510,7 +521,7 @@ router.get('/:id/history', authenticateToken, async (req, res) => {
 router.get('/:id/analytics', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Get basic stats
     const statsResult = await db.query(
       `SELECT 
@@ -525,7 +536,7 @@ router.get('/:id/analytics', authenticateToken, async (req, res) => {
       WHERE s.client_id = $1`,
       [id]
     );
-    
+
     // Get usage by hour of day
     const hourlyResult = await db.query(
       `SELECT 
@@ -538,7 +549,7 @@ router.get('/:id/analytics', authenticateToken, async (req, res) => {
       ORDER BY hour`,
       [id]
     );
-    
+
     // Get usage by day of week
     const weeklyResult = await db.query(
       `SELECT 
@@ -551,7 +562,7 @@ router.get('/:id/analytics', authenticateToken, async (req, res) => {
       ORDER BY day_of_week`,
       [id]
     );
-    
+
     res.json({
       stats: statsResult.rows[0],
       hourlyUsage: hourlyResult.rows,
@@ -563,31 +574,45 @@ router.get('/:id/analytics', authenticateToken, async (req, res) => {
   }
 });
 
-// Auto cleanup inactive clients
+// Auto cleanup inactive clients - with input validation
 router.post('/cleanup', authenticateToken, async (req, res) => {
   try {
     const { olderThanDays = 30, inactiveOnly = true } = req.body;
-    
-    let query = `
-      DELETE FROM clients 
-      WHERE last_seen < datetime('now', '-${olderThanDays} days')
-    `;
-    
-    if (inactiveOnly) {
-      query += ` AND status NOT IN ('CONNECTED', 'PAUSED')`;
+
+    // SECURITY: Validate and sanitize input to prevent SQL injection
+    const days = parseInt(olderThanDays, 10);
+    if (!isValidInteger(days, 1, 365)) {
+      return res.status(400).json({ error: 'Invalid olderThanDays parameter (must be 1-365)' });
     }
-    
-    const result = await db.query(query);
-    
+
+    // Use parameterized query - SQLite doesn't support interval math with params directly,
+    // so we calculate the date in JavaScript
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+    const cutoffStr = cutoffDate.toISOString();
+
+    let query;
+    let params;
+
+    if (inactiveOnly) {
+      query = `DELETE FROM clients WHERE last_seen < $1 AND status NOT IN ('CONNECTED', 'PAUSED')`;
+      params = [cutoffStr];
+    } else {
+      query = `DELETE FROM clients WHERE last_seen < $1`;
+      params = [cutoffStr];
+    }
+
+    const result = await db.query(query, params);
+
     // Log cleanup action
     await db.query(
       'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
-      ['INFO', `Cleaned up ${result.rowCount} inactive clients`, 'system', 
-       JSON.stringify({ days: olderThanDays, admin: req.user.username })]
+      ['INFO', `Cleaned up ${result.rowCount} inactive clients`, 'system',
+        JSON.stringify({ days: olderThanDays, admin: req.user.username })]
     );
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       deleted: result.rowCount,
       message: `Cleaned up ${result.rowCount} inactive clients`
     });
@@ -602,15 +627,15 @@ router.post('/:id/whitelist', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
-    
+
     // Get client
     const clientResult = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
     if (clientResult.rows.length === 0) {
       return res.status(404).json({ error: 'Client not found' });
     }
-    
+
     const client = clientResult.rows[0];
-    
+
     // Add to whitelist
     await db.query(
       `INSERT INTO whitelisted_clients (mac_address, ip_address, reason, added_by, created_at) 
@@ -621,20 +646,26 @@ router.post('/:id/whitelist', authenticateToken, async (req, res) => {
        updated_at = CURRENT_TIMESTAMP`,
       [client.mac_address, client.ip_address, reason || 'Admin whitelisted', req.user.username]
     );
-    
+
     // Update client status
     await db.query(
       'UPDATE clients SET is_whitelisted = true WHERE id = $1',
       [id]
     );
-    
+
     // Allow internet access permanently
     try {
-      await execAsync(`sudo ${__dirname}/../../../scripts/pisowifi-whitelist-client ${client.mac_address}`);
+      // SECURITY: Validate MAC address before shell execution
+      if (isValidMacAddress(client.mac_address)) {
+        const safeMac = sanitizeMacAddress(client.mac_address);
+        await execAsync(`sudo ${__dirname}/../../../scripts/pisowifi-whitelist-client ${safeMac}`);
+      } else {
+        console.warn('Invalid MAC address format, skipping whitelist script');
+      }
     } catch (err) {
       console.error('Whitelist iptables error:', err);
     }
-    
+
     res.json({ success: true, message: 'Client added to whitelist' });
   } catch (error) {
     console.error('Whitelist client error:', error);
@@ -647,15 +678,15 @@ router.post('/:id/block', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body;
-    
+
     // Get client
     const clientResult = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
     if (clientResult.rows.length === 0) {
       return res.status(404).json({ error: 'Client not found' });
     }
-    
+
     const client = clientResult.rows[0];
-    
+
     // Add to blocklist
     await db.query(
       `INSERT INTO blocked_clients (mac_address, ip_address, reason, blocked_by, created_at) 
@@ -666,20 +697,26 @@ router.post('/:id/block', authenticateToken, async (req, res) => {
        updated_at = CURRENT_TIMESTAMP`,
       [client.mac_address, client.ip_address, reason || 'Admin blocked', req.user.username]
     );
-    
+
     // Update client status
     await db.query(
       'UPDATE clients SET status = $1, is_blocked = true WHERE id = $2',
       ['BLOCKED', id]
     );
-    
+
     // Block internet access permanently
     try {
-      await execAsync(`sudo ${__dirname}/../../../scripts/pisowifi-block-client ${client.mac_address} permanent`);
+      // SECURITY: Validate MAC address before shell execution
+      if (isValidMacAddress(client.mac_address)) {
+        const safeMac = sanitizeMacAddress(client.mac_address);
+        await execAsync(`sudo ${__dirname}/../../../scripts/pisowifi-block-client ${safeMac} permanent`);
+      } else {
+        console.warn('Invalid MAC address format, skipping permanent block script');
+      }
     } catch (err) {
       console.error('Block iptables error:', err);
     }
-    
+
     res.json({ success: true, message: 'Client blocked permanently' });
   } catch (error) {
     console.error('Block client error:', error);
@@ -687,42 +724,42 @@ router.post('/:id/block', authenticateToken, async (req, res) => {
   }
 });
 
-// Debug endpoint to check database state (unprotected for testing)
-router.get('/debug-db', async (req, res) => {
+// Debug endpoint to check database state (PROTECTED with authentication)
+router.get('/debug-db', authenticateToken, async (req, res) => {
   try {
     console.log('[DEBUG DB] Checking all clients in database...');
-    
+
     // Get all clients
     const allClients = await db.query('SELECT * FROM clients ORDER BY last_seen DESC');
     console.log(`[DEBUG DB] Found ${allClients.rows.length} total clients in database`);
-    
+
     // Get authenticated clients (status = CONNECTED and time_remaining > 0)
     const authClients = await db.query(
       'SELECT * FROM clients WHERE status = $1 AND time_remaining > 0 ORDER BY last_seen DESC',
       ['CONNECTED']
     );
     console.log(`[DEBUG DB] Found ${authClients.rows.length} authenticated clients`);
-    
+
     // Get active sessions
     const activeSessions = await db.query(
       'SELECT * FROM sessions WHERE status = $1 ORDER BY started_at DESC',
       ['ACTIVE']
     );
     console.log(`[DEBUG DB] Found ${activeSessions.rows.length} active sessions`);
-    
+
     // Log detailed info for each client
     allClients.rows.forEach(client => {
       console.log(`[DEBUG DB] Client ${client.mac_address}: Status=${client.status}, TimeRemaining=${client.time_remaining}, LastSeen=${client.last_seen}`);
     });
-    
+
     authClients.rows.forEach(client => {
       console.log(`[DEBUG DB] AUTH Client ${client.mac_address}: Status=${client.status}, TimeRemaining=${client.time_remaining}, LastSeen=${client.last_seen}`);
     });
-    
+
     activeSessions.rows.forEach(session => {
       console.log(`[DEBUG DB] SESSION: ClientID=${session.client_id}, MAC=${session.mac_address}, Status=${session.status}, Started=${session.started_at}`);
     });
-    
+
     res.json({
       total_clients: allClients.rows.length,
       authenticated_clients: authClients.rows.length,
@@ -742,7 +779,7 @@ async function getMacVendor(macAddress) {
   try {
     // Extract first 3 octets for OUI lookup
     const oui = macAddress.replace(/[:-]/g, '').substring(0, 6).toUpperCase();
-    
+
     // Extended vendor mapping for common devices
     const vendorMap = {
       // Raspberry Pi Foundation
@@ -772,7 +809,7 @@ async function getMacVendor(macAddress) {
       '00DB70': 'Huawei Technologies',
       '70:72:3C': 'Huawei Technologies'
     };
-    
+
     return vendorMap[oui] || vendorMap[macAddress.substring(0, 8).toUpperCase()] || 'Unknown Vendor';
   } catch (error) {
     return 'Unknown Vendor';
