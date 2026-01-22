@@ -5,31 +5,136 @@ const { promisify } = require('util');
 const db = require('../../db/sqlite-adapter');
 const { authenticateAPI } = require('../../middleware/security');
 const { coinAbuseProtection } = require('../../middleware/coin-abuse-protection');
+const { isValidIPv4, isValidMacAddress, sanitizeMacAddress, isValidSlotNumber, isValidCoinValue, isValidInteger } = require('../../utils/validators');
 
 const execAsync = promisify(exec);
 
 // Helper function to release expired coin slots (SQLite compatible)
 async function releaseExpiredCoinSlots() {
   try {
-    // Try PostgreSQL function first (if using PostgreSQL)
-    await db.query('SELECT release_expired_coin_slots()');
-  } catch (e) {
-    // If function doesn't exist (SQLite), use direct SQL update
+    // Use direct SQL update for SQLite
     await db.query(`
       UPDATE coin_slots 
       SET status = 'available',
           claimed_by_client_id = NULL,
           claimed_by_ip = NULL,
           claimed_by_mac = NULL,
+          claimed_by_session_token = NULL,
           claimed_at = NULL,
           expires_at = NULL,
           updated_at = CURRENT_TIMESTAMP
       WHERE status = 'claimed' 
       AND expires_at IS NOT NULL
-      AND expires_at < CURRENT_TIMESTAMP
+      AND expires_at < datetime('now')
     `);
+  } catch (e) {
+    console.warn('Failed to release expired coin slots:', e.message);
   }
 }
+
+// Reset all coin slots (admin only)
+router.post('/reset-all', authenticateAPI, async (req, res) => {
+  try {
+    await db.query(`
+      UPDATE coin_slots 
+      SET status = 'available',
+          claimed_by_client_id = NULL,
+          claimed_by_ip = NULL,
+          claimed_by_mac = NULL,
+          claimed_by_session_token = NULL,
+          claimed_at = NULL,
+          expires_at = NULL,
+          updated_at = CURRENT_TIMESTAMP
+    `);
+    console.log('All coin slots reset to available');
+    res.json({ success: true, message: 'All coin slots reset to available' });
+  } catch (error) {
+    console.error('Reset coin slots error:', error);
+    res.status(500).json({ success: false, error: 'Failed to reset coin slots' });
+  }
+});
+
+// Check if client has an active claimed slot (no JWT auth - portal uses session token)
+router.get('/my-slot', async (req, res) => {
+  try {
+    const { clientIp, clientMac, sessionToken } = req.query;
+
+    if (!sessionToken) {
+      return res.status(400).json({
+        success: false,
+        error: 'Session token required'
+      });
+    }
+
+    if (clientIp && !isValidIPv4(clientIp)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid client IP address'
+      });
+    }
+
+    // Allow "Unknown" MAC address for clients where MAC cannot be detected
+    if (clientMac && clientMac !== 'Unknown' && !isValidMacAddress(clientMac)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid client MAC address'
+      });
+    }
+
+    const safeClientMac = clientMac ? sanitizeMacAddress(clientMac) : undefined;
+
+    if (!clientIp && !clientMac && !sessionToken) {
+      return res.status(400).json({
+        success: false,
+        error: 'Client IP, MAC, or session token required'
+      });
+    }
+
+    // Release expired slots first
+    await releaseExpiredCoinSlots();
+
+    // Find any slot claimed by this client
+    const result = await db.query(`
+      SELECT * FROM coin_slots 
+      WHERE status = 'claimed' 
+      AND (claimed_by_ip = $1 OR claimed_by_mac = $2 OR claimed_by_session_token = $3)
+      AND expires_at > datetime('now')
+      LIMIT 1
+    `, [clientIp, safeClientMac, sessionToken]);
+
+    if (result.rows.length > 0) {
+      // Get queued coins for this client
+      const queueResult = await db.query(`
+        SELECT 
+          COALESCE(SUM(coin_count), 0) as total_coins,
+          COALESCE(SUM(total_value), 0) as total_value
+        FROM coin_queues 
+        WHERE status = 'queued'
+        AND (client_ip = $1 OR client_mac = $2 OR session_token = $3)
+      `, [clientIp, safeClientMac, sessionToken]);
+
+      res.json({
+        success: true,
+        hasActiveSlot: true,
+        slot: result.rows[0],
+        queue: queueResult.rows[0] || { total_coins: 0, total_value: 0 }
+      });
+    } else {
+      res.json({
+        success: true,
+        hasActiveSlot: false,
+        slot: null,
+        queue: null
+      });
+    }
+  } catch (error) {
+    console.error('Get my slot error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check slot status'
+    });
+  }
+});
 
 // Get all coin slots status
 router.get('/slots', authenticateAPI, async (req, res) => {
@@ -81,19 +186,41 @@ router.get('/slots', authenticateAPI, async (req, res) => {
   }
 });
 
-// Claim a coin slot
-router.post('/slots/:slotNumber/claim', authenticateAPI, coinAbuseProtection, async (req, res) => {
+// Claim a coin slot (no JWT auth - portal users authenticate via session token in body)
+router.post('/slots/:slotNumber/claim', coinAbuseProtection, async (req, res) => {
   try {
     const { slotNumber } = req.params;
-    const { clientId, clientIp, clientMac, timeoutMinutes = 5 } = req.body;
+    const { clientId, clientIp, clientMac, sessionToken, timeoutMinutes = 5 } = req.body;
+
+    if (!sessionToken) {
+      return res.status(400).json({ success: false, error: 'Session token required' });
+    }
+
+    if (!isValidSlotNumber(slotNumber)) {
+      return res.status(400).json({ success: false, error: 'Invalid slot number (1-10)' });
+    }
+
+    if (clientIp && !isValidIPv4(clientIp)) {
+      return res.status(400).json({ success: false, error: 'Invalid client IP address' });
+    }
+
+    // Allow 'Unknown' MAC address for clients where MAC cannot be detected
+    if (clientMac && clientMac !== 'Unknown' && !isValidMacAddress(clientMac)) {
+      return res.status(400).json({ success: false, error: 'Invalid client MAC address' });
+    }
+
+    const safeClientMac = clientMac ? (clientMac === 'Unknown' ? 'Unknown' : sanitizeMacAddress(clientMac)) : 'Unknown';
 
     console.log(`Attempting to claim slot ${slotNumber} for client ${clientIp} (${req.rateLimitInfo?.remaining || '?'} attempts remaining)`);
 
     // Release expired slots first
     await releaseExpiredCoinSlots();
 
-    // Try to claim the slot
-    const expiresAt = new Date(Date.now() + (timeoutMinutes * 60 * 1000));
+    // Calculate expiration time and convert to ISO string for SQLite
+    const expiresAt = new Date(Date.now() + (timeoutMinutes * 60 * 1000)).toISOString();
+    
+    // Handle undefined clientId - use null for SQLite
+    const safeClientId = clientId || null;
 
     const result = await db.query(`
       UPDATE coin_slots 
@@ -101,12 +228,13 @@ router.post('/slots/:slotNumber/claim', authenticateAPI, coinAbuseProtection, as
           claimed_by_client_id = $1,
           claimed_by_ip = $2,
           claimed_by_mac = $3,
+          claimed_by_session_token = $4,
           claimed_at = CURRENT_TIMESTAMP,
-          expires_at = $4
-      WHERE slot_number = $5 
+          expires_at = $5
+      WHERE slot_number = $6 
       AND status = 'available'
       RETURNING *
-    `, [clientId, clientIp, clientMac, expiresAt, slotNumber]);
+    `, [safeClientId, clientIp, safeClientMac, sessionToken, expiresAt, slotNumber]);
 
     if (result.rows.length === 0) {
       // Check if slot exists or is already claimed
@@ -152,29 +280,79 @@ router.post('/slots/:slotNumber/claim', authenticateAPI, coinAbuseProtection, as
   }
 });
 
-// Release a coin slot
-router.post('/slots/:slotNumber/release', authenticateAPI, async (req, res) => {
+// Release a coin slot (no auth required - portal users can release their own slots)
+router.post('/slots/:slotNumber/release', async (req, res) => {
   try {
     const { slotNumber } = req.params;
-    const { clientIp, clientMac, preserveQueues = false } = req.body;
+    const { clientIp, clientMac, sessionToken, preserveQueues = false } = req.body;
 
-    console.log(`Releasing slot ${slotNumber} for client ${clientIp}${preserveQueues ? ' (preserving queues)' : ''}`);
+    if (!sessionToken) {
+      return res.status(400).json({ success: false, error: 'Session token required' });
+    }
+
+    if (!isValidSlotNumber(slotNumber)) {
+      return res.status(400).json({ success: false, error: 'Invalid slot number (1-10)' });
+    }
+
+    if (clientIp && !isValidIPv4(clientIp)) {
+      return res.status(400).json({ success: false, error: 'Invalid client IP address' });
+    }
+
+    // Allow 'Unknown' MAC address for clients where MAC cannot be detected
+    if (clientMac && clientMac !== 'Unknown' && !isValidMacAddress(clientMac)) {
+      return res.status(400).json({ success: false, error: 'Invalid client MAC address' });
+    }
+
+    const safeClientMac = clientMac ? (clientMac === 'Unknown' ? 'Unknown' : sanitizeMacAddress(clientMac)) : 'Unknown';
+
+    console.log(`Releasing slot ${slotNumber} for client ${clientIp} (MAC: ${clientMac})${preserveQueues ? ' (preserving queues)' : ''}`);
 
     // Begin transaction to handle slot release and queue preservation
     await db.query('BEGIN');
 
     try {
-      // Get the slot ID before releasing
-      const slotInfo = await db.query(
-        'SELECT id FROM coin_slots WHERE slot_number = $1 AND (claimed_by_ip = $2 OR claimed_by_mac = $3)',
-        [slotNumber, clientIp, clientMac]
+      // Get the slot ID before releasing - more lenient matching
+      // Check by slot number first, then verify client match (IP, MAC, or just slot number if claimed)
+      let slotInfo = await db.query(
+        `SELECT id, claimed_by_ip, claimed_by_mac FROM coin_slots 
+         WHERE slot_number = $1 
+         AND status = 'claimed'
+         AND (claimed_by_ip = $2 OR claimed_by_mac = $3 OR claimed_by_session_token = $4 OR $3 = 'Unknown')`,
+        [slotNumber, clientIp, safeClientMac, sessionToken]
       );
+
+      // If not found with strict match, try just by slot number and IP
+      if (slotInfo.rows.length === 0) {
+        slotInfo = await db.query(
+          `SELECT id, claimed_by_ip, claimed_by_mac FROM coin_slots 
+           WHERE slot_number = $1 
+           AND status = 'claimed'
+           AND claimed_by_ip = $2`,
+          [slotNumber, clientIp]
+        );
+      }
+
+      // If still not found, try just by slot number (for cleanup)
+      if (slotInfo.rows.length === 0) {
+        slotInfo = await db.query(
+          `SELECT id, claimed_by_ip, claimed_by_mac FROM coin_slots 
+           WHERE slot_number = $1 
+           AND status = 'claimed'`,
+          [slotNumber]
+        );
+        
+        if (slotInfo.rows.length > 0) {
+          console.log(`Slot ${slotNumber} found but claimed by different client (IP: ${slotInfo.rows[0].claimed_by_ip}, MAC: ${slotInfo.rows[0].claimed_by_mac}) - releasing anyway`);
+        }
+      }
 
       if (slotInfo.rows.length === 0) {
         await db.query('ROLLBACK');
-        return res.status(404).json({
-          success: false,
-          error: 'Coin slot not found or not claimed by this client'
+        console.log(`Slot ${slotNumber} not found or not claimed - nothing to release`);
+        // Return success anyway - slot is effectively released
+        return res.json({
+          success: true,
+          message: 'Coin slot already released or not claimed'
         });
       }
 
@@ -190,9 +368,9 @@ router.post('/slots/:slotNumber/release', authenticateAPI, async (req, res) => {
               client_mac = COALESCE(client_mac, $2)
           WHERE slot_id = $3 
           AND status = 'queued'
-          AND (client_ip = $1 OR client_mac = $2)
+          AND (client_ip = $1 OR client_mac = $2 OR session_token = $4)
           RETURNING *
-        `, [clientIp, clientMac, slotId]);
+        `, [clientIp, safeClientMac, slotId, sessionToken]);
 
         console.log(`Preserved ${preservedQueues.rows.length} queued coins for client ${clientMac || clientIp}`);
       }
@@ -204,6 +382,7 @@ router.post('/slots/:slotNumber/release', authenticateAPI, async (req, res) => {
             claimed_by_client_id = NULL,
             claimed_by_ip = NULL,
             claimed_by_mac = NULL,
+        claimed_by_session_token = NULL,
             claimed_at = NULL,
             expires_at = NULL
         WHERE slot_number = $1 
@@ -217,7 +396,7 @@ router.post('/slots/:slotNumber/release', authenticateAPI, async (req, res) => {
       io.emit('coin-slot-released', {
         slot: result.rows[0],
         clientIp,
-        clientMac,
+        clientMac: safeClientMac,
         preserveQueues
       });
 
@@ -244,11 +423,30 @@ router.post('/slots/:slotNumber/release', authenticateAPI, async (req, res) => {
   }
 });
 
-// Add coin to queue
-router.post('/slots/:slotNumber/add-coin', authenticateAPI, async (req, res) => {
+// Add coin to queue (no JWT auth - portal/ESP32 can add coins)
+router.post('/slots/:slotNumber/add-coin', async (req, res) => {
   try {
     const { slotNumber } = req.params;
     const { clientId, clientIp, clientMac, sessionToken, coinValue, coinCount = 1 } = req.body;
+
+    if (!sessionToken) {
+      return res.status(400).json({ success: false, error: 'Session token required' });
+    }
+
+    if (!isValidSlotNumber(slotNumber)) {
+      return res.status(400).json({ success: false, error: 'Invalid slot number (1-10)' });
+    }
+
+    if (clientIp && !isValidIPv4(clientIp)) {
+      return res.status(400).json({ success: false, error: 'Invalid client IP address' });
+    }
+
+    // Allow 'Unknown' MAC address for clients where MAC cannot be detected
+    if (clientMac && clientMac !== 'Unknown' && !isValidMacAddress(clientMac)) {
+      return res.status(400).json({ success: false, error: 'Invalid client MAC address' });
+    }
+
+    const safeClientMac = clientMac ? (clientMac === 'Unknown' ? 'Unknown' : sanitizeMacAddress(clientMac)) : null;
 
     console.log(`Adding ${coinCount} coins of ₱${coinValue} to slot ${slotNumber} for client ${clientIp}`);
 
@@ -260,14 +458,14 @@ router.post('/slots/:slotNumber/add-coin', authenticateAPI, async (req, res) => 
       });
     }
 
-    if (!coinValue || isNaN(coinValue) || coinValue <= 0) {
+    if (!isValidCoinValue(coinValue)) {
       return res.status(400).json({
         success: false,
         error: 'Invalid coin value'
       });
     }
 
-    if (!coinCount || isNaN(coinCount) || coinCount <= 0) {
+    if (!isValidInteger(coinCount, 1, 1000)) {
       return res.status(400).json({
         success: false,
         error: 'Invalid coin count'
@@ -279,8 +477,8 @@ router.post('/slots/:slotNumber/add-coin', authenticateAPI, async (req, res) => 
       SELECT id FROM coin_slots 
       WHERE slot_number = $1 
       AND status = 'claimed' 
-      AND (claimed_by_ip = $2 OR claimed_by_mac = $3)
-    `, [slotNumber, clientIp, clientMac]);
+      AND (claimed_by_ip = $2 OR claimed_by_mac = $3 OR claimed_by_session_token = $4)
+    `, [slotNumber, clientIp, safeClientMac, sessionToken]);
 
     if (slotResult.rows.length === 0) {
       console.log(`Slot ${slotNumber} not found or not claimed by ${clientIp}/${clientMac}`);
@@ -312,7 +510,7 @@ router.post('/slots/:slotNumber/add-coin', authenticateAPI, async (req, res) => 
         AND status = 'queued'
         AND (client_ip = $2 OR client_mac = $3 OR session_token = $4)
         RETURNING *
-      `, [slotId, clientIp, clientMac, sessionToken]);
+      `, [slotId, clientIp, safeClientMac, sessionToken]);
 
       if (reAssociated.rows.length > 0) {
         console.log(`Re-associated ${reAssociated.rows.length} preserved queues with slot ${slotNumber}`);
@@ -328,7 +526,7 @@ router.post('/slots/:slotNumber/add-coin', authenticateAPI, async (req, res) => 
           coin_value, coin_count, total_value, status
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'queued')
         RETURNING *
-      `, [slotId, clientId, clientIp, clientMac, sessionToken, coinValue, coinCount, totalValue]);
+      `, [slotId, clientId, clientIp, safeClientMac, sessionToken, coinValue, coinCount, totalValue]);
 
       console.log('New coin inserted successfully:', queueResult.rows[0]);
 
@@ -344,7 +542,7 @@ router.post('/slots/:slotNumber/add-coin', authenticateAPI, async (req, res) => 
         FROM coin_queues cq
         WHERE cq.status = 'queued'
         AND (cq.client_ip = $1 OR cq.client_mac = $2 OR cq.session_token = $3)
-      `, [clientIp, clientMac, sessionToken]);
+      `, [clientIp, safeClientMac, sessionToken]);
 
       const queuedTotal = totalResult.rows[0];
 
@@ -355,7 +553,7 @@ router.post('/slots/:slotNumber/add-coin', authenticateAPI, async (req, res) => 
         total: queuedTotal,
         slotNumber,
         clientIp,
-        clientMac,
+        clientMac: safeClientMac,
         reAssociated: reAssociated.rows.length > 0
       });
 
@@ -382,10 +580,25 @@ router.post('/slots/:slotNumber/add-coin', authenticateAPI, async (req, res) => 
   }
 });
 
-// Get client's queued coins
-router.get('/queues/client', authenticateAPI, async (req, res) => {
+// Get client's queued coins (no JWT auth - portal uses this)
+router.get('/queues/client', async (req, res) => {
   try {
     const { clientIp, clientMac, sessionToken, includePreserved = false } = req.query;
+
+    if (!sessionToken) {
+      return res.status(400).json({ success: false, error: 'Session token required' });
+    }
+
+    if (clientIp && !isValidIPv4(clientIp)) {
+      return res.status(400).json({ success: false, error: 'Invalid client IP address' });
+    }
+
+    // Allow 'Unknown' MAC address for clients where MAC cannot be detected
+    if (clientMac && clientMac !== 'Unknown' && !isValidMacAddress(clientMac)) {
+      return res.status(400).json({ success: false, error: 'Invalid client MAC address' });
+    }
+
+    const safeClientMac = clientMac ? (clientMac === 'Unknown' ? 'Unknown' : sanitizeMacAddress(clientMac)) : undefined;
 
     if (!clientIp && !clientMac && !sessionToken) {
       return res.status(400).json({
@@ -424,7 +637,7 @@ router.get('/queues/client', authenticateAPI, async (req, res) => {
       `;
     }
 
-    const queueResult = await db.query(queueQuery, [clientIp, clientMac, sessionToken]);
+    const queueResult = await db.query(queueQuery, [clientIp, safeClientMac, sessionToken]);
 
     // Get total using a custom query that includes preserved queues
     const totalResult = await db.query(`
@@ -436,7 +649,7 @@ router.get('/queues/client', authenticateAPI, async (req, res) => {
       WHERE cq.status = 'queued'
       AND (cq.client_ip = $1 OR cq.client_mac = $2 OR cq.session_token = $3)
       ${includePreserved === 'true' ? '' : 'AND cq.slot_id IS NOT NULL'}
-    `, [clientIp, clientMac, sessionToken]);
+    `, [clientIp, safeClientMac, sessionToken]);
 
     const total = totalResult.rows[0];
 
@@ -458,10 +671,25 @@ router.get('/queues/client', authenticateAPI, async (req, res) => {
   }
 });
 
-// Redeem all queued coins for client
-router.post('/queues/redeem', authenticateAPI, async (req, res) => {
+// Redeem all queued coins for client (no JWT auth - portal users redeem their coins)
+router.post('/queues/redeem', async (req, res) => {
   try {
     const { clientId, clientIp, clientMac, sessionToken } = req.body;
+
+    if (!sessionToken) {
+      return res.status(400).json({ success: false, error: 'Session token required' });
+    }
+
+    if (clientIp && !isValidIPv4(clientIp)) {
+      return res.status(400).json({ success: false, error: 'Invalid client IP address' });
+    }
+
+    // Allow 'Unknown' MAC address for clients where MAC cannot be detected
+    if (clientMac && clientMac !== 'Unknown' && !isValidMacAddress(clientMac)) {
+      return res.status(400).json({ success: false, error: 'Invalid client MAC address' });
+    }
+
+    const safeClientMac = clientMac ? (clientMac === 'Unknown' ? 'Unknown' : sanitizeMacAddress(clientMac)) : undefined;
 
     console.log(`Redeeming queued coins for client ${clientIp} (session: ${sessionToken ? 'present' : 'none'})`);
 
@@ -472,7 +700,7 @@ router.post('/queues/redeem', authenticateAPI, async (req, res) => {
       WHERE status = 'queued'
       AND (client_ip = $1 OR client_mac = $2 OR session_token = $3)
       RETURNING *
-    `, [clientIp, clientMac, sessionToken]);
+    `, [clientIp, safeClientMac, sessionToken]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({
@@ -495,7 +723,7 @@ router.post('/queues/redeem', authenticateAPI, async (req, res) => {
           claimed_at = NULL,
           expires_at = NULL
       WHERE (claimed_by_ip = $1 OR claimed_by_mac = $2)
-    `, [clientIp, clientMac]);
+    `, [clientIp, safeClientMac]);
 
     // Emit real-time update
     const { io } = require('../../app');
@@ -504,7 +732,7 @@ router.post('/queues/redeem', authenticateAPI, async (req, res) => {
       totalCoins,
       totalValue,
       clientIp,
-      clientMac
+      clientMac: safeClientMac
     });
 
     console.log(`Redeemed ${totalCoins} coins worth ₱${totalValue.toFixed(2)}`);

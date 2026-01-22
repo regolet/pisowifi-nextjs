@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Logs - PISOWifi Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-200 min-h-screen lg:flex">
+    <%- include('../partials/admin-sidebar', { currentPage: 'logs' }) %>
+
+    <div class="flex-1 overflow-y-auto pt-14 lg:pt-0 lg:ml-0">
+        <div class="p-6">
+            <div class="mb-6 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+                <div>
+                    <h1 class="text-xl font-bold text-black">System Logs</h1>
+                    <p class="text-sm text-gray-600 mt-1">View system events and errors</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="refreshLogs()"
+                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm">
+                        Refresh
+                    </button>
+                    <button onclick="clearLogs()"
+                        class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm">
+                        Clear Logs
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
+                <div class="px-4 py-3 border-b border-gray-300">
+                    <h2 class="text-sm font-semibold text-black">Filters</h2>
+                </div>
+                <div class="p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Level</label>
+                        <select id="filter-level" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="">All</option>
+                            <option value="info">Info</option>
+                            <option value="warn">Warn</option>
+                            <option value="error">Error</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Category</label>
+                        <input type="text" id="filter-category"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                            placeholder="ttl, network, system">
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-xs text-gray-600 mb-1">Search</label>
+                        <input type="text" id="filter-search"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                            placeholder="Search message">
+                    </div>
+                </div>
+                <div class="px-4 pb-4">
+                    <button onclick="refreshLogs()"
+                        class="px-4 py-2 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm">Apply Filters</button>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 border border-gray-300 rounded-lg">
+                <div class="px-4 py-3 border-b border-gray-300">
+                    <h2 class="text-sm font-semibold text-black">Recent Logs</h2>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Time</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Level</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Category</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Message</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-body" class="bg-white divide-y divide-gray-200">
+                            <tr>
+                                <td colspan="4" class="text-center py-6 text-gray-500">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function refreshLogs() {
+            const level = document.getElementById('filter-level').value;
+            const category = document.getElementById('filter-category').value.trim();
+            const search = document.getElementById('filter-search').value.trim();
+
+            const params = new URLSearchParams();
+            if (level) params.set('level', level);
+            if (category) params.set('category', category);
+            if (search) params.set('search', search);
+            params.set('limit', '200');
+
+            try {
+                const response = await fetch(`/api/logs?${params.toString()}`, {
+                    credentials: 'include'
+                });
+                if (!response.ok) {
+                    throw new Error('Failed to fetch logs');
+                }
+
+                const data = await response.json();
+                renderLogs(data.logs || []);
+            } catch (error) {
+                renderLogsError();
+            }
+        }
+
+        function renderLogs(logs) {
+            const tbody = document.getElementById('logs-body');
+            if (!logs.length) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-6 text-gray-500">No logs found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = logs.map(log => {
+                const levelClass = log.level === 'error'
+                    ? 'bg-red-100 text-red-700'
+                    : log.level === 'warn'
+                        ? 'bg-yellow-100 text-yellow-700'
+                        : 'bg-blue-100 text-blue-700';
+
+                return `
+                    <tr>
+                        <td class="px-4 py-2 text-xs text-gray-600">${new Date(log.created_at).toLocaleString()}</td>
+                        <td class="px-4 py-2">
+                            <span class="px-2 py-1 rounded-full text-xs ${levelClass}">${(log.level || 'info').toUpperCase()}</span>
+                        </td>
+                        <td class="px-4 py-2 text-xs text-gray-700">${log.category || 'system'}</td>
+                        <td class="px-4 py-2 text-sm text-gray-800">${log.message || ''}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderLogsError() {
+            const tbody = document.getElementById('logs-body');
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-6 text-gray-500">Failed to load logs</td></tr>';
+        }
+
+        async function clearLogs() {
+            if (!confirm('Clear all logs?')) return;
+            try {
+                const response = await fetch('/api/logs/clear', {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    refreshLogs();
+                } else {
+                    alert('Failed to clear logs');
+                }
+            } catch (error) {
+                alert('Failed to clear logs');
+            }
+        }
+
+        // Initial load
+        refreshLogs();
+    </script>
+</body>
+
+</html>

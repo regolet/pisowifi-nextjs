@@ -1,0 +1,633 @@
+<div id="ttl-settings" class="settings-section">
+  <h3>🛡️ Anti-Tethering Detection (TTL)</h3>
+  <p class="section-description">Monitor and prevent clients from sharing internet with other devices using TTL (Time To Live) analysis.</p>
+
+  <!-- TTL Detection Status -->
+  <div class="status-box">
+    <div class="status-header">
+      <span id="ttl-status" class="status-badge status-disabled">DISABLED</span>
+      <span id="ttl-violations-count" class="violation-count">0 Violations</span>
+    </div>
+  </div>
+
+  <!-- Settings Form -->
+  <form id="ttl-settings-form" class="settings-form">
+    <div class="form-group">
+      <label for="ttl-enabled">
+        <input type="checkbox" id="ttl-enabled" name="enabled" class="toggle-checkbox">
+        <span class="toggle-label">Enable TTL Anti-Tethering Detection</span>
+      </label>
+      <p class="help-text">When enabled, the system will monitor IP packet TTL values to detect internet tethering.</p>
+    </div>
+
+    <div class="form-group">
+      <label for="ttl-sensitivity">Sensitivity Level</label>
+      <select id="ttl-sensitivity" name="sensitivity" class="form-control">
+        <option value="low">Low (Allow ±2 TTL variance)</option>
+        <option value="medium" selected>Medium (Allow ±1 TTL variance)</option>
+        <option value="high">High (No TTL variance - Most Strict)</option>
+      </select>
+      <p class="help-text">
+        <strong>Low:</strong> Fewer false positives, may miss some tethering.<br>
+        <strong>Medium:</strong> Balanced detection and accuracy.<br>
+        <strong>High:</strong> Maximum strictness, may have false positives.
+      </p>
+    </div>
+
+    <div class="form-group">
+      <label for="ttl-alert-threshold">Alert Threshold (Anomalies)</label>
+      <input type="number" id="ttl-alert-threshold" name="alert_threshold" min="1" max="50" value="5" class="form-control">
+      <p class="help-text">Number of anomalies before flagging a client as violating TTL policy.</p>
+    </div>
+
+    <div class="form-group">
+      <label for="ttl-auto-block">
+        <input type="checkbox" id="ttl-auto-block" name="auto_block" class="toggle-checkbox">
+        <span class="toggle-label">Auto-Block on Threshold</span>
+      </label>
+      <p class="help-text">Automatically block clients who exceed the alert threshold.</p>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">💾 Save Settings</button>
+      <span id="ttl-save-message" class="save-message"></span>
+    </div>
+  </form>
+
+  <!-- Statistics -->
+  <div class="ttl-stats">
+    <h4>Detection Statistics</h4>
+    <div class="stats-grid">
+      <div class="stat-box">
+        <span class="stat-label">Active Violations</span>
+        <span id="stat-active-violations" class="stat-value">0</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Total Anomalies</span>
+        <span id="stat-total-anomalies" class="stat-value">0</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Clients Flagged</span>
+        <span id="stat-clients-flagged" class="stat-value">0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Violations Table -->
+  <div class="ttl-violations">
+    <h4>Recent Violations</h4>
+    <button type="button" class="btn btn-small" onclick="loadTTLViolations()">🔄 Refresh</button>
+    
+    <div id="ttl-violations-loading" class="loading" style="display: none;">
+      <span>Loading violations...</span>
+    </div>
+
+    <table id="ttl-violations-table" class="violations-table" style="display: none;">
+      <thead>
+        <tr>
+          <th>Client MAC</th>
+          <th>Anomaly Count</th>
+          <th>Severity</th>
+          <th>Status</th>
+          <th>First Detected</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="ttl-violations-tbody">
+      </tbody>
+    </table>
+
+    <div id="ttl-no-violations" class="empty-state">
+      No TTL violations detected. Great! ✅
+    </div>
+  </div>
+
+  <!-- Anomalies Log -->
+  <div class="ttl-anomalies">
+    <h4>Recent Anomalies Log</h4>
+    <div class="form-group">
+      <input type="text" id="ttl-filter-mac" placeholder="Filter by MAC address..." class="form-control">
+    </div>
+
+    <button type="button" class="btn btn-small" onclick="loadTTLAnomalies()">🔄 Refresh</button>
+
+    <div id="ttl-anomalies-loading" class="loading" style="display: none;">
+      <span>Loading anomalies...</span>
+    </div>
+
+    <table id="ttl-anomalies-table" class="anomalies-table" style="display: none;">
+      <thead>
+        <tr>
+          <th>MAC</th>
+          <th>Anomaly Type</th>
+          <th>Severity</th>
+          <th>Details</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody id="ttl-anomalies-tbody">
+      </tbody>
+    </table>
+
+    <div id="ttl-no-anomalies" class="empty-state">
+      No anomalies recorded yet.
+    </div>
+  </div>
+</div>
+
+<style>
+#ttl-settings {
+  margin-top: 20px;
+}
+
+.section-description {
+  color: #666;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.status-box {
+  background: #f5f5f5;
+  padding: 15px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+}
+
+.status-header {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.status-badge {
+  padding: 5px 15px;
+  border-radius: 20px;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.status-enabled {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-disabled {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.violation-count {
+  font-size: 14px;
+  color: #666;
+}
+
+.settings-form {
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 5px;
+  margin-bottom: 30px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: bold;
+  color: #333;
+}
+
+.toggle-checkbox {
+  margin-right: 10px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.toggle-label {
+  cursor: pointer;
+}
+
+.form-control {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.help-text {
+  font-size: 12px;
+  color: #666;
+  margin-top: 5px;
+  margin-bottom: 0;
+}
+
+.form-actions {
+  margin-top: 25px;
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+
+.btn {
+  padding: 8px 16px;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btn-primary {
+  background: #007bff;
+}
+
+.btn-primary:hover {
+  background: #0056b3;
+}
+
+.btn-small {
+  padding: 5px 12px;
+  font-size: 12px;
+  background: #28a745;
+}
+
+.btn-small:hover {
+  background: #218838;
+}
+
+.save-message {
+  font-size: 12px;
+  color: #28a745;
+}
+
+.ttl-stats {
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 5px;
+  margin-bottom: 30px;
+}
+
+.ttl-stats h4 {
+  margin-top: 0;
+  color: #333;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 15px;
+}
+
+.stat-box {
+  background: white;
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.stat-label {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.stat-value {
+  display: block;
+  font-size: 24px;
+  font-weight: bold;
+  color: #007bff;
+}
+
+.ttl-violations,
+.ttl-anomalies {
+  background: #f9f9f9;
+  padding: 20px;
+  border-radius: 5px;
+  margin-bottom: 30px;
+}
+
+.ttl-violations h4,
+.ttl-anomalies h4 {
+  margin-top: 0;
+  color: #333;
+}
+
+.violations-table,
+.anomalies-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 15px;
+}
+
+.violations-table th,
+.anomalies-table th {
+  background: #007bff;
+  color: white;
+  padding: 10px;
+  text-align: left;
+  font-weight: bold;
+}
+
+.violations-table td,
+.anomalies-table td {
+  padding: 10px;
+  border-bottom: 1px solid #ddd;
+}
+
+.violations-table tr:nth-child(even),
+.anomalies-table tr:nth-child(even) {
+  background: white;
+}
+
+.violations-table tr:nth-child(odd),
+.anomalies-table tr:nth-child(odd) {
+  background: #f5f5f5;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 30px;
+  color: #999;
+  font-size: 14px;
+}
+
+.loading {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+}
+
+.severity-low { color: #28a745; font-weight: bold; }
+.severity-medium { color: #ffc107; font-weight: bold; }
+.severity-high { color: #dc3545; font-weight: bold; }
+.severity-critical { color: #721c24; font-weight: bold; }
+
+.status-pending { color: #007bff; }
+.status-investigating { color: #ffc107; }
+.status-resolved { color: #28a745; }
+.status-blocked { color: #dc3545; }
+
+.btn-resolve {
+  background: #6c757d;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.btn-resolve:hover {
+  background: #5a6268;
+}
+
+.btn-details {
+  background: #17a2b8;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.btn-details:hover {
+  background: #138496;
+}
+</style>
+
+<script>
+// Load TTL settings on page load
+document.addEventListener('DOMContentLoaded', async function() {
+  await loadTTLSettings();
+  await loadTTLStatistics();
+  await loadTTLViolations();
+  await loadTTLAnomalies();
+  
+  // Set up form submission
+  document.getElementById('ttl-settings-form').addEventListener('submit', saveTTLSettings);
+  
+  // Set up filter
+  document.getElementById('ttl-filter-mac').addEventListener('change', loadTTLAnomalies);
+});
+
+async function loadTTLSettings() {
+  try {
+    const response = await fetch('/api/ttl/settings', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+      }
+    });
+
+    if (!response.ok) throw new Error('Failed to load settings');
+
+    const data = await response.json();
+    const settings = data.settings;
+
+    // Update form with settings
+    document.getElementById('ttl-enabled').checked = settings.enabled;
+    document.getElementById('ttl-sensitivity').value = settings.sensitivity;
+    document.getElementById('ttl-auto-block').checked = settings.auto_block;
+    document.getElementById('ttl-alert-threshold').value = settings.alert_threshold;
+
+    // Update status badge
+    const statusBadge = document.getElementById('ttl-status');
+    statusBadge.textContent = settings.enabled ? 'ENABLED' : 'DISABLED';
+    statusBadge.className = settings.enabled ? 'status-badge status-enabled' : 'status-badge status-disabled';
+  } catch (error) {
+    console.error('Error loading TTL settings:', error);
+  }
+}
+
+async function saveTTLSettings(e) {
+  e.preventDefault();
+
+  const settings = {
+    enabled: document.getElementById('ttl-enabled').checked,
+    sensitivity: document.getElementById('ttl-sensitivity').value,
+    auto_block: document.getElementById('ttl-auto-block').checked,
+    alert_threshold: parseInt(document.getElementById('ttl-alert-threshold').value)
+  };
+
+  try {
+    const response = await fetch('/api/ttl/settings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+      },
+      body: JSON.stringify(settings)
+    });
+
+    if (!response.ok) throw new Error('Failed to save settings');
+
+    // Show success message
+    const message = document.getElementById('ttl-save-message');
+    message.textContent = '✅ Settings saved successfully';
+    message.style.color = '#28a745';
+
+    setTimeout(() => {
+      message.textContent = '';
+    }, 3000);
+
+    // Reload settings to confirm
+    await loadTTLSettings();
+  } catch (error) {
+    console.error('Error saving settings:', error);
+    const message = document.getElementById('ttl-save-message');
+    message.textContent = '❌ Failed to save settings';
+    message.style.color = '#dc3545';
+  }
+}
+
+async function loadTTLStatistics() {
+  try {
+    const response = await fetch('/api/ttl/violations', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+      }
+    });
+
+    if (!response.ok) throw new Error('Failed to load statistics');
+
+    const data = await response.json();
+    const violations = data.violations || [];
+
+    document.getElementById('stat-active-violations').textContent = violations.filter(v => !v.resolved).length;
+    document.getElementById('stat-clients-flagged').textContent = violations.length;
+  } catch (error) {
+    console.error('Error loading statistics:', error);
+  }
+}
+
+async function loadTTLViolations() {
+  const loadingDiv = document.getElementById('ttl-violations-loading');
+  const tableDiv = document.getElementById('ttl-violations-table');
+  const noViolationsDiv = document.getElementById('ttl-no-violations');
+  const tbody = document.getElementById('ttl-violations-tbody');
+
+  loadingDiv.style.display = 'block';
+  tableDiv.style.display = 'none';
+  noViolationsDiv.style.display = 'none';
+
+  try {
+    const response = await fetch('/api/ttl/violations', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+      }
+    });
+
+    if (!response.ok) throw new Error('Failed to load violations');
+
+    const data = await response.json();
+    const violations = data.violations || [];
+
+    if (violations.length === 0) {
+      noViolationsDiv.style.display = 'block';
+    } else {
+      tbody.innerHTML = violations.map(v => `
+        <tr>
+          <td>${v.client_mac}</td>
+          <td>${v.violation_count}</td>
+          <td><span class="severity-${v.severity}">${v.severity.toUpperCase()}</span></td>
+          <td><span class="status-${v.status}">${v.status.toUpperCase()}</span></td>
+          <td>${new Date(v.first_detected).toLocaleString()}</td>
+          <td>
+            ${!v.resolved ? `<button class="btn-resolve" onclick="resolveTTLViolation(${v.id})">Resolve</button>` : ''}
+            <button class="btn-details" onclick="showViolationDetails(${v.id})">Details</button>
+          </td>
+        </tr>
+      `).join('');
+      tableDiv.style.display = 'table';
+    }
+  } catch (error) {
+    console.error('Error loading violations:', error);
+  } finally {
+    loadingDiv.style.display = 'none';
+  }
+}
+
+async function loadTTLAnomalies() {
+  const loadingDiv = document.getElementById('ttl-anomalies-loading');
+  const tableDiv = document.getElementById('ttl-anomalies-table');
+  const noAnomaliesDiv = document.getElementById('ttl-no-anomalies');
+  const tbody = document.getElementById('ttl-anomalies-tbody');
+  const filterMac = document.getElementById('ttl-filter-mac').value;
+
+  loadingDiv.style.display = 'block';
+  tableDiv.style.display = 'none';
+  noAnomaliesDiv.style.display = 'none';
+
+  try {
+    const url = new URL('/api/ttl/anomalies', window.location.origin);
+    if (filterMac) url.searchParams.append('client_mac', filterMac);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+      }
+    });
+
+    if (!response.ok) throw new Error('Failed to load anomalies');
+
+    const data = await response.json();
+    const anomalies = data.anomalies || [];
+
+    if (anomalies.length === 0) {
+      noAnomaliesDiv.style.display = 'block';
+    } else {
+      tbody.innerHTML = anomalies.map(a => `
+        <tr>
+          <td>${a.client_mac}</td>
+          <td>${a.anomaly_type}</td>
+          <td><span class="severity-${a.severity}">${a.severity.toUpperCase()}</span></td>
+          <td><small>${JSON.stringify(a.details).substring(0, 50)}...</small></td>
+          <td>${new Date(a.created_at).toLocaleString()}</td>
+        </tr>
+      `).join('');
+      tableDiv.style.display = 'table';
+    }
+  } catch (error) {
+    console.error('Error loading anomalies:', error);
+  } finally {
+    loadingDiv.style.display = 'none';
+  }
+}
+
+async function resolveTTLViolation(violationId) {
+  try {
+    const response = await fetch(`/api/ttl/violations/${violationId}/resolve`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+      },
+      body: JSON.stringify({ notes: 'Resolved by admin' })
+    });
+
+    if (!response.ok) throw new Error('Failed to resolve violation');
+
+    // Reload violations
+    await loadTTLViolations();
+    await loadTTLStatistics();
+  } catch (error) {
+    console.error('Error resolving violation:', error);
+    alert('Failed to resolve violation');
+  }
+}
+
+function showViolationDetails(violationId) {
+  alert('Violation ID: ' + violationId + ' - Details feature coming soon');
+}
+</script>

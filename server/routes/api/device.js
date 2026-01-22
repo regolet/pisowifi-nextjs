@@ -3,7 +3,80 @@ const router = express.Router();
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
+const { exec } = require('child_process');
 const { authenticateAdmin } = require('../../middleware/security');
+
+const scheduleFilePath = path.join(__dirname, '../../db/reboot-schedule.json');
+let rebootTimer = null;
+
+function clearScheduledReboot() {
+  if (rebootTimer) {
+    clearTimeout(rebootTimer);
+    rebootTimer = null;
+  }
+  try {
+    if (fs.existsSync(scheduleFilePath)) {
+      fs.unlinkSync(scheduleFilePath);
+    }
+  } catch (e) {
+    console.error('Failed to clear reboot schedule:', e);
+  }
+}
+
+function persistSchedule(at) {
+  try {
+    fs.writeFileSync(scheduleFilePath, JSON.stringify({ scheduled_at: at.toISOString() }));
+  } catch (e) {
+    console.error('Failed to persist reboot schedule:', e);
+  }
+}
+
+function loadSchedule() {
+  try {
+    if (!fs.existsSync(scheduleFilePath)) return null;
+    const raw = fs.readFileSync(scheduleFilePath, 'utf8');
+    const data = JSON.parse(raw);
+    if (!data.scheduled_at) return null;
+    const at = new Date(data.scheduled_at);
+    if (Number.isNaN(at.getTime())) return null;
+    return at;
+  } catch (e) {
+    return null;
+  }
+}
+
+function doReboot() {
+  const cmd = process.platform === 'win32'
+    ? 'shutdown /r /t 0'
+    : 'sudo reboot';
+  exec(cmd, (error) => {
+    if (error) {
+      console.error('Reboot command failed:', error);
+    }
+  });
+}
+
+function scheduleReboot(at) {
+  if (!(at instanceof Date) || Number.isNaN(at.getTime())) return false;
+  const delay = at.getTime() - Date.now();
+  if (delay <= 0) return false;
+  if (rebootTimer) clearTimeout(rebootTimer);
+  rebootTimer = setTimeout(() => {
+    clearScheduledReboot();
+    doReboot();
+  }, delay);
+  persistSchedule(at);
+  return true;
+}
+
+const existingSchedule = loadSchedule();
+if (existingSchedule) {
+  if (existingSchedule.getTime() > Date.now()) {
+    scheduleReboot(existingSchedule);
+  } else {
+    clearScheduledReboot();
+  }
+}
 
 // Get device information
 router.get('/info', authenticateAdmin, async (req, res) => {
@@ -90,7 +163,7 @@ router.get('/info', authenticateAdmin, async (req, res) => {
     // Get database size
     let dbSize = 0;
     try {
-      const dbPath = path.join(__dirname, '../../db/pisowifi.db');
+      const dbPath = path.join(__dirname, '../../../pisowifi.db');
       if (fs.existsSync(dbPath)) {
         const stats = fs.statSync(dbPath);
         dbSize = stats.size;
@@ -167,6 +240,41 @@ router.get('/info', authenticateAdmin, async (req, res) => {
   } catch (error) {
     console.error('Error getting device info:', error);
     res.status(500).json({ error: 'Failed to get device information' });
+  }
+});
+
+router.post('/reboot/now', authenticateAdmin, (req, res) => {
+  try {
+    clearScheduledReboot();
+    setTimeout(() => doReboot(), 250);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to reboot' });
+  }
+});
+
+router.post('/reboot/schedule', authenticateAdmin, (req, res) => {
+  const { at } = req.body || {};
+  if (!at) {
+    return res.status(400).json({ success: false, error: 'Missing schedule time' });
+  }
+  const when = new Date(at);
+  if (Number.isNaN(when.getTime())) {
+    return res.status(400).json({ success: false, error: 'Invalid schedule time' });
+  }
+  const ok = scheduleReboot(when);
+  if (!ok) {
+    return res.status(400).json({ success: false, error: 'Schedule time must be in the future' });
+  }
+  return res.json({ success: true, scheduled_at: when.toISOString() });
+});
+
+router.post('/reboot/cancel', authenticateAdmin, (req, res) => {
+  try {
+    clearScheduledReboot();
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to cancel reboot' });
   }
 });
 

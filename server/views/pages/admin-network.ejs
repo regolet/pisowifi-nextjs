@@ -118,6 +118,67 @@
                     </div>
                 </div>
 
+                <!-- WAN Configuration -->
+                <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
+                    <div class="px-4 py-3 border-b border-gray-300">
+                        <h2 class="text-sm font-semibold text-black">WAN Configuration</h2>
+                    </div>
+                    <div class="p-4">
+                        <form id="wan-config-form" class="space-y-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-gray-700 mb-2">WAN Mode</label>
+                                        <select id="wan_mode"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                                            <option value="dhcp">DHCP</option>
+                                            <option value="pppoe">PPPoE</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-gray-700 mb-2">WAN Interface</label>
+                                        <input type="text" id="wan_interface"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="eth0">
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-gray-700 mb-2">MTU</label>
+                                        <input type="number" id="pppoe_mtu" min="576" max="1500" step="1"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="1492">
+                                    </div>
+                                </div>
+
+                                <div class="space-y-4" id="pppoe-fields">
+                                    <div>
+                                        <label class="block text-gray-700 mb-2">PPPoE Username</label>
+                                        <input type="text" id="pppoe_username"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="Username">
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-gray-700 mb-2">PPPoE Password</label>
+                                        <input type="password" id="pppoe_password"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                            placeholder="Password">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-4">
+                                <button type="submit"
+                                    class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"></path></svg>
+                                    Save WAN Settings
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
                 <!-- Network Interfaces -->
                 <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
                     <div class="px-4 py-3 border-b border-gray-300 flex justify-between items-center">
@@ -212,9 +273,109 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Per-Client Default Bandwidth -->
+                <div class="bg-gray-50 border border-gray-300 rounded-lg mb-6">
+                    <div class="px-4 py-3 border-b border-gray-300">
+                        <h2 class="text-sm font-semibold text-black">Per‑Client Default Bandwidth</h2>
+                    </div>
+                    <div class="p-4">
+                        <p class="text-sm text-gray-600 mb-4">Set a default cap that applies to every client automatically (kbps).</p>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="flex items-center space-x-2 mb-4">
+                                        <input type="checkbox" id="per_client_bandwidth_enabled"
+                                            class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                        <span class="text-gray-700">Enable per‑client default limits</span>
+                                    </label>
+                                </div>
+
+                                <div>
+                                    <label class="block text-gray-700 mb-2">Download Limit (kbps)</label>
+                                    <input type="number" id="per_client_download_limit" min="1" max="10000000" step="1"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                        placeholder="2048">
+                                </div>
+
+                                <div>
+                                    <label class="block text-gray-700 mb-2">Upload Limit (kbps)</label>
+                                    <input type="number" id="per_client_upload_limit" min="1" max="10000000" step="1"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                                        placeholder="1024">
+                                </div>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div class="bg-gray-100 rounded-lg p-4">
+                                    <h4 class="text-md font-medium text-gray-800 mb-3">Current Defaults</h4>
+                                    <div class="space-y-2 text-sm">
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600">Status:</span>
+                                            <span id="per-client-status" class="font-medium text-gray-800">Disabled</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600">Download Limit:</span>
+                                            <span id="per-client-download" class="font-medium text-gray-800">--</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600">Upload Limit:</span>
+                                            <span id="per-client-upload" class="font-medium text-gray-800">--</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <div class="flex items-start gap-2">
+                                        <svg class="w-5 h-5 text-blue-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                                        </svg>
+                                        <div class="text-sm text-blue-800">
+                                            <p class="font-medium">Note</p>
+                                            <p>Applies to all connected clients automatically.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-4 mt-6">
+                            <button type="button" onclick="savePerClientDefaults()"
+                                class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"></path></svg>
+                                Save Per‑Client Defaults
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <script>
+                // Socket.IO for real-time updates
+                const socket = io();
+                
+                socket.on('bandwidth-settings-updated', (data) => {
+                    console.log('[BANDWIDTH] Real-time update received:', data);
+                    if (data.type === 'per-client') {
+                        showNotification(`Bandwidth limits applied to ${data.updated_clients || 'all'} clients in real-time!`, 'success');
+                    } else if (data.type === 'global') {
+                        showNotification('Global bandwidth limits applied!', 'success');
+                    }
+                });
+
+                function showNotification(message, type = 'info') {
+                    const notification = document.createElement('div');
+                    notification.className = `fixed top-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 ${
+                        type === 'success' ? 'bg-green-500 text-white' : 
+                        type === 'error' ? 'bg-red-500 text-white' : 
+                        'bg-blue-500 text-white'
+                    }`;
+                    notification.textContent = message;
+                    document.body.appendChild(notification);
+                    setTimeout(() => notification.remove(), 3000);
+                }
+
                 let networkConfig = {};
                 let interfaces = [];
                 let bandwidthSettings = {
@@ -222,11 +383,18 @@
                     download_limit: 10,
                     upload_limit: 5
                 };
+                let perClientDefaults = {
+                    enabled: false,
+                    download_limit: 2048,
+                    upload_limit: 1024
+                };
 
                 // Load data on page load
                 loadNetworkConfig();
+                loadWanConfig();
                 refreshInterfaces();
                 loadBandwidthSettings();
+                loadPerClientDefaults();
 
                 // Load network configuration
                 async function loadNetworkConfig() {
@@ -252,6 +420,69 @@
                     document.getElementById('dns_primary').value = networkConfig.dns_primary || '';
                     document.getElementById('dns_secondary').value = networkConfig.dns_secondary || '';
                 }
+
+                async function loadWanConfig() {
+                    try {
+                        const response = await fetch('/api/network/wan', {
+                            credentials: 'include'
+                        });
+
+                        if (response.ok) {
+                            const wanConfig = await response.json();
+                            document.getElementById('wan_mode').value = wanConfig.wan_mode || 'dhcp';
+                            document.getElementById('wan_interface').value = wanConfig.wan_interface || 'eth0';
+                            document.getElementById('pppoe_username').value = wanConfig.pppoe_username || '';
+                            document.getElementById('pppoe_password').value = wanConfig.pppoe_password || '';
+                            document.getElementById('pppoe_mtu').value = wanConfig.pppoe_mtu || 1492;
+                            togglePppoeFields();
+                        }
+                    } catch (error) {
+                        console.error('Failed to load WAN config:', error);
+                    }
+                }
+
+                function togglePppoeFields() {
+                    const mode = document.getElementById('wan_mode').value;
+                    const pppoeFields = document.getElementById('pppoe-fields');
+                    if (mode === 'pppoe') {
+                        pppoeFields.classList.remove('hidden');
+                    } else {
+                        pppoeFields.classList.add('hidden');
+                    }
+                }
+
+                document.getElementById('wan_mode').addEventListener('change', togglePppoeFields);
+
+                document.getElementById('wan-config-form').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+
+                    const payload = {
+                        wan_mode: document.getElementById('wan_mode').value,
+                        wan_interface: document.getElementById('wan_interface').value,
+                        pppoe_username: document.getElementById('pppoe_username').value,
+                        pppoe_password: document.getElementById('pppoe_password').value,
+                        pppoe_mtu: parseInt(document.getElementById('pppoe_mtu').value, 10) || 1492
+                    };
+
+                    try {
+                        const response = await fetch('/api/network/wan', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify(payload)
+                        });
+
+                        const result = await response.json();
+                        if (result.success) {
+                            alert('WAN configuration applied successfully!');
+                        } else {
+                            alert('Failed to apply WAN configuration');
+                        }
+                    } catch (error) {
+                        console.error('WAN save error:', error);
+                        alert('Failed to apply WAN configuration');
+                    }
+                });
 
                 // Save network configuration
                 document.getElementById('network-config-form').addEventListener('submit', async (e) => {
@@ -401,13 +632,13 @@
                                 upload_limit: uploadLimit
                             };
                             updateBandwidthDisplay();
-                            alert('Bandwidth settings saved successfully!');
+                            showNotification('Global bandwidth settings applied!', 'success');
                         } else {
-                            alert('Failed to save bandwidth settings');
+                            showNotification('Failed to save bandwidth settings', 'error');
                         }
                     } catch (error) {
                         console.error('Save bandwidth settings error:', error);
-                        alert('Failed to save bandwidth settings');
+                        showNotification('Failed to save bandwidth settings', 'error');
                     }
                 }
 
@@ -451,6 +682,87 @@
                 setInterval(() => {
                     refreshInterfaces();
                 }, 30000);
+
+                async function loadPerClientDefaults() {
+                    try {
+                        const response = await fetch('/api/network/config', {
+                            credentials: 'include'
+                        });
+
+                        if (response.ok) {
+                            const config = await response.json();
+                            perClientDefaults = {
+                                enabled: !!config.per_client_bandwidth_enabled,
+                                download_limit: config.per_client_download_limit || 2048,
+                                upload_limit: config.per_client_upload_limit || 1024
+                            };
+                            populatePerClientDefaults();
+                        }
+                    } catch (error) {
+                        console.error('Failed to load per-client defaults:', error);
+                    }
+                }
+
+                function populatePerClientDefaults() {
+                    document.getElementById('per_client_bandwidth_enabled').checked = perClientDefaults.enabled;
+                    document.getElementById('per_client_download_limit').value = perClientDefaults.download_limit;
+                    document.getElementById('per_client_upload_limit').value = perClientDefaults.upload_limit;
+                    updatePerClientDefaultsDisplay();
+                }
+
+                function updatePerClientDefaultsDisplay() {
+                    const statusEl = document.getElementById('per-client-status');
+                    const downloadEl = document.getElementById('per-client-download');
+                    const uploadEl = document.getElementById('per-client-upload');
+
+                    if (perClientDefaults.enabled) {
+                        statusEl.textContent = 'Enabled';
+                        statusEl.className = 'font-medium text-green-600';
+                        downloadEl.textContent = perClientDefaults.download_limit + ' kbps';
+                        uploadEl.textContent = perClientDefaults.upload_limit + ' kbps';
+                    } else {
+                        statusEl.textContent = 'Disabled';
+                        statusEl.className = 'font-medium text-gray-500';
+                        downloadEl.textContent = '--';
+                        uploadEl.textContent = '--';
+                    }
+                }
+
+                async function savePerClientDefaults() {
+                    const enabled = document.getElementById('per_client_bandwidth_enabled').checked;
+                    const downloadLimit = parseInt(document.getElementById('per_client_download_limit').value, 10) || 2048;
+                    const uploadLimit = parseInt(document.getElementById('per_client_upload_limit').value, 10) || 1024;
+
+                    try {
+                        const response = await fetch('/api/network/bandwidth-per-client-default', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({
+                                per_client_bandwidth_enabled: enabled,
+                                per_client_download_limit: downloadLimit,
+                                per_client_upload_limit: uploadLimit
+                            })
+                        });
+
+                        const result = await response.json();
+                        if (result.success) {
+                            perClientDefaults = {
+                                enabled: enabled,
+                                download_limit: downloadLimit,
+                                upload_limit: uploadLimit
+                            };
+                            updatePerClientDefaultsDisplay();
+                            const clientCount = result.updated_clients || 'all';
+                            showNotification(`Per-client limits applied to ${clientCount} clients!`, 'success');
+                        } else {
+                            showNotification('Failed to save per-client defaults', 'error');
+                        }
+                    } catch (error) {
+                        console.error('Save per-client defaults error:', error);
+                        showNotification('Failed to save per-client defaults', 'error');
+                    }
+                }
             </script>
 </body>
 

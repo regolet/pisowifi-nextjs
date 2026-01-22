@@ -299,6 +299,15 @@ router.get('/device', authenticateToken, (req, res) => {
   });
 });
 
+// System Logs
+router.get('/logs', authenticateToken, (req, res) => {
+  res.render('admin-logs', {
+    title: 'System Logs',
+    user: req.user,
+    currentPage: 'logs'
+  });
+});
+
 // Admin Settings Page
 router.get('/settings', authenticateToken, async (req, res) => {
   try {
@@ -330,12 +339,12 @@ router.post('/settings', authenticateToken, async (req, res) => {
   try {
     const { 
       current_password, new_password, confirm_password,
-      auto_pause_on_disconnect, coin_abuse_protection,
-      coin_attempt_limit, coin_attempt_window, coin_block_duration
+      auto_pause_on_disconnect, auto_resume_on_pause, pause_resume_minutes,
+      coin_abuse_protection, coin_attempt_limit, coin_attempt_window, coin_block_duration
     } = req.body;
     
     let isPasswordChange = current_password || new_password || confirm_password;
-    let isSettingsChange = auto_pause_on_disconnect !== undefined || coin_abuse_protection !== undefined;
+    let isSettingsChange = auto_pause_on_disconnect !== undefined || auto_resume_on_pause !== undefined || pause_resume_minutes !== undefined || coin_abuse_protection !== undefined;
 
     // If no changes made
     if (!isPasswordChange && !isSettingsChange) {
@@ -433,19 +442,34 @@ router.post('/settings', authenticateToken, async (req, res) => {
 
     // Handle portal settings update (auto-pause and coin abuse)
     if (isSettingsChange) {
-      const autoPause = auto_pause_on_disconnect === '1' ? 1 : 0;
-      const abuseProtection = coin_abuse_protection === '1' ? 1 : 0;
+      // Handle checkbox values - when checked, may be array ["0", "1"] or just "1"
+      // When unchecked, just "0" from hidden field
+      const getCheckboxValue = (val) => {
+        if (Array.isArray(val)) return val.includes('1') ? 1 : 0;
+        return val === '1' ? 1 : 0;
+      };
+      
+      const autoPause = getCheckboxValue(auto_pause_on_disconnect);
+      const autoResume = getCheckboxValue(auto_resume_on_pause);
+      const abuseProtection = getCheckboxValue(coin_abuse_protection);
+      const attemptLimit = parseInt(coin_attempt_limit) || 10;
+      const attemptWindow = parseInt(coin_attempt_window) || 60;
+      const blockDuration = parseInt(coin_block_duration) || 300;
+      const pauseResumeMinutes = parseInt(pause_resume_minutes) || 0;
 
+      // Use UPDATE instead of INSERT OR REPLACE to preserve other columns
       await db.query(`
-        INSERT OR REPLACE INTO portal_settings (
-          id, auto_pause_on_disconnect, coin_abuse_protection, 
-          coin_attempt_limit, coin_attempt_window, coin_block_duration,
-          updated_at)
-        VALUES (1, $1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
-      `, [
-        autoPause, abuseProtection,
-        coin_attempt_limit || 10, coin_attempt_window || 60, coin_block_duration || 300
-      ]);
+        UPDATE portal_settings 
+        SET auto_pause_on_disconnect = $1, 
+            auto_resume_on_pause = $2,
+            pause_resume_minutes = $3,
+            coin_abuse_protection = $4, 
+            coin_attempt_limit = $5, 
+            coin_attempt_window = $6, 
+            coin_block_duration = $7,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = 1
+      `, [autoPause, autoResume, pauseResumeMinutes, abuseProtection, attemptLimit, attemptWindow, blockDuration]);
 
       return res.redirect('/admin/settings?success=Settings updated successfully');
     }
@@ -462,6 +486,11 @@ router.post('/settings', authenticateToken, async (req, res) => {
       error: 'Failed to update settings'
     });
   }
+});
+
+// TTL Anti-Tethering Settings - Redirect to settings page
+router.get('/ttl', authenticateToken, (req, res) => {
+  res.redirect('/admin/settings');
 });
 
 module.exports = router;

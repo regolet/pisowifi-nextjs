@@ -229,6 +229,17 @@
                         </div>
                         <div class="px-4 py-3 flex justify-between items-center">
                             <span class="text-sm text-black">
+                                <span id="ttl-indicator"
+                                    class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
+                                TTL Anti‑Tethering Monitor
+                            </span>
+                            <div class="flex items-center space-x-2">
+                                <span id="ttl-status"
+                                    class="text-xs text-gray-600 font-medium">Checking...</span>
+                            </div>
+                        </div>
+                        <div class="px-4 py-3 flex justify-between items-center">
+                            <span class="text-sm text-black">
                                 <span id="captive-indicator"
                                     class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
                                 Captive Portal
@@ -480,7 +491,8 @@
                         updateServiceStatus({
                             dnsmasq: { active: true, status: 'active', info: 'DHCP & DNS Server' },
                             hostapd: { active: true, status: 'active', info: 'Access Point Service' },
-                            iptables: { active: true, status: 'active', info: 'Firewall Rules' }
+                            iptables: { active: true, status: 'active', info: 'Firewall Rules' },
+                            ttl: { active: false, enabled: false, status: 'unknown', info: 'Status unavailable' }
                         });
                     }
                 } catch (error) {
@@ -489,7 +501,8 @@
                     updateServiceStatus({
                         dnsmasq: { active: false, status: 'unknown', info: 'Status unavailable' },
                         hostapd: { active: false, status: 'unknown', info: 'Status unavailable' },
-                        iptables: { active: false, status: 'unknown', info: 'Status unavailable' }
+                        iptables: { active: false, status: 'unknown', info: 'Status unavailable' },
+                        ttl: { active: false, enabled: false, status: 'unknown', info: 'Status unavailable' }
                     });
                 }
             }
@@ -516,6 +529,20 @@
                 // Update iptables
                 updateServiceIndicator('iptables', status.iptables);
 
+                // Update TTL monitor
+                if (status.ttl) {
+                    const ttlInfo = {
+                        active: !!status.ttl.active,
+                        status: status.ttl.active ? 'active' : (status.ttl.enabled ? 'inactive' : 'disabled'),
+                        info: status.ttl.enabled ? 'Monitoring enabled' : 'Monitoring disabled'
+                    };
+                    updateServiceIndicator('ttl', ttlInfo);
+                    const ttlStatus = document.getElementById('ttl-status');
+                    if (ttlStatus && status.ttl.enabled && !status.ttl.active) {
+                        ttlStatus.textContent = 'Enabled, not running';
+                    }
+                }
+
                 // Update captive portal (based on iptables and pisowifi service)
                 const captiveActive = (status.iptables?.active || false) && (status.pisowifi?.active || false);
                 updateServiceIndicator('captive', {
@@ -541,6 +568,11 @@
                         statusText.className = 'text-xs text-yellow-600 font-medium';
                         statusText.textContent = 'Unknown';
                         if (restartBtn) restartBtn.style.display = 'inline-block';
+                    } else if (statusInfo.status === 'disabled') {
+                        indicator.className = 'inline-block w-2 h-2 rounded-full bg-gray-400 mr-2';
+                        statusText.className = 'text-xs text-gray-500 font-medium';
+                        statusText.textContent = 'Disabled';
+                        if (restartBtn) restartBtn.style.display = 'none';
                     } else {
                         indicator.className = 'inline-block w-2 h-2 rounded-full bg-red-500 mr-2';
                         statusText.className = 'text-xs text-red-600 font-medium';

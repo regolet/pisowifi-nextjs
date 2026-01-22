@@ -5,7 +5,7 @@ const { promisify } = require('util');
 const fs = require('fs').promises;
 const db = require('../../db/sqlite-adapter');
 const { authenticateAPI, apiLimiter } = require('../../middleware/security');
-const { isValidServiceName, isAllowedService, isValidIPv4, isValidInterfaceName } = require('../../utils/validators');
+const { isValidServiceName, isAllowedService, isValidIPv4, isValidInterfaceName, isValidInteger } = require('../../utils/validators');
 
 const execAsync = promisify(exec);
 
@@ -42,9 +42,17 @@ router.get('/config', authenticateToken, async (req, res) => {
         lease_time: 3600,
         wifi_interface: 'wlan0',
         ethernet_interface: 'eth0',
+        wan_mode: 'dhcp',
+        wan_interface: 'eth0',
+        pppoe_username: '',
+        pppoe_password: '',
+        pppoe_mtu: 1492,
         bandwidth_enabled: false,
         bandwidth_download_limit: 10,
-        bandwidth_upload_limit: 5
+        bandwidth_upload_limit: 5,
+        per_client_bandwidth_enabled: false,
+        per_client_download_limit: 2048,
+        per_client_upload_limit: 1024
       };
 
       res.json(config);
@@ -68,8 +76,42 @@ router.put('/config', authenticateToken, async (req, res) => {
       dns_secondary,
       lease_time,
       wifi_interface,
-      ethernet_interface
+      ethernet_interface,
+      wan_mode,
+      wan_interface,
+      pppoe_username,
+      pppoe_password,
+      pppoe_mtu
     } = req.body;
+
+    // SECURITY: Validate input before persisting or applying
+    if (!isValidIPv4(dhcp_range_start) || !isValidIPv4(dhcp_range_end)) {
+      return res.status(400).json({ error: 'Invalid DHCP range IP address' });
+    }
+    if (!isValidIPv4(subnet_mask) || !isValidIPv4(gateway)) {
+      return res.status(400).json({ error: 'Invalid subnet mask or gateway IP' });
+    }
+    if (dns_primary && !isValidIPv4(dns_primary)) {
+      return res.status(400).json({ error: 'Invalid primary DNS IP' });
+    }
+    if (dns_secondary && !isValidIPv4(dns_secondary)) {
+      return res.status(400).json({ error: 'Invalid secondary DNS IP' });
+    }
+    if (!isValidInterfaceName(wifi_interface) || !isValidInterfaceName(ethernet_interface)) {
+      return res.status(400).json({ error: 'Invalid interface name' });
+    }
+    if (!isValidInteger(lease_time, 60, 86400)) {
+      return res.status(400).json({ error: 'Invalid lease_time (60-86400 seconds)' });
+    }
+    if (wan_mode && !['dhcp', 'pppoe'].includes(wan_mode)) {
+      return res.status(400).json({ error: 'Invalid WAN mode' });
+    }
+    if (wan_interface && !isValidInterfaceName(wan_interface)) {
+      return res.status(400).json({ error: 'Invalid WAN interface name' });
+    }
+    if (pppoe_mtu !== undefined && !isValidInteger(pppoe_mtu, 576, 1500)) {
+      return res.status(400).json({ error: 'Invalid PPPoE MTU (576-1500)' });
+    }
 
     // Try to save to database first
     try {
@@ -77,8 +119,10 @@ router.put('/config', authenticateToken, async (req, res) => {
         `INSERT INTO network_config (
           id, dhcp_enabled, dhcp_range_start, dhcp_range_end, 
           subnet_mask, gateway, dns_primary, dns_secondary, 
-          lease_time, wifi_interface, ethernet_interface, updated_at
-        ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP)
+          lease_time, wifi_interface, ethernet_interface,
+          wan_mode, wan_interface, pppoe_username, pppoe_password, pppoe_mtu,
+          updated_at
+        ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP)
         ON CONFLICT (id) DO UPDATE SET
           dhcp_enabled = EXCLUDED.dhcp_enabled,
           dhcp_range_start = EXCLUDED.dhcp_range_start,
@@ -90,11 +134,21 @@ router.put('/config', authenticateToken, async (req, res) => {
           lease_time = EXCLUDED.lease_time,
           wifi_interface = EXCLUDED.wifi_interface,
           ethernet_interface = EXCLUDED.ethernet_interface,
+          wan_mode = EXCLUDED.wan_mode,
+          wan_interface = EXCLUDED.wan_interface,
+          pppoe_username = EXCLUDED.pppoe_username,
+          pppoe_password = EXCLUDED.pppoe_password,
+          pppoe_mtu = EXCLUDED.pppoe_mtu,
           updated_at = CURRENT_TIMESTAMP`,
         [
           dhcp_enabled, dhcp_range_start, dhcp_range_end,
           subnet_mask, gateway, dns_primary, dns_secondary,
-          lease_time, wifi_interface, ethernet_interface
+          lease_time, wifi_interface, ethernet_interface,
+          wan_mode || 'dhcp',
+          wan_interface || 'eth0',
+          pppoe_username || '',
+          pppoe_password || '',
+          pppoe_mtu || 1492
         ]
       );
       console.log('Network config saved to database');
@@ -114,6 +168,11 @@ router.put('/config', authenticateToken, async (req, res) => {
       lease_time,
       wifi_interface,
       ethernet_interface,
+      wan_mode: wan_mode || 'dhcp',
+      wan_interface: wan_interface || 'eth0',
+      pppoe_username: pppoe_username || '',
+      pppoe_password: pppoe_password || '',
+      pppoe_mtu: pppoe_mtu || 1492,
       updated_at: new Date().toISOString(),
       updated_by: req.user?.username || 'admin'
     };
@@ -122,12 +181,11 @@ router.put('/config', authenticateToken, async (req, res) => {
 
     // Apply dynamic configuration
     try {
-      const { execAsync } = require('child_process');
-      const { promisify } = require('util');
-      const exec = promisify(execAsync);
+      const path = require('path');
+      const updaterPath = path.join(__dirname, '../../../scripts/update-network-config.js');
 
       // Run the dynamic configuration updater
-      await exec('node /root/pisowifi-nextjs/update-network-config.js');
+      await execAsync(`node ${updaterPath}`);
       console.log('Dynamic network configuration applied');
     } catch (applyError) {
       console.warn('Dynamic config application warning:', applyError.message);
@@ -334,6 +392,12 @@ router.get('/service-status', authenticateToken, async (req, res) => {
     const NetworkManager = require('../../services/network-manager');
     const networkManager = new NetworkManager();
     const status = await networkManager.getServiceStatus();
+    try {
+      const ttlDetector = require('../../services/ttl-detector');
+      status.ttl = ttlDetector.getStatus();
+    } catch (ttlError) {
+      status.ttl = { active: false, enabled: false, error: ttlError.message };
+    }
     console.log('API: Service status result:', JSON.stringify(status, null, 2));
     res.json(status);
   } catch (error) {
@@ -343,7 +407,8 @@ router.get('/service-status', authenticateToken, async (req, res) => {
       dnsmasq: { active: false, status: 'error', info: 'Detection failed' },
       hostapd: { active: false, status: 'disabled', info: 'WiFi not available' },
       iptables: { active: false, status: 'error', info: 'Detection failed' },
-      pisowifi: { active: false, status: 'error', info: 'Detection failed' }
+      pisowifi: { active: false, status: 'error', info: 'Detection failed' },
+      ttl: { active: false, enabled: false, status: 'error', info: 'Detection failed' }
     };
     res.json(fallbackStatus);
   }
@@ -471,29 +536,206 @@ async function getNetworkTraffic() {
 
 async function applyBandwidthLimit(ipAddress, uploadLimit, downloadLimit) {
   try {
-    // SECURITY: Validate inputs to prevent command injection
-    if (!isValidIPv4(ipAddress)) {
-      console.error('Invalid IP address provided to applyBandwidthLimit');
-      return;
-    }
-
-    // Validate bandwidth limits are numeric and reasonable (max 10Gbps)
-    const dlLimit = parseInt(downloadLimit) || 1024;
-    const ulLimit = parseInt(uploadLimit) || 1024;
-
-    if (dlLimit <= 0 || dlLimit > 10000000 || ulLimit <= 0 || ulLimit > 10000000) {
-      console.error('Invalid bandwidth limits provided');
-      return;
-    }
-
-    // Use tc (traffic control) to limit bandwidth
-    // This is a simplified implementation
-    await execAsync(`sudo tc qdisc add dev wlan0 root handle 1: htb default 30`);
-    await execAsync(`sudo tc class add dev wlan0 parent 1: classid 1:1 htb rate ${dlLimit}kbit`);
-    await execAsync(`sudo tc filter add dev wlan0 protocol ip parent 1:0 prio 1 u32 match ip dst ${ipAddress}/32 flowid 1:1`);
+    const iface = await getBandwidthInterface();
+    await applyPerClientBandwidthLimit(iface, ipAddress, uploadLimit, downloadLimit);
   } catch (error) {
     console.error('Apply bandwidth limit error:', error);
   }
+}
+
+async function applyWanConfig(wanConfig) {
+  if (process.platform !== 'linux') {
+    console.warn('WAN apply skipped: non-Linux platform');
+    return;
+  }
+  const mode = wanConfig.wan_mode || 'dhcp';
+  const iface = wanConfig.wan_interface || 'eth0';
+
+  if (!isValidInterfaceName(iface)) {
+    throw new Error('Invalid WAN interface name');
+  }
+
+  if (mode === 'pppoe') {
+    if (!wanConfig.pppoe_username || !wanConfig.pppoe_password) {
+      throw new Error('PPPoE username and password are required');
+    }
+
+    const mtu = wanConfig.pppoe_mtu || 1492;
+    if (!isValidInteger(mtu, 576, 1500)) {
+      throw new Error('Invalid PPPoE MTU');
+    }
+
+    const peerConfig = `
+plugin rp-pppoe.so
+${iface}
+user "${wanConfig.pppoe_username}"
+defaultroute
+usepeerdns
+mtu ${mtu}
+mru ${mtu}
+persist
+holdoff 10
+lcp-echo-interval 10
+lcp-echo-failure 3
+`;
+
+    await fs.writeFile('/tmp/pisowifi-pppoe', peerConfig);
+    await execAsync('sudo cp /tmp/pisowifi-pppoe /etc/ppp/peers/pisowifi-wan');
+
+    const secretsLine = `"${wanConfig.pppoe_username}" * "${wanConfig.pppoe_password}" *\n`;
+    await execAsync(`sudo sh -c "grep -v '^\\\"${wanConfig.pppoe_username}\\\"' /etc/ppp/chap-secrets > /tmp/chap-secrets.pisowifi || true"`);
+    await execAsync(`sudo sh -c "printf '${secretsLine}' >> /tmp/chap-secrets.pisowifi"`);
+    await execAsync('sudo cp /tmp/chap-secrets.pisowifi /etc/ppp/chap-secrets');
+
+    await execAsync(`sudo sh -c "grep -v '^\\\"${wanConfig.pppoe_username}\\\"' /etc/ppp/pap-secrets > /tmp/pap-secrets.pisowifi || true"`);
+    await execAsync(`sudo sh -c "printf '${secretsLine}' >> /tmp/pap-secrets.pisowifi"`);
+    await execAsync('sudo cp /tmp/pap-secrets.pisowifi /etc/ppp/pap-secrets');
+
+    // Bring down DHCP client and start PPPoE
+    await execAsync(`sudo dhclient -r ${iface} 2>/dev/null || true`);
+    await execAsync('sudo poff pisowifi-wan 2>/dev/null || true');
+    await execAsync('sudo pon pisowifi-wan');
+  } else {
+    // DHCP mode: stop PPPoE and acquire lease
+    await execAsync('sudo poff pisowifi-wan 2>/dev/null || true');
+    await execAsync(`sudo dhclient -r ${iface} 2>/dev/null || true`);
+    await execAsync(`sudo dhclient ${iface}`);
+  }
+}
+
+// WAN configuration (DHCP/PPPoE)
+router.get('/wan', authenticateToken, async (req, res) => {
+  try {
+    try {
+      const result = await db.query('SELECT * FROM network_config WHERE id = 1');
+      if (result.rows.length > 0) {
+        const row = result.rows[0];
+        return res.json({
+          wan_mode: row.wan_mode || 'dhcp',
+          wan_interface: row.wan_interface || 'eth0',
+          pppoe_username: row.pppoe_username || '',
+          pppoe_password: row.pppoe_password || '',
+          pppoe_mtu: row.pppoe_mtu || 1492
+        });
+      }
+    } catch (dbError) {
+      console.warn('Get WAN config fallback:', dbError.message);
+    }
+
+    res.json({
+      wan_mode: 'dhcp',
+      wan_interface: 'eth0',
+      pppoe_username: '',
+      pppoe_password: '',
+      pppoe_mtu: 1492
+    });
+  } catch (error) {
+    console.error('Get WAN config error:', error);
+    res.status(500).json({ error: 'Failed to get WAN config' });
+  }
+});
+
+router.put('/wan', authenticateToken, async (req, res) => {
+  try {
+    const { wan_mode, wan_interface, pppoe_username, pppoe_password, pppoe_mtu } = req.body;
+
+    if (!['dhcp', 'pppoe'].includes(wan_mode)) {
+      return res.status(400).json({ error: 'Invalid WAN mode' });
+    }
+    if (!isValidInterfaceName(wan_interface)) {
+      return res.status(400).json({ error: 'Invalid WAN interface name' });
+    }
+    if (pppoe_mtu !== undefined && !isValidInteger(pppoe_mtu, 576, 1500)) {
+      return res.status(400).json({ error: 'Invalid PPPoE MTU (576-1500)' });
+    }
+
+    await db.query(
+      `UPDATE network_config SET
+        wan_mode = $1,
+        wan_interface = $2,
+        pppoe_username = $3,
+        pppoe_password = $4,
+        pppoe_mtu = $5,
+        updated_at = CURRENT_TIMESTAMP
+       WHERE id = 1`,
+      [wan_mode, wan_interface, pppoe_username || '', pppoe_password || '', pppoe_mtu || 1492]
+    );
+
+    try {
+      await applyWanConfig({ wan_mode, wan_interface, pppoe_username, pppoe_password, pppoe_mtu });
+      res.json({ success: true, message: 'WAN configuration applied' });
+    } catch (applyError) {
+      console.warn('WAN apply warning:', applyError.message);
+      res.json({ success: true, message: 'WAN configuration saved', warning: applyError.message });
+    }
+  } catch (error) {
+    console.error('Update WAN config error:', error);
+    res.status(500).json({ error: 'Failed to update WAN config' });
+  }
+});
+
+async function getBandwidthInterface() {
+  try {
+    const result = await db.query('SELECT wifi_interface, ethernet_interface FROM network_config WHERE id = 1');
+    if (result.rows.length > 0) {
+      return result.rows[0].wifi_interface || result.rows[0].ethernet_interface;
+    }
+  } catch (_) {
+    // ignore
+  }
+
+  try {
+    const result = await db.query('SELECT interface FROM network_settings WHERE id = 1');
+    if (result.rows.length > 0) {
+      return result.rows[0].interface;
+    }
+  } catch (_) {
+    // ignore
+  }
+
+  return process.env.PISOWIFI_INTERFACE || 'wlan0';
+}
+
+async function clearGlobalBandwidthLimit(iface) {
+  try {
+    await execAsync(`sudo tc qdisc del dev ${iface} root 2>/dev/null || true`);
+    await execAsync(`sudo tc qdisc del dev ${iface} ingress 2>/dev/null || true`);
+    await execAsync('sudo tc qdisc del dev ifb0 root 2>/dev/null || true');
+    await execAsync('sudo ip link set ifb0 down 2>/dev/null || true');
+  } catch (error) {
+    console.warn('Clear bandwidth limit warning:', error.message);
+  }
+}
+
+async function applyGlobalBandwidthLimit(iface, uploadLimit, downloadLimit) {
+  // Validate interface
+  if (!isValidInterfaceName(iface)) {
+    throw new Error('Invalid network interface for bandwidth limit');
+  }
+
+  // Validate bandwidth limits (kbps)
+  const dlLimit = parseInt(downloadLimit, 10);
+  const ulLimit = parseInt(uploadLimit, 10);
+
+  if (!isValidInteger(dlLimit, 1, 10000000) || !isValidInteger(ulLimit, 1, 10000000)) {
+    throw new Error('Invalid bandwidth limits');
+  }
+
+  // Clear existing qdisc to avoid duplicates
+  await clearGlobalBandwidthLimit(iface);
+
+  // Egress shaping (download to clients) on LAN interface
+  await execAsync(`sudo tc qdisc add dev ${iface} root handle 1: htb default 10`);
+  await execAsync(`sudo tc class add dev ${iface} parent 1: classid 1:10 htb rate ${dlLimit}kbit`);
+
+  // Ingress shaping (upload from clients) using ifb0
+  await execAsync('sudo modprobe ifb');
+  await execAsync('sudo ip link add ifb0 type ifb 2>/dev/null || true');
+  await execAsync('sudo ip link set ifb0 up');
+  await execAsync(`sudo tc qdisc add dev ${iface} handle ffff: ingress`);
+  await execAsync(`sudo tc filter add dev ${iface} parent ffff: matchall action mirred egress redirect dev ifb0`);
+  await execAsync('sudo tc qdisc add dev ifb0 root handle 2: htb default 20');
+  await execAsync(`sudo tc class add dev ifb0 parent 2: classid 2:20 htb rate ${ulLimit}kbit`);
 }
 
 async function getBandwidthMonitoring() {
@@ -522,6 +764,99 @@ async function getBandwidthMonitoring() {
   }
 }
 
+function hashIpToClassId(ipAddress) {
+  const parts = ipAddress.split('.').map(p => parseInt(p, 10));
+  if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null;
+  let hash = 0;
+  for (const n of parts) {
+    hash = (hash * 31 + n) % 64000;
+  }
+  return hash + 1000; // 1000-65000
+}
+
+async function ensurePerClientQdisc(iface) {
+  // Ensure root qdisc exists
+  await execAsync(`sudo tc qdisc add dev ${iface} root handle 1: htb default 1 2>/dev/null || true`);
+
+  // Ensure parent class exists (respect global limit if enabled)
+  let parentRate = 10000000; // 10Gbps default
+  try {
+    const result = await db.query('SELECT bandwidth_enabled, bandwidth_download_limit, bandwidth_upload_limit FROM network_config WHERE id = 1');
+    if (result.rows.length > 0 && result.rows[0].bandwidth_enabled) {
+      parentRate = parseInt(result.rows[0].bandwidth_download_limit, 10) || parentRate;
+    }
+  } catch (_) {
+    // ignore
+  }
+  await execAsync(`sudo tc class replace dev ${iface} parent 1: classid 1:1 htb rate ${parentRate}kbit`);
+
+  // Ensure ifb0 for ingress shaping
+  await execAsync('sudo modprobe ifb');
+  await execAsync('sudo ip link add ifb0 type ifb 2>/dev/null || true');
+  await execAsync('sudo ip link set ifb0 up');
+  await execAsync(`sudo tc qdisc add dev ${iface} handle ffff: ingress 2>/dev/null || true`);
+  await execAsync(`sudo tc filter add dev ${iface} parent ffff: matchall action mirred egress redirect dev ifb0 2>/dev/null || true`);
+  await execAsync('sudo tc qdisc add dev ifb0 root handle 2: htb default 1 2>/dev/null || true');
+
+  let parentUpload = 10000000; // 10Gbps default
+  try {
+    const result = await db.query('SELECT bandwidth_enabled, bandwidth_upload_limit FROM network_config WHERE id = 1');
+    if (result.rows.length > 0 && result.rows[0].bandwidth_enabled) {
+      parentUpload = parseInt(result.rows[0].bandwidth_upload_limit, 10) || parentUpload;
+    }
+  } catch (_) {
+    // ignore
+  }
+  await execAsync(`sudo tc class replace dev ifb0 parent 2: classid 2:1 htb rate ${parentUpload}kbit`);
+}
+
+async function applyPerClientBandwidthLimit(iface, ipAddress, uploadLimit, downloadLimit) {
+  if (process.platform !== 'linux') {
+    console.warn('Per-client bandwidth apply skipped: non-Linux platform');
+    return;
+  }
+  // SECURITY: Validate inputs
+  if (!isValidIPv4(ipAddress)) {
+    throw new Error('Invalid IP address provided to applyPerClientBandwidthLimit');
+  }
+
+  const dlLimit = parseInt(downloadLimit, 10);
+  const ulLimit = parseInt(uploadLimit, 10);
+
+  if (!isValidInteger(dlLimit, 1, 10000000) || !isValidInteger(ulLimit, 1, 10000000)) {
+    throw new Error('Invalid per-client bandwidth limits');
+  }
+
+  await ensurePerClientQdisc(iface);
+
+  const classId = hashIpToClassId(ipAddress);
+  if (!classId) {
+    throw new Error('Failed to derive class id for client IP');
+  }
+
+  // Download shaping (to client) on LAN interface
+  await execAsync(`sudo tc class replace dev ${iface} parent 1:1 classid 1:${classId} htb rate ${dlLimit}kbit ceil ${dlLimit}kbit`);
+  await execAsync(`sudo tc filter replace dev ${iface} parent 1: protocol ip prio 1 u32 match ip dst ${ipAddress}/32 flowid 1:${classId}`);
+
+  // Upload shaping (from client) on ifb0
+  await execAsync(`sudo tc class replace dev ifb0 parent 2:1 classid 2:${classId} htb rate ${ulLimit}kbit ceil ${ulLimit}kbit`);
+  await execAsync(`sudo tc filter replace dev ifb0 parent 2: protocol ip prio 1 u32 match ip src ${ipAddress}/32 flowid 2:${classId}`);
+}
+
+async function clearPerClientBandwidthLimit(iface, ipAddress) {
+  if (process.platform !== 'linux') {
+    console.warn('Per-client bandwidth clear skipped: non-Linux platform');
+    return;
+  }
+  if (!isValidIPv4(ipAddress)) return;
+  const classId = hashIpToClassId(ipAddress);
+  if (!classId) return;
+  await execAsync(`sudo tc filter del dev ${iface} parent 1: protocol ip prio 1 u32 match ip dst ${ipAddress}/32 flowid 1:${classId} 2>/dev/null || true`);
+  await execAsync(`sudo tc class del dev ${iface} classid 1:${classId} 2>/dev/null || true`);
+  await execAsync(`sudo tc filter del dev ifb0 parent 2: protocol ip prio 1 u32 match ip src ${ipAddress}/32 flowid 2:${classId} 2>/dev/null || true`);
+  await execAsync(`sudo tc class del dev ifb0 classid 2:${classId} 2>/dev/null || true`);
+}
+
 // Update universal bandwidth configuration
 router.put('/bandwidth-config', authenticateToken, async (req, res) => {
   try {
@@ -530,6 +865,10 @@ router.put('/bandwidth-config', authenticateToken, async (req, res) => {
       bandwidth_download_limit,
       bandwidth_upload_limit
     } = req.body;
+
+    if (!isValidInteger(bandwidth_download_limit, 1, 10000000) || !isValidInteger(bandwidth_upload_limit, 1, 10000000)) {
+      return res.status(400).json({ error: 'Invalid bandwidth limits' });
+    }
 
     // Try to save to database
     try {
@@ -581,10 +920,202 @@ router.put('/bandwidth-config', authenticateToken, async (req, res) => {
       }
     }
 
+    // Apply or clear global bandwidth shaping
+    try {
+      const iface = await getBandwidthInterface();
+      if (bandwidth_enabled) {
+        await applyGlobalBandwidthLimit(iface, bandwidth_upload_limit, bandwidth_download_limit);
+      } else {
+        await clearGlobalBandwidthLimit(iface);
+      }
+    } catch (applyError) {
+      console.warn('Bandwidth apply warning:', applyError.message);
+    }
+
+    // Emit real-time update to all admin clients
+    try {
+      const { io } = require('../../app');
+      io.emit('bandwidth-settings-updated', {
+        type: 'global',
+        bandwidth_enabled,
+        bandwidth_download_limit,
+        bandwidth_upload_limit
+      });
+      console.log('[BANDWIDTH] Emitted real-time global bandwidth update');
+    } catch (ioError) {
+      console.warn('Socket.IO emit warning:', ioError.message);
+    }
+
     res.json({ success: true, message: 'Bandwidth configuration updated' });
   } catch (error) {
     console.error('Update bandwidth config error:', error);
     res.status(500).json({ error: 'Failed to update bandwidth configuration' });
+  }
+});
+
+// Default per-client bandwidth limits (apply to all clients)
+router.put('/bandwidth-per-client-default', authenticateToken, async (req, res) => {
+  try {
+    const {
+      per_client_bandwidth_enabled,
+      per_client_download_limit,
+      per_client_upload_limit
+    } = req.body;
+
+    if (!isValidInteger(per_client_download_limit, 1, 10000000) || !isValidInteger(per_client_upload_limit, 1, 10000000)) {
+      return res.status(400).json({ error: 'Invalid per-client default limits' });
+    }
+
+    try {
+      const result = await db.query('SELECT * FROM network_config WHERE id = 1');
+
+      if (result.rows.length > 0) {
+        await db.query(
+          `UPDATE network_config SET 
+            per_client_bandwidth_enabled = ?,
+            per_client_download_limit = ?,
+            per_client_upload_limit = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE id = 1`,
+          [per_client_bandwidth_enabled ? 1 : 0, per_client_download_limit, per_client_upload_limit]
+        );
+      } else {
+        await db.query(
+          `INSERT INTO network_config (id, per_client_bandwidth_enabled, per_client_download_limit, per_client_upload_limit, updated_at)
+           VALUES (1, ?, ?, ?, CURRENT_TIMESTAMP)`,
+          [per_client_bandwidth_enabled ? 1 : 0, per_client_download_limit, per_client_upload_limit]
+        );
+      }
+    } catch (dbError) {
+      console.log('Database error saving per-client defaults:', dbError.message);
+    }
+
+    // Save to file fallback
+    try {
+      let config = {};
+      try {
+        const configData = await fs.readFile('/tmp/network-config.json', 'utf8');
+        config = JSON.parse(configData);
+      } catch (_) {
+        // ignore
+      }
+
+      config.per_client_bandwidth_enabled = per_client_bandwidth_enabled;
+      config.per_client_download_limit = per_client_download_limit;
+      config.per_client_upload_limit = per_client_upload_limit;
+
+      await fs.writeFile('/tmp/network-config.json', JSON.stringify(config, null, 2));
+    } catch (fileError) {
+      console.error('Failed to save per-client defaults to file:', fileError);
+    }
+
+    // Apply to ALL clients in the database (real-time update)
+    let updatedCount = 0;
+    try {
+      const iface = await getBandwidthInterface();
+      
+      // Update ALL clients in database, not just connected ones
+      if (per_client_bandwidth_enabled) {
+        // Apply limits to all clients
+        const updateResult = await db.query(
+          'UPDATE clients SET upload_limit = $1, download_limit = $2',
+          [per_client_upload_limit, per_client_download_limit]
+        );
+        updatedCount = updateResult.changes || 0;
+        console.log(`[BANDWIDTH] Applied per-client limits to ${updatedCount} clients: Download=${per_client_download_limit}kbps, Upload=${per_client_upload_limit}kbps`);
+        
+        // Apply network shaping to connected clients with IP
+        const connectedClients = await db.query(
+          `SELECT id, ip_address FROM clients 
+           WHERE status = 'CONNECTED' AND time_remaining > 0 AND ip_address IS NOT NULL`
+        );
+        
+        for (const client of connectedClients.rows) {
+          if (!client.ip_address) continue;
+          await applyPerClientBandwidthLimit(iface, client.ip_address, per_client_upload_limit, per_client_download_limit);
+        }
+      } else {
+        // Clear limits from all clients
+        const updateResult = await db.query(
+          'UPDATE clients SET upload_limit = 0, download_limit = 0'
+        );
+        updatedCount = updateResult.changes || 0;
+        console.log(`[BANDWIDTH] Cleared per-client limits from ${updatedCount} clients`);
+        
+        // Clear network shaping from connected clients
+        const connectedClients = await db.query(
+          `SELECT id, ip_address FROM clients 
+           WHERE status = 'CONNECTED' AND ip_address IS NOT NULL`
+        );
+        
+        for (const client of connectedClients.rows) {
+          if (!client.ip_address) continue;
+          await clearPerClientBandwidthLimit(iface, client.ip_address);
+        }
+      }
+    } catch (applyError) {
+      console.warn('Per-client default apply warning:', applyError.message);
+    }
+
+    // Emit real-time update to all admin clients via Socket.IO
+    try {
+      const { io } = require('../../app');
+      io.emit('bandwidth-settings-updated', {
+        type: 'per-client',
+        per_client_bandwidth_enabled,
+        per_client_download_limit,
+        per_client_upload_limit,
+        updated_clients: updatedCount
+      });
+      console.log(`[BANDWIDTH] Emitted real-time per-client bandwidth update to all clients`);
+    } catch (ioError) {
+      console.warn('Socket.IO emit warning:', ioError.message);
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Per-client default limits updated for ${updatedCount} clients`,
+      updated_clients: updatedCount
+    });
+  } catch (error) {
+    console.error('Update per-client default error:', error);
+    res.status(500).json({ error: 'Failed to update per-client defaults' });
+  }
+});
+
+// Per-client bandwidth limit
+router.post('/bandwidth-client', authenticateToken, async (req, res) => {
+  try {
+    const { clientId, ipAddress, uploadLimit, downloadLimit, enabled = true } = req.body;
+
+    if (!ipAddress || !isValidIPv4(ipAddress)) {
+      return res.status(400).json({ error: 'Valid ipAddress is required' });
+    }
+
+    if (enabled && (!isValidInteger(uploadLimit, 1, 10000000) || !isValidInteger(downloadLimit, 1, 10000000))) {
+      return res.status(400).json({ error: 'Invalid per-client bandwidth limits' });
+    }
+
+    const iface = await getBandwidthInterface();
+
+    if (enabled) {
+      await applyPerClientBandwidthLimit(iface, ipAddress, uploadLimit, downloadLimit);
+    } else {
+      await clearPerClientBandwidthLimit(iface, ipAddress);
+    }
+
+    // Persist to clients table if clientId provided
+    if (clientId) {
+      await db.query(
+        'UPDATE clients SET upload_limit = $1, download_limit = $2 WHERE id = $3',
+        [enabled ? uploadLimit : 0, enabled ? downloadLimit : 0, clientId]
+      );
+    }
+
+    res.json({ success: true, message: 'Per-client bandwidth updated' });
+  } catch (error) {
+    console.error('Per-client bandwidth error:', error);
+    res.status(500).json({ error: 'Failed to update per-client bandwidth' });
   }
 });
 

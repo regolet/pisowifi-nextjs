@@ -9,6 +9,7 @@ const compression = require('compression');
 const morgan = require('morgan');
 const { securityHeaders, secureErrorHandler, authenticateAPI } = require('./middleware/security');
 const { isValidIPv4 } = require('./utils/validators');
+const { logSystemEvent } = require('./utils/system-logger');
 
 const app = express();
 const server = http.createServer(app);
@@ -333,6 +334,7 @@ const HOST = '0.0.0.0'; // Listen on all interfaces
 
 server.listen(PORT, HOST, async () => {
   console.log(`🚀 PISOWifi Express server running on ${HOST}:${PORT}`);
+  logSystemEvent('info', `Server started on ${HOST}:${PORT}`, 'system');
   console.log(`📡 Portal accessible at:`);
   console.log(`   - http://localhost:${PORT}/portal`);
   console.log(`   - http://10.0.0.1/portal`);
@@ -347,9 +349,11 @@ server.listen(PORT, HOST, async () => {
       console.log('✅ Network stack initialized: Captive portal ready');
     } else {
       console.log('⚠️ Network initialization warning:', result.error);
+      logSystemEvent('warn', `Network initialization warning: ${result.error}`, 'network');
     }
   } catch (error) {
     console.log('⚠️ Network manager not available:', error.message);
+    logSystemEvent('warn', `Network manager not available: ${error.message}`, 'network');
   }
 
   // Initialize DNS interceptor for captive portal (optional)
@@ -364,6 +368,46 @@ server.listen(PORT, HOST, async () => {
     } catch (error) {
       console.log('⚠️ DNS Interceptor not available:', error.message);
     }
+  }
+
+  // Auto-reconnect WAN on boot (DHCP or PPPoE)
+  try {
+    const { exec } = require('child_process');
+    const { promisify } = require('util');
+    const execAsync = promisify(exec);
+    const db = require('./db/sqlite-adapter');
+
+    const result = await db.query('SELECT wan_mode, wan_interface FROM network_config WHERE id = 1');
+    const wanMode = result.rows.length > 0 ? result.rows[0].wan_mode || 'dhcp' : 'dhcp';
+    const wanInterface = result.rows.length > 0 ? result.rows[0].wan_interface || 'eth0' : 'eth0';
+
+    if (wanMode === 'pppoe') {
+      await execAsync('sudo poff pisowifi-wan 2>/dev/null || true');
+      await execAsync('sudo pon pisowifi-wan');
+      console.log('✅ WAN PPPoE reconnected on boot');
+    } else {
+      await execAsync(`sudo dhclient -r ${wanInterface} 2>/dev/null || true`);
+      await execAsync(`sudo dhclient ${wanInterface}`);
+      console.log('✅ WAN DHCP lease renewed on boot');
+    }
+  } catch (error) {
+    console.log('⚠️ WAN auto-reconnect skipped:', error.message);
+  }
+
+  // Initialize TTL detection (anti-tethering)
+  try {
+    const ttlDetector = require('./services/ttl-detector');
+    await ttlDetector.initialize();
+
+    const ttlInterface = process.env.TTL_INTERFACE || 'wlan0';
+    if (ttlDetector.enabled) {
+      await ttlDetector.startTrafficMonitoring(ttlInterface);
+      console.log(`✅ TTL monitoring started on ${ttlInterface}`);
+    } else {
+      console.log('ℹ️ TTL monitoring is disabled (enable in settings)');
+    }
+  } catch (error) {
+    console.log('⚠️ TTL detector not available:', error.message);
   }
 
   // Start time countdown system for authenticated clients
@@ -387,16 +431,35 @@ function startTimeCountdownSystem() {
       // Get portal settings to check if auto-pause is enabled
       const settingsResult = await db.query('SELECT auto_pause_on_disconnect FROM portal_settings WHERE id = 1');
       const autoPauseEnabled = settingsResult.rows.length > 0 && settingsResult.rows[0].auto_pause_on_disconnect === 1;
+      const autoResumeEnabled = settingsResult.rows.length > 0 && settingsResult.rows[0].auto_resume_on_pause === 1;
+      const pauseResumeMinutes = settingsResult.rows.length > 0 ? (settingsResult.rows[0].pause_resume_minutes || 0) : 0;
 
       // If auto-pause is enabled, check for disconnected clients and pause them
       if (autoPauseEnabled) {
         // Find clients that haven't been seen for 30 seconds (likely disconnected)
         await db.query(`
           UPDATE clients 
-          SET status = 'PAUSED'
+          SET status = 'PAUSED',
+              paused_until = CASE 
+                WHEN $1 > 0 THEN datetime('now', '+' || $1 || ' minutes')
+                ELSE NULL
+              END
           WHERE status = 'CONNECTED' 
           AND time_remaining > 0
           AND (julianday('now') - julianday(last_seen)) * 86400 > 30
+        `, [autoResumeEnabled ? pauseResumeMinutes : 0]);
+      }
+
+      // Auto-resume paused clients when timer expires
+      if (autoResumeEnabled && pauseResumeMinutes > 0) {
+        await db.query(`
+          UPDATE clients
+          SET status = 'CONNECTED',
+              paused_until = NULL,
+              last_seen = CURRENT_TIMESTAMP
+          WHERE status = 'PAUSED'
+          AND paused_until IS NOT NULL
+          AND paused_until <= datetime('now')
         `);
       }
 
@@ -562,5 +625,13 @@ async function cleanupDisconnectedDevices() {
     console.error('Auto-cleanup error:', error.message);
   }
 }
+
+// Error handler (log + secure response)
+app.use((err, req, res, next) => {
+  logSystemEvent('error', `${req.method} ${req.originalUrl} - ${err.message}`, 'http', {
+    stack: err.stack
+  });
+  secureErrorHandler(err, req, res, next);
+});
 
 module.exports = { app, io };

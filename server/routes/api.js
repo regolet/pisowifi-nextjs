@@ -6,19 +6,25 @@ router.use('/clients', require('./api/clients'));
 router.use('/settings', require('./api/settings'));
 router.use('/network', require('./api/network'));
 router.use('/coin-slots', require('./api/coin-slots'));
+router.use('/sensor-adjustments', require('./api/sensor-adjustments'));
 router.use('/transactions', require('./api/transactions'));
 router.use('/device', require('./api/device'));
+router.use('/ttl', require('./api/ttl'));
+router.use('/logs', require('./api/logs'));
 
 // Keep existing general API routes
 const { exec } = require('child_process');
 const { promisify } = require('util');
+const path = require('path');
 const db = require('../db/sqlite-adapter');
-const { isValidMacAddress, sanitizeMacAddress } = require('../utils/validators');
+const { authenticateAPI } = require('../middleware/security');
+const { isValidMacAddress, sanitizeMacAddress, isValidIPv4, isValidDuration } = require('../utils/validators');
 
 const execAsync = promisify(exec);
+const scriptsPath = path.join(__dirname, '../../scripts');
 
 // Client authentication endpoint
-router.post('/clients/authenticate', async (req, res) => {
+router.post('/clients/authenticate', authenticateAPI, async (req, res) => {
   try {
     const { macAddress, ipAddress, sessionDuration } = req.body;
 
@@ -29,6 +35,14 @@ router.post('/clients/authenticate', async (req, res) => {
     // SECURITY: Validate MAC address format to prevent command injection
     if (!isValidMacAddress(macAddress)) {
       return res.status(400).json({ error: 'Invalid MAC address format' });
+    }
+
+    if (ipAddress && !isValidIPv4(ipAddress)) {
+      return res.status(400).json({ error: 'Invalid IP address format' });
+    }
+
+    if (sessionDuration !== undefined && !isValidDuration(sessionDuration)) {
+      return res.status(400).json({ error: 'Invalid session duration (1-86400 seconds)' });
     }
 
     // Find or create client
@@ -62,7 +76,7 @@ router.post('/clients/authenticate', async (req, res) => {
     try {
       // SECURITY: MAC address already validated, sanitize again before shell execution
       const safeMac = sanitizeMacAddress(macAddress);
-      await execAsync(`pisowifi-allow-client ${safeMac}`);
+      await execAsync(`sudo ${scriptsPath}/pisowifi-allow-client ${safeMac}`);
 
       // Log successful authentication
       await db.query(
@@ -103,7 +117,7 @@ router.post('/clients/authenticate', async (req, res) => {
 });
 
 // Client disconnect endpoint
-router.post('/clients/disconnect', async (req, res) => {
+router.post('/clients/disconnect', authenticateAPI, async (req, res) => {
   try {
     const { macAddress } = req.body;
 
@@ -123,7 +137,7 @@ router.post('/clients/disconnect', async (req, res) => {
     try {
       // SECURITY: MAC address already validated, sanitize again before shell execution
       const safeMac = sanitizeMacAddress(macAddress);
-      await execAsync(`pisowifi-block-client ${safeMac}`);
+      await execAsync(`sudo ${scriptsPath}/pisowifi-block-client ${safeMac}`);
     } catch (iptablesError) {
       console.error('Failed to block client:', iptablesError);
     }
@@ -137,7 +151,7 @@ router.post('/clients/disconnect', async (req, res) => {
 });
 
 // Get clients
-router.get('/clients', async (req, res) => {
+router.get('/clients', authenticateAPI, async (req, res) => {
   try {
     const result = await db.query('SELECT * FROM clients ORDER BY last_seen DESC');
     res.json(result.rows);
@@ -159,7 +173,7 @@ router.get('/rates', async (req, res) => {
 });
 
 // Get all rates (admin endpoint)
-router.get('/rates/all', async (req, res) => {
+router.get('/rates/all', authenticateAPI, async (req, res) => {
   try {
     const result = await db.query('SELECT * FROM rates ORDER BY duration');
     res.json(result.rows);

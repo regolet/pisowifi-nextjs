@@ -5,6 +5,7 @@ const { promisify } = require('util');
 const UAParser = require('ua-parser-js');
 const NetworkManager = require('../../services/network-manager');
 const db = require('../../db/sqlite-adapter');
+const ttlDetector = require('../../services/ttl-detector');
 const { authenticateAPI, apiLimiter } = require('../../middleware/security');
 const { isValidMacAddress, sanitizeMacAddress, isValidInteger, validateClientData } = require('../../utils/validators');
 
@@ -17,10 +18,46 @@ const authenticateToken = authenticateAPI;
 // Get all clients with sessions and real-time data - NOW PROTECTED
 router.get('/', authenticateToken, async (req, res) => {
   try {
+    // Get per-client bandwidth defaults from network_config
+    let perClientDefaults = { enabled: false, download_limit: 0, upload_limit: 0 };
+    try {
+      const networkConfig = await db.query('SELECT * FROM network_config WHERE id = 1');
+      if (networkConfig.rows.length > 0) {
+        const config = networkConfig.rows[0];
+        perClientDefaults = {
+          enabled: !!config.per_client_bandwidth_enabled,
+          download_limit: config.per_client_download_limit || 0,
+          upload_limit: config.per_client_upload_limit || 0
+        };
+      }
+    } catch (configError) {
+      console.warn('Failed to load per-client bandwidth defaults:', configError.message);
+    }
+
     // Get clients from database
     const dbClients = await db.query(
       `SELECT 
-        c.*,
+        c.id,
+        c.mac_address,
+        c.ip_address,
+        c.device_name,
+        c.device_type,
+        c.os,
+        c.browser,
+        c.user_agent,
+        c.platform,
+        c.language,
+        c.screen_resolution,
+        c.timezone,
+        c.status,
+        c.time_remaining,
+        c.paused_until,
+        c.total_amount_paid,
+        c.session_start,
+        c.created_at,
+        c.last_seen,
+        c.upload_limit,
+        c.download_limit,
         s.id as session_id,
         s.duration as session_duration,
         s.status as session_status,
@@ -42,6 +79,15 @@ router.get('/', authenticateToken, async (req, res) => {
     const mergedClients = dbClients.rows.map(client => {
       const networkClient = connectedClients.find(nc => nc.mac_address === client.mac_address);
 
+      // Apply per-client defaults if client's limits are 0 and defaults are enabled
+      let effectiveDownloadLimit = client.download_limit || 0;
+      let effectiveUploadLimit = client.upload_limit || 0;
+      
+      if (perClientDefaults.enabled) {
+        if (!effectiveDownloadLimit) effectiveDownloadLimit = perClientDefaults.download_limit;
+        if (!effectiveUploadLimit) effectiveUploadLimit = perClientDefaults.upload_limit;
+      }
+
       const merged = {
         ...client,
         // Update online status based on network data
@@ -50,7 +96,10 @@ router.get('/', authenticateToken, async (req, res) => {
         // Use time_remaining directly from database (it's already being decremented by the countdown system)
         time_remaining: client.time_remaining || 0,
         // Keep original session status
-        session_status: client.session_status
+        session_status: client.session_status,
+        // Use effective limits (includes defaults if not set)
+        download_limit: effectiveDownloadLimit,
+        upload_limit: effectiveUploadLimit
       };
 
       // Additional debug logging for authenticated clients
@@ -282,6 +331,17 @@ router.post('/:id/authenticate', authenticateToken, async (req, res) => {
       } catch (scriptError) {
         console.warn('Allow script failed:', scriptError.message);
       }
+
+      // Initialize TTL detection baseline for this client
+      // Use default OS TTL values if not provided: Linux/macOS=64, Windows=128
+      const defaultTTL = 64; // Most common default
+      try {
+        await ttlDetector.initialize();
+        await ttlDetector.establishBaseline(client.mac_address, defaultTTL);
+      } catch (ttlError) {
+        console.warn('TTL baseline establishment failed:', ttlError.message);
+        // Don't fail the authentication if TTL setup fails
+      }
     } else {
       // If NetworkManager auth failed, revert database changes
       await db.query('UPDATE clients SET status = $1 WHERE id = $2', ['DISCONNECTED', id]);
@@ -422,7 +482,13 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       // Block client before deletion
       try {
         await networkManager.deauthenticateClient(client.mac_address);
-        await execAsync(`sudo ${__dirname}/../../../scripts/pisowifi-block-client ${client.mac_address}`);
+        // SECURITY: Validate MAC address before shell execution
+        if (isValidMacAddress(client.mac_address)) {
+          const safeMac = sanitizeMacAddress(client.mac_address);
+          await execAsync(`sudo ${__dirname}/../../../scripts/pisowifi-block-client ${safeMac}`);
+        } else {
+          console.warn('Invalid MAC address format, skipping block script');
+        }
       } catch (err) {
         console.error('iptables error:', err);
       }
@@ -441,13 +507,19 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 });
 
 // Get client device information from User-Agent
-router.post('/device-info', async (req, res) => {
+router.post('/device-info', authenticateToken, async (req, res) => {
   try {
     const { userAgent, macAddress } = req.body;
 
     if (!userAgent || !macAddress) {
       return res.status(400).json({ error: 'User agent and MAC address required' });
     }
+
+    if (!isValidMacAddress(macAddress)) {
+      return res.status(400).json({ error: 'Invalid MAC address format' });
+    }
+
+    const safeMac = sanitizeMacAddress(macAddress);
 
     const parser = new UAParser(userAgent);
     const result = parser.getResult();
@@ -464,10 +536,10 @@ router.post('/device-info', async (req, res) => {
           `${result.os.name || 'Unknown'} ${result.os.version || ''}`.trim(),
           `${result.browser.name || 'Unknown'} ${result.browser.version || ''}`.trim(),
           userAgent,
-          macAddress.toUpperCase()
+          safeMac
         ]
       );
-      console.log(`Device info updated for MAC: ${macAddress}`);
+      console.log(`Device info updated for MAC: ${safeMac}`);
     } catch (dbError) {
       console.warn('Failed to update device info in database:', dbError.message);
     }
@@ -774,6 +846,58 @@ router.get('/debug-db', authenticateToken, async (req, res) => {
   }
 });
 
+// Update client time remaining (for admin edit time feature)
+router.post('/:id/update-time', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { time } = req.body; // time in seconds
+
+    // Validate time input
+    if (typeof time !== 'number' || time < 0 || !Number.isFinite(time)) {
+      return res.status(400).json({ error: 'Invalid time value. Must be a positive number.' });
+    }
+
+    // Get client from database
+    const clientResult = await db.query('SELECT * FROM clients WHERE id = $1', [id]);
+    if (clientResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    const client = clientResult.rows[0];
+    const newTime = Math.floor(time);
+
+    // Update client time_remaining in database
+    await db.query(
+      'UPDATE clients SET time_remaining = $1, last_seen = CURRENT_TIMESTAMP WHERE id = $2',
+      [newTime, id]
+    );
+
+    // If client is connected, update the active session as well
+    if (client.status === 'CONNECTED') {
+      await db.query(
+        'UPDATE sessions SET duration = $1 WHERE client_id = $2 AND status = $3',
+        [newTime, id, 'ACTIVE']
+      );
+    }
+
+    // Log the action
+    await db.query(
+      'INSERT INTO system_logs (level, message, category, metadata) VALUES ($1, $2, $3, $4)',
+      ['INFO', `Client time updated: ${client.mac_address} to ${newTime} seconds`, 'admin',
+        JSON.stringify({ admin: req.user?.username, old_time: client.time_remaining, new_time: newTime, client_id: id })]
+    );
+
+    res.json({
+      success: true,
+      message: 'Client time updated successfully',
+      time_remaining: newTime
+    });
+  } catch (error) {
+    console.error('Update client time error:', error);
+    res.status(500).json({ error: 'Failed to update time: ' + error.message });
+  }
+});
+
 // Helper function to get MAC vendor
 async function getMacVendor(macAddress) {
   try {
@@ -815,5 +939,85 @@ async function getMacVendor(macAddress) {
     return 'Unknown Vendor';
   }
 }
+
+// Set bandwidth limits for a client
+router.post('/:id/set-bandwidth', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { upload_limit, download_limit } = req.body;
+
+    // Validate inputs
+    if (upload_limit !== undefined && !isValidInteger(upload_limit)) {
+      return res.status(400).json({ error: 'Invalid upload limit' });
+    }
+    if (download_limit !== undefined && !isValidInteger(download_limit)) {
+      return res.status(400).json({ error: 'Invalid download limit' });
+    }
+
+    // Update client bandwidth limits
+    const updateFields = [];
+    const updateValues = [];
+
+    if (upload_limit !== undefined) {
+      updateFields.push('upload_limit = $1');
+      updateValues.push(upload_limit);
+    }
+    if (download_limit !== undefined) {
+      updateFields.push(`download_limit = $${updateFields.length + 1}`);
+      updateValues.push(download_limit);
+    }
+
+    updateValues.push(id);
+
+    const result = await db.query(
+      `UPDATE clients SET ${updateFields.join(', ')} WHERE id = $${updateFields.length + 1}`,
+      updateValues
+    );
+
+    console.log(`[BANDWIDTH] Set limits for client ${id}: Upload=${upload_limit}Mbps, Download=${download_limit}Mbps`);
+
+    res.json({
+      success: true,
+      message: 'Bandwidth limits updated successfully',
+      upload_limit,
+      download_limit
+    });
+  } catch (error) {
+    console.error('Set bandwidth error:', error);
+    res.status(500).json({ error: 'Failed to set bandwidth limits' });
+  }
+});
+
+// Get global bandwidth settings
+router.get('/settings/bandwidth', authenticateToken, async (req, res) => {
+  try {
+    const networkConfig = await db.query(
+      `SELECT 
+        bandwidth_enabled,
+        bandwidth_download_limit,
+        bandwidth_upload_limit,
+        per_client_bandwidth_enabled,
+        per_client_download_limit,
+        per_client_upload_limit
+      FROM network_config WHERE id = 1`
+    );
+
+    if (networkConfig.rows.length === 0) {
+      return res.json({
+        bandwidth_enabled: false,
+        bandwidth_download_limit: 10,
+        bandwidth_upload_limit: 5,
+        per_client_bandwidth_enabled: false,
+        per_client_download_limit: 2048,
+        per_client_upload_limit: 1024
+      });
+    }
+
+    res.json(networkConfig.rows[0]);
+  } catch (error) {
+    console.error('Get bandwidth settings error:', error);
+    res.status(500).json({ error: 'Failed to get bandwidth settings' });
+  }
+});
 
 module.exports = router;

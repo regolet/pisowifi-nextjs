@@ -35,6 +35,9 @@ const CONFIG = {
 // State management
 let gpioState = {
   available: false,
+// Valid coin values (Standard Philippine Coins + Dynamic Rates)
+let validCoinValues = [1, 5, 10, 20]; // Defaults
+
   library: null,
   coinPin: null,
   ledPin: null,
@@ -59,7 +62,11 @@ app.use((req, res, next) => {
  */
 async function initializeGPIO() {
   console.log('🔧 Initializing GPIO...');
-  
+  if (db && typeof db.query === 'function') {
+      await updateCoinRates();
+    }
+    
+    
   try {
     // Check if we're on Orange Pi with OPi.GPIO
     const gpioTest = spawn('python3', ['-c', 'import OPi.GPIO as GPIO; print("OPi_GPIO_OK")'], {
@@ -96,7 +103,29 @@ async function initializeGPIO() {
       }
     }, 3000);
 
+  }Fetch active coin rates from database to support "Smart Pulse Adjustment"
+ */
+async function updateCoinRates() {
+  if (!db) return;
+  
+  try {
+    console.log('🔄 Fetching active coin rates for pulse calibration...');
+    const result = await db.query('SELECT DISTINCT price FROM rates WHERE is_active = true');
+    
+    // Merge standard coins with any custom rate prices (treating price as potential pulse count)
+    const dbRates = result.rows.map(r => Math.round(parseFloat(r.price)));
+    const allRates = new Set([...validCoinValues, ...dbRates]);
+    
+    validCoinValues = Array.from(allRates).sort((a, b) => a - b);
+    console.log('✅ Calibrated Coin Values:', validCoinValues);
+    
   } catch (error) {
+    console.warn('⚠️ Failed to update coin rates:', error.message);
+  }
+}
+
+/**
+ *  catch (error) {
     console.error('❌ GPIO initialization error:', error);
     setupMockGPIO();
   }
@@ -194,32 +223,41 @@ import OPi.GPIO as GPIO
 import time
 import json
 import sys
-
-def monitor_coin():
-    last_state = GPIO.HIGH
-    coin_count = 0
-    
-    while True:
-        try:
-            current_state = GPIO.input(${CONFIG.COIN_PIN})
-            
-            # Detect falling edge (coin inserted)
-            if last_state == GPIO.HIGH and current_state == GPIO.LOW:
-                time.sleep(0.05)  # Debounce
-                if GPIO.input(${CONFIG.COIN_PIN}) == GPIO.LOW:
-                    coin_count += 1
-                    # Pulse LED
+Send raw pulse batch to Node.js for Smart Processing
+                print(json.dumps({
+                    "type": "pulse_batch",
+                    "timestamp": now,
+                    "count LED immediately for visual feedback
                     GPIO.output(${CONFIG.LED_PIN}, True)
-                    time.sleep(0.2)
+                    time.sleep(0.05) # Short blink
                     GPIO.output(${CONFIG.LED_PIN}, False)
-                    
-                    # Send coin detection event
-                    print(json.dumps({
-                        "type": "coin_detected",
-                        "timestamp": time.time(),
-                        "count": coin_count
-                    }))
-                    sys.stdout.flush()
+            
+            # Check if pulse batch is complete
+            if pulse_count > 0 and (now - last_pulse_time) > BATCH_TIMEOUT:
+                # Analyze pulse count and determine value
+                final_value = pulse_count # Default 1 pulse = 1 peso
+                
+                # Smart correction logic (The "Coin Rate" adjustment)
+                if pulse_count == 4:
+                    final_value = 5 # Fix 4 pulses -> 5 pesos
+                elif pulse_count == 5:
+                    final_value = 5
+                elif pulse_count >= 9 and pulse_count <= 10:
+                    final_value = 10
+                elif pulse_count >= 19 and pulse_count <= 20:
+                    final_value = 20
+                
+                # Send processed coin event
+                print(json.dumps({
+                    "type": "coin_detected",
+                    "timestamp": now,
+                    "count": 1, 
+                    "value": final_value,
+                    "pulses": pulse_count
+                }))
+                sys.stdout.flush()
+                
+                pulse_count = 0 
             
             last_state = current_state
             time.sleep(0.01)  # 10ms loop
@@ -232,12 +270,23 @@ def monitor_coin():
             time.sleep(1)
 
 if __name__ == "__main__":
-    monitor_coin()
-`;
-
-  fs.writeFileSync('/tmp/coin_monitor.py', monitorScript);
-  
-  const monitor = spawn('python3', ['/tmp/coin_monitor.py'], {
+    monitor_output = data.toString().trim();
+      // Handle multiple JSON objects in one chunk
+      const lines = output.split('\n');
+      
+      lines.forEach(line => {
+        if (!line) return;
+        try {
+          const event = JSON.parse(line);
+          if (event.type === 'pulse_batch' || event.type === 'coin_detected') {
+            handleCoinDetection(event);
+          }
+        } catch (parseErr) {
+           // ignore partial lines
+        }
+      });
+    } catch (e) {
+      console.log('Monitor output error, ['/tmp/coin_monitor.py'], {
     stdio: ['pipe', 'pipe', 'pipe']
   });
 
@@ -270,23 +319,52 @@ if __name__ == "__main__":
 function handleCoinDetection(event = {}) {
   const now = Date.now();
   
-  // Debounce coin detection
-  if (now - gpioState.lastCoinTime < CONFIG.DEBOUNCE_TIME) {
-    return;
+  let pulses = event.count || 1;
+  let finalValue = pulses;
+  let detectionType = 'raw';
+  let adjustmentApplied = false;
+
+  // 1. Check User-Defined Rules FIRST (Override Everything)
+  if (pulseAdjustments.length > 0) {
+    const rule = pulseAdjustments.find(r => r.pulse_count === pulses);
+    if (rule) {
+      finalValue = parseFloat(rule.actual_value);
+      detectionType = 'calibrated';
+      adjustmentApplied = true;
+      console.log(`🔧 Rule Applied: ${pulses} pulses -> ₱${finalValue} (${rule.note})`);
+    }
+  }
+
+  // 2. Strict Coin Matching (Fallback if no user rule)
+  if (!adjustmentApplied) {
+    if (STANDARD_COINS.includes(pulses)) {
+      finalValue = pulses;
+      detectionType = 'exact';
+    } else {
+       // Only default/raw if no rule exists
+       // For strict safety, you might want to IGNORE unknown pulses?
+       // user requested: "what if credit is 2,3,4...?" -> user should define rule.
+       // But we keep raw as last resort.
+       finalValue = pulses;
+       detectionType = 'raw';
+    }
   }
   
   gpioState.lastCoinTime = now;
-  gpioState.coinCount++;
+  gpioState.coinCount++; 
   
   const coinEvent = {
     type: 'coin_detected',
     timestamp: now,
     count: gpioState.coinCount,
+    value: finalValue,   
+    pulses: pulses,      
+    method: detectionType,
     pin: CONFIG.COIN_PIN,
     library: gpioState.library
   };
   
-  console.log('🪙 Coin detected!', coinEvent);
+  console.log(`🪙 Coin processed: ₱${finalValue} (Raw: ${pulses}, Method: ${detectionType})`);
   
   // Broadcast to all connected WebSocket clients
   io.emit('coin_detected', coinEvent);

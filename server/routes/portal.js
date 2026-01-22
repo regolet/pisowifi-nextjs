@@ -16,6 +16,29 @@ function generateSessionToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+// Helper: get preferred network interface for neighbor table lookup
+async function getNeighborInterface() {
+  try {
+    const result = await db.query('SELECT interface FROM network_settings WHERE id = 1');
+    if (result.rows.length > 0 && result.rows[0].interface) {
+      return result.rows[0].interface;
+    }
+  } catch (_) {
+    // ignore
+  }
+
+  try {
+    const result = await db.query('SELECT wifi_interface FROM network_config WHERE id = 1');
+    if (result.rows.length > 0 && result.rows[0].wifi_interface) {
+      return result.rows[0].wifi_interface;
+    }
+  } catch (_) {
+    // ignore
+  }
+
+  return process.env.PISOWIFI_INTERFACE || 'wlan0';
+}
+
 // Helper function to find client by session token, IP, or MAC (with fallback)
 async function findClientByIdentifiers(sessionToken, clientIP, detectedMac) {
   let client = null;
@@ -155,7 +178,8 @@ router.get('/', async (req, res) => {
 
       // Try getting MAC from ethernet interface neighbor table
       if (!detectedMac) {
-        const { stdout: neighborOutput } = await execAsync(`ip neighbor show dev enx00e04c68276e 2>/dev/null || echo ""`);
+        const neighborInterface = await getNeighborInterface();
+        const { stdout: neighborOutput } = await execAsync(`ip neighbor show dev ${neighborInterface} 2>/dev/null || echo ""`);
         const neighborLines = neighborOutput.split('\n');
         for (const line of neighborLines) {
           if (line.includes(clientIP)) {
@@ -514,7 +538,25 @@ router.post('/connect', async (req, res) => {
 
     const clientId = clientResult.rows[0].id;
     console.log('Client record created with ID:', clientId);
-
+    // Apply per-client bandwidth defaults from network_config
+    console.log('Step 4.5: Applying per-client bandwidth defaults...');
+    try {
+      const networkConfig = await db.query('SELECT * FROM network_config WHERE id = 1');
+      if (networkConfig.rows.length > 0) {
+        const config = networkConfig.rows[0];
+        if (config.per_client_bandwidth_enabled) {
+          const downloadLimit = config.per_client_download_limit || 0;
+          const uploadLimit = config.per_client_upload_limit || 0;
+          await db.query(
+            'UPDATE clients SET download_limit = $1, upload_limit = $2 WHERE id = $3',
+            [downloadLimit, uploadLimit, clientId]
+          );
+          console.log(`Applied bandwidth limits to client ${clientId}: Download=${downloadLimit}kbps, Upload=${uploadLimit}kbps`);
+        }
+      }
+    } catch (bwError) {
+      console.warn('Failed to apply per-client bandwidth defaults:', bwError.message);
+    }
     console.log('Step 5: Creating session record...');
     // Create session record with session_token
     const sessionResult = await db.query(
@@ -792,11 +834,21 @@ router.get('/test', async (req, res) => {
       clientIP = clientIP.split(':')[0];
     }
 
-    res.render('captive-test', {
-      clientIP: clientIP,
-      serverHost: req.headers.host,
-      req: req
-    });
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    res.send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PISOWifi Captive Test</title>
+  </head>
+  <body>
+    <h1>PISOWifi Captive Test</h1>
+    <p><strong>Client IP:</strong> ${clientIP || 'unknown'}</p>
+    <p><strong>Server Host:</strong> ${req.headers.host || 'unknown'}</p>
+    <p>This endpoint is for diagnostics only.</p>
+  </body>
+</html>`);
   } catch (error) {
     console.error('Captive test page error:', error);
     res.status(500).send('Test page error: ' + error.message);

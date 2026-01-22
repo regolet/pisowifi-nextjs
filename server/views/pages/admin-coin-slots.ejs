@@ -77,6 +77,11 @@
                             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"></path></svg>
                             Cleanup
                         </button>
+                        <button onclick="resetAllSlots()"
+                            class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                            Reset All Slots
+                        </button>
                     </div>
                 </div>
 
@@ -712,6 +717,29 @@
                 } catch (error) {
                     console.error('Cleanup error:', error);
                     showNotification('Cleanup failed', 'error');
+                }
+            }
+
+            async function resetAllSlots() {
+                if (!confirm('Reset ALL coin slots to available? This will force-release any claimed slots.')) return;
+
+                try {
+                    const response = await fetch('/api/coin-slots/reset-all', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        showNotification(data.message || 'All coin slots reset to available', 'success');
+                        refreshData();
+                    } else {
+                        showNotification(`Reset failed: ${data.error}`, 'error');
+                    }
+                } catch (error) {
+                    console.error('Reset error:', error);
+                    showNotification('Reset failed', 'error');
                 }
             }
 

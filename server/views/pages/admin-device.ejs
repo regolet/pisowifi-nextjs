@@ -259,6 +259,29 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Maintenance & Reboot -->
+            <div class="bg-gray-50 border border-gray-300 rounded-lg mt-6">
+                <div class="px-4 py-3 border-b border-gray-300">
+                    <h2 class="text-sm font-semibold text-black">Maintenance</h2>
+                </div>
+                <div class="p-4 space-y-4">
+                    <div class="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800">
+                        Reboot will disconnect all clients. Use only during maintenance.
+                    </div>
+                    <div class="flex flex-col md:flex-row gap-3">
+                        <input type="datetime-local" id="reboot_at"
+                            class="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-black text-sm">
+                        <button type="button" onclick="scheduleReboot()"
+                            class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm">Schedule Reboot</button>
+                        <button type="button" onclick="cancelReboot()"
+                            class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm">Cancel Schedule</button>
+                        <button type="button" onclick="rebootNow()"
+                            class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm">Reboot Now</button>
+                    </div>
+                    <div class="text-xs text-gray-600" id="reboot-status">No scheduled reboot</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -399,6 +422,63 @@
                     icon.classList.remove('animate-spin');
                 }, 500);
             });
+        }
+
+        async function scheduleReboot() {
+            const when = document.getElementById('reboot_at').value;
+            if (!when) {
+                alert('Please select date & time');
+                return;
+            }
+            try {
+                const res = await fetch('/api/device/reboot/schedule', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ at: when })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('reboot-status').textContent = `Scheduled: ${data.scheduled_at}`;
+                } else {
+                    alert(data.error || 'Failed to schedule reboot');
+                }
+            } catch (e) {
+                alert('Failed to schedule reboot');
+            }
+        }
+
+        async function cancelReboot() {
+            try {
+                const res = await fetch('/api/device/reboot/cancel', {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('reboot-status').textContent = 'No scheduled reboot';
+                } else {
+                    alert(data.error || 'Failed to cancel reboot');
+                }
+            } catch (e) {
+                alert('Failed to cancel reboot');
+            }
+        }
+
+        async function rebootNow() {
+            if (!confirm('Reboot now? This will disconnect all clients.')) return;
+            try {
+                const res = await fetch('/api/device/reboot/now', {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    alert(data.error || 'Failed to reboot');
+                }
+            } catch (e) {
+                alert('Failed to reboot');
+            }
         }
 
         // Load on page load
